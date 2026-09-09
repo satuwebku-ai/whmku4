@@ -102,6 +102,19 @@ class Domain extends Model
     }
 
     /**
+     * Perpanjangan domain dibuka maksimal 30 hari sebelum expiry.
+     * Batas ini berlaku untuk tombol manual maupun invoice otomatis.
+     */
+    public function isWithinRenewalWindow(int $daysBefore = 30): bool
+    {
+        if (! $this->expiry_date) {
+            return false;
+        }
+
+        return $this->expiry_date->lessThanOrEqualTo(now()->addDays($daysBefore));
+    }
+
+    /**
      * Buat invoice perpanjangan untuk domain ini. Sama seperti
      * HostingAccount::createRenewalInvoice() — dipakai baik oleh
      * perintah terjadwal maupun tombol "Perpanjang Sekarang" klien.

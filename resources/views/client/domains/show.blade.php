@@ -11,7 +11,7 @@
   <div class="d-flex align-items-center justify-content-between mt-2 mb-4 flex-wrap gap-3">
     <h1 class="h4 fw-bold text-dark mb-0">{{ $domain->domain_name }}</h1>
     <div class="d-flex align-items-center gap-2">
-      @if ($domain->status === 'active' && ! $domain->renewal_invoice_id)
+      @if ($domain->status === 'active' && $domain->isWithinRenewalWindow() && ! $domain->renewal_invoice_id)
         <form method="POST" action="{{ route('client.domains.renew-now', $domain) }}"
               data-confirm="Buat invoice perpanjangan sekarang untuk {{ $domain->domain_name }}? Masa aktif akan bertambah dari tanggal kedaluwarsa saat ini ({{ $domain->expiry_date->format('d M Y') }}) setelah invoice ini dibayar — bukan dari hari ini."
               data-confirm-title="Perpanjang Sekarang" data-confirm-style="info" data-confirm-label="Ya, Buat Invoice">
@@ -44,12 +44,13 @@
     </div>
   @endif
 
-  {{-- Cuma tampil kalau invoicenya BELUM lunas. Sebelumnya notif ini
-       tampil terus selamanya begitu renewal_invoice_id terisi, bahkan
-       setelah klien sudah bayar -- karena kolom itu memang tidak pernah
-       dikosongkan lagi setelah lunas (dan memang tidak seharusnya,
-       supaya riwayat invoice perpanjangan tetap tertaut). --}}
-  @if ($domain->renewal_invoice_id && $domain->renewalInvoice && $domain->renewalInvoice->status !== 'paid')
+  {{-- Invoice renewal hanya ditampilkan kalau domain aktif dan invoice
+       memang masih bisa dibayar. Invoice cancelled tidak boleh tampil
+       sebagai tagihan aktif. --}}
+  @if ($domain->status === 'active'
+      && $domain->renewal_invoice_id
+      && $domain->renewalInvoice
+      && in_array($domain->renewalInvoice->status, ['unpaid', 'overdue'], true))
     <div class="card-public p-4 mb-4" style="border-color:#c7d2fe!important;background:rgba(79,70,229,.04)">
       <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
         <p class="text-dark mb-0" style="font-size:14px">

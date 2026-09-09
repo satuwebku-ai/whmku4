@@ -839,6 +839,10 @@ class ServiceController extends Controller
             return back()->with('error', 'Hanya domain aktif yang bisa diperpanjang.');
         }
 
+        if (! $domain->isWithinRenewalWindow()) {
+            return back()->with('error', 'Perpanjangan domain baru tersedia maksimal 30 hari sebelum tanggal kedaluwarsa.');
+        }
+
         if ($domain->renewal_invoice_id) {
             return redirect()->route('client.invoices.show', $domain->renewal_invoice_id)
                 ->with('error', 'Sudah ada invoice perpanjangan yang menunggu dibayar.');

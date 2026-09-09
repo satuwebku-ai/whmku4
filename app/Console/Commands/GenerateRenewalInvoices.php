@@ -21,6 +21,13 @@ use Throwable;
  */
 class GenerateRenewalInvoices extends Command
 {
+    /**
+     * Domain tidak boleh ditagih dua bulan lebih awal hanya karena admin
+     * mengatur jendela invoice hosting sampai 60 hari. Untuk domain, batas
+     * otomatis yang wajar adalah maksimal H-30.
+     */
+    private const MAX_DOMAIN_DAYS_BEFORE = 30;
+
     protected $signature = 'lumora:generate-renewal-invoices
                             {--dry : Hanya tampilkan yang akan dibuat, tanpa benar-benar membuat invoice}';
 
@@ -48,7 +55,7 @@ class GenerateRenewalInvoices extends Command
         $this->newLine();
 
         $hostingCount = $this->processHosting($daysBefore, $dry);
-        $domainCount = $this->processDomains($daysBefore, $dry);
+        $domainCount = $this->processDomains(min($daysBefore, self::MAX_DOMAIN_DAYS_BEFORE), $dry);
 
         $this->newLine();
         $this->info($dry
@@ -97,7 +104,9 @@ class GenerateRenewalInvoices extends Command
     }
 
     /**
-     * Proses domain yang aktif, auto_renew menyala, dan mendekati expiry_date.
+     * Proses domain aktif yang auto_renew-nya menyala dan masuk jendela
+     * maksimal H-30. Jendela domain sengaja tidak mengikuti nilai hosting
+     * sampai H-60 agar invoice tidak muncul terlalu dini.
      */
     private function processDomains(int $daysBefore, bool $dry): int
     {
@@ -106,6 +115,7 @@ class GenerateRenewalInvoices extends Command
             ->where('auto_renew', true)
             ->whereNotNull('expiry_date')
             ->whereNull('renewal_invoice_id')
+            ->whereDate('expiry_date', '>=', now()->toDateString())
             ->whereDate('expiry_date', '<=', now()->addDays($daysBefore)->toDateString())
             ->get();
 
