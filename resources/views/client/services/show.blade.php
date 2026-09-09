@@ -70,7 +70,7 @@
     </div>
   @endif
 
-  @if ($service->renewal_invoice_id && $service->renewalInvoice)
+  @if (in_array($service->status, ['active', 'suspended'], true) && $service->renewal_invoice_id && $service->renewalInvoice)
     <div class="card-public p-4 mb-4" style="{{ $service->status === 'suspended' ? 'border-color:#fecaca!important;background:#fef2f2' : 'border-color:#c7d2fe!important;background:rgba(79,70,229,.04)' }}">
       <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
         <p class="mb-0" style="font-size:14px;{{ $service->status === 'suspended' ? 'color:#b91c1c' : 'color:#1e293b' }}">

@@ -42,6 +42,39 @@ class HostingAccount extends Model
         return $this->belongsTo(Invoice::class, 'renewal_invoice_id');
     }
 
+    /**
+     * Lepaskan invoice perpanjangan yang masih menunggu dari layanan.
+     *
+     * Invoice renewal tidak memakai order_id; relasinya disimpan di
+     * hosting_accounts.renewal_invoice_id. Karena itu relasi ini harus
+     * dibersihkan saat layanan dihentikan, kalau tidak invoice lama akan
+     * tetap tampil dan masih terlihat seperti tagihan yang dapat dibayar.
+     */
+    public function clearPendingRenewalInvoice(): void
+    {
+        if (! $this->renewal_invoice_id) {
+            return;
+        }
+
+        $invoice = Invoice::find($this->renewal_invoice_id);
+
+        // Invoice yang sudah lunas tidak boleh dibatalkan. Relasinya tetap
+        // dibersihkan agar invoice itu tidak diproses ulang sebagai renewal.
+        if ($invoice && in_array($invoice->status, ['unpaid', 'overdue'], true)) {
+            $note = trim((string) $invoice->notes);
+            $cancellationNote = 'Dibatalkan otomatis karena layanan di-terminate.';
+
+            $invoice->update([
+                'status' => 'cancelled',
+                'notes' => $note
+                    ? $note . "\n" . $cancellationNote
+                    : $cancellationNote,
+            ]);
+        }
+
+        $this->update(['renewal_invoice_id' => null]);
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Product::class);

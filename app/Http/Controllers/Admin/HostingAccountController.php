@@ -319,6 +319,12 @@ class HostingAccountController extends Controller
 
         $hostingAccount->update($data);
 
+        // Perubahan status lewat form Edit juga harus mengikuti aturan
+        // terminate, bukan hanya tombol Terminate yang memanggil panel API.
+        if ($hostingAccount->status === 'terminated') {
+            $hostingAccount->clearPendingRenewalInvoice();
+        }
+
         return redirect()->route('admin.hosting-accounts')->with('success', 'Hosting account berhasil diperbarui.');
     }
 
@@ -366,6 +372,7 @@ class HostingAccountController extends Controller
         // benar-benar dipanggil untuk mematikan akunnya.
         if (! $hostingAccount->serverModel || ! $hostingAccount->username) {
             $hostingAccount->update(['status' => 'terminated']);
+            $hostingAccount->clearPendingRenewalInvoice();
 
             return back()->with('success', 'Pembatalan disetujui. Karena akun ini manual, hentikan aksesnya secara manual juga di server bila perlu.');
         }
@@ -443,6 +450,10 @@ class HostingAccountController extends Controller
                 'provision_status' => 'provisioned',
                 'provision_message' => $result['message'],
             ]);
+
+            if ($newStatus === 'terminated') {
+                $hostingAccount->clearPendingRenewalInvoice();
+            }
 
             return back()->with('success', $successMessage);
         }
