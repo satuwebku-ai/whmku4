@@ -1,0 +1,164 @@
+/* ══════════════════════════════════════════════════════════════
+   lumora-public.css — pendamping framework.css khusus HALAMAN PUBLIK.
+   framework.css sendiri murni komponen generik (tombol, grid, form) --
+   warna tema, header/footer, dan gaya kartu publik ada di sini,
+   supaya tidak tercampur dengan lumora-admin.css yang isinya khusus
+   panel admin (sidebar, topbar gelap, dll -- tidak relevan di sini).
+   ══════════════════════════════════════════════════════════════ */
+
+/* Catatan: variabel --lumora-theme di-set lewat <style> inline di
+   layout.blade.php (bukan di sini), karena file .css ini disajikan
+   statis oleh browser -- tidak diproses Blade, jadi tidak bisa berisi
+   {{ $themeColor }} langsung. */
+
+html{ font-family:'Inter', -apple-system, sans-serif; }
+
+/* framework.css cuma punya text-uppercase, tidak ada text-capitalize --
+   dipakai untuk kategori pengumuman & badge status. */
+.text-capitalize{ text-transform:capitalize!important; }
+body.lumora-public{ background:#f8fafc; color:#1e293b; }
+
+/* ── Tombol mengikuti Warna Tema di Pengaturan → Umum ── */
+.btn-theme{
+  --bs-btn-color:#fff; --bs-btn-bg:var(--lumora-theme); --bs-btn-border-color:var(--lumora-theme);
+  --bs-btn-hover-color:#fff; --bs-btn-hover-bg:var(--lumora-theme); --bs-btn-hover-border-color:var(--lumora-theme);
+  --bs-btn-active-color:#fff; --bs-btn-active-bg:var(--lumora-theme); --bs-btn-active-border-color:var(--lumora-theme);
+  --bs-btn-disabled-bg:var(--lumora-theme); --bs-btn-disabled-border-color:var(--lumora-theme);
+  background:var(--lumora-theme); color:#fff; border-color:var(--lumora-theme);
+  box-shadow:0 4px 14px rgba(0,0,0,.15);
+}
+.btn-theme:hover{ filter:brightness(.92); color:#fff; }
+.btn-theme:active{ transform:scale(.97); }
+.text-theme{ color:var(--lumora-theme)!important; }
+
+/* ── Header ── */
+#publicHeader{ background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:1030; }
+#publicHeader .nav-link{ color:#475569; font-size:14px; }
+#publicHeader .nav-link:hover, #publicHeader .nav-link.active{ color:var(--lumora-theme); }
+#publicHeader .nav-link.active{ font-weight:600; }
+
+/* Dropdown submenu header -- murni hover CSS, tanpa JS tambahan. */
+.public-menu-item{ position:relative; }
+.public-menu-item .public-submenu{
+  position:absolute; left:0; top:100%; padding-top:.5rem; display:none; z-index:1040; min-width:200px;
+}
+.public-menu-item:hover .public-submenu{ display:block; }
+.public-submenu-inner{ background:#fff; border-radius:.75rem; box-shadow:0 10px 30px rgba(15,23,42,.12); border:1px solid #f1f5f9; padding:.375rem 0; }
+.public-submenu-inner a{ display:block; padding:.5rem 1rem; font-size:14px; color:#475569; text-decoration:none; }
+.public-submenu-inner a:hover{ background:#f8fafc; color:var(--lumora-theme); }
+
+#cartBadge{
+  position:absolute; top:-2px; right:-2px; width:16px; height:16px; border-radius:50%;
+  background:var(--lumora-theme); color:#fff; font-size:10px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ── Kartu produk & konten publik ── */
+.card-public{ background:#fff; border-radius:1rem; border:1px solid rgba(226,232,240,.7); box-shadow:0 1px 2px rgba(0,0,0,.04); transition:box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
+a.card-public:hover{ box-shadow:0 12px 28px rgba(15,23,42,.08); border-color:rgba(79,70,229,.25); transform:translateY(-2px); }
+
+/* Tipografi umum situs publik -- jarak baris & spasi huruf dirapikan
+   supaya teks lebih lega dibaca, tidak terasa mepet. */
+body.lumora-public h1, body.lumora-public h2, body.lumora-public h3{ letter-spacing:-.01em; }
+body.lumora-public p{ line-height:1.65; }
+.badge-public-active{ background:#d1fae5; color:#047857; font-size:11px; font-weight:600; padding:.15rem .5rem; border-radius:999px; }
+.badge-public-inactive{ background:#e2e8f0; color:#475569; font-size:11px; font-weight:600; padding:.15rem .5rem; border-radius:999px; }
+.badge-soft-success{ background:#d1fae5; color:#047857; font-weight:600; padding:.25rem .6rem; border-radius:999px; }
+.badge-soft-warning{ background:#fef3c7; color:#b45309; font-weight:600; padding:.25rem .6rem; border-radius:999px; font-size:11px; }
+.badge-soft-danger{ background:#fee2e2; color:#b91c1c; font-weight:600; padding:.25rem .6rem; border-radius:999px; font-size:11px; }
+.badge-soft-secondary{ background:#e2e8f0; color:#475569; font-weight:600; padding:.25rem .6rem; border-radius:999px; font-size:11px; }
+
+/* Sama seperti admin: framework.css mengasumsikan .form-check-input
+   selalu dibungkus .form-check, tapi di sini dipakai langsung di
+   dalam label -- jadi margin negatifnya perlu ditimpa. */
+.form-check-input{ margin-left:0!important; }
+
+/* ── Pelengkap: utilitas yang ternyata TIDAK ADA di framework.css,
+   dipakai luas di halaman publik. Skala spacing framework.css cuma
+   sampai 4 (p-4, mb-4, dst) -- ini penyebab utama section-section di
+   halaman publik kehilangan jarak vertikalnya dan terlihat berantakan.
+   Sama seperti kasus serupa yang sudah diperbaiki di lumora-admin.css. */
+.p-5{ padding:3rem!important; }
+.px-5{ padding-left:3rem!important; padding-right:3rem!important; }
+.py-5{ padding-top:3rem!important; padding-bottom:3rem!important; }
+.pt-5{ padding-top:3rem!important; }
+.pb-5{ padding-bottom:3rem!important; }
+.m-5{ margin:3rem!important; }
+.mt-5{ margin-top:3rem!important; }
+.mb-5{ margin-bottom:3rem!important; }
+.my-5{ margin-top:3rem!important; margin-bottom:3rem!important; }
+
+.g-2{ --bs-gutter-x:.5rem; --bs-gutter-y:.5rem; }
+
+.h1{ font-size:2.5rem!important; }
+.h2{ font-size:2rem!important; }
+.h3{ font-size:1.75rem!important; }
+.h4{ font-size:1.5rem!important; }
+.h5{ font-size:1.25rem!important; }
+.h6{ font-size:1rem!important; }
+
+@media (min-width:576px){
+  .flex-sm-row{ flex-direction:row!important; }
+  .d-sm-inline-flex{ display:inline-flex!important; }
+  .d-sm-block{ display:block!important; }
+}
+
+/* ── Perbaikan form supaya sehalus tema Tailwind aslinya ──
+   framework.css memakai font-size 1rem (16px) dan warna fokus ungu
+   tetap -- di sini disamakan dengan gaya form publik sebelumnya
+   (14px, lebih ramping) dan warna fokus ikut Warna Tema dinamis,
+   bukan warna tetap. */
+.form-control, .form-select{
+  font-size:14px!important; padding:.55rem .85rem!important; border-radius:.6rem!important;
+}
+.form-control:focus, .form-select:focus{
+  border-color:var(--lumora-theme)!important;
+  box-shadow:0 0 0 3px rgba(99,102,241,.15)!important;
+}
+.form-check-input:checked{
+  background-color:var(--lumora-theme)!important; border-color:var(--lumora-theme)!important;
+}
+.form-label{ font-weight:500; font-size:13px; color:#334155; }
+
+/* framework.css cuma punya .form-control-sm, tidak ada .form-select-sm
+   -- dipakai supaya SEMUA dropdown kecil di situs publik (pilih siklus
+   tagihan, jumlah tahun domain, dsb) konsisten satu gaya, bukan
+   style="" inline yang beda-beda tiap halaman seperti sebelumnya. */
+.form-select-sm{
+  padding:.3rem 2rem .3rem .65rem!important; font-size:13px!important; border-radius:.5rem!important;
+  background-position:right .6rem center!important; background-size:13px 10px!important;
+}
+
+.fw-normal{ font-weight:400!important; }
+.text-decoration-underline{ text-decoration:underline!important; }
+.min-w-0{ min-width:0!important; }
+.my-1{ margin-top:.25rem!important; margin-bottom:.25rem!important; }
+.pb-3{ padding-bottom:1rem!important; }
+
+/* ── Konten HTML halaman statis (Tentang Kami, dll) ── */
+.prose-content h2{ font-size:1.25rem; font-weight:700; color:#1e293b; margin-top:2rem; margin-bottom:.75rem; }
+.prose-content h3{ font-size:1.1rem; font-weight:600; color:#1e293b; margin-top:1.5rem; margin-bottom:.5rem; }
+.prose-content p{ color:#475569; line-height:1.7; margin-bottom:1rem; }
+.prose-content ul{ list-style:disc; padding-left:1.5rem; color:#475569; margin-bottom:1rem; }
+.prose-content ol{ list-style:decimal; padding-left:1.5rem; color:#475569; margin-bottom:1rem; }
+.prose-content li{ margin-bottom:.25rem; }
+.prose-content a{ color:var(--lumora-theme); text-decoration:underline; }
+.prose-content img{ border-radius:.75rem; margin:1rem 0; max-width:100%; }
+.prose-content table{ width:100%; font-size:14px; border:1px solid #e2e8f0; border-radius:.5rem; margin:1rem 0; border-collapse:collapse; }
+.prose-content th, .prose-content td{ border:1px solid #e2e8f0; padding:.5rem .75rem; }
+
+/* ── Footer ── */
+#publicFooter{ background:#fff; border-top:1px solid #e2e8f0; padding:2rem 0; }
+#publicFooter a{ color:#64748b; text-decoration:none; font-size:14px; }
+#publicFooter a:hover{ color:var(--lumora-theme); }
+
+/* ── Banner impersonasi (admin login sebagai klien) ── */
+#impersonateBar{ background:#f59e0b; color:#fff; font-size:14px; padding:.6rem 1rem; position:sticky; top:0; z-index:1040; }
+
+@media (max-width:575.98px){
+  #publicHeaderNav{ display:none!important; }
+  #publicMobileNav{ display:flex!important; }
+}
+@media (min-width:576px){
+  #publicMobileNav{ display:none!important; }
+}
