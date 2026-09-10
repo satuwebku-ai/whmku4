@@ -14,6 +14,10 @@ return new class extends Migration
             $table->enum('type', ['percent', 'fixed'])->default('percent');
             $table->decimal('value', 12, 2); // persen (0-100) atau rupiah tetap
 
+            // 'all' (berlaku ke semua produk) atau 'specific' (dibatasi ke
+            // produk/kategori tertentu lewat dua tabel pivot di bawah).
+            $table->enum('applies_to', ['all', 'specific'])->default('all');
+
             $table->decimal('min_order', 12, 2)->default(0); // subtotal minimum supaya kupon berlaku
             $table->decimal('max_discount', 12, 2)->nullable(); // batas potongan untuk kupon persen
 
@@ -32,10 +36,33 @@ return new class extends Migration
             $table->foreignId('coupon_id')->nullable()->after('order_id')->constrained()->nullOnDelete();
             $table->decimal('discount', 12, 2)->default(0)->after('tax');
         });
+
+        // Produk tertentu yang jadi sasaran kupon — dipisah dari kategori
+        // supaya admin bisa pilih salah satu, atau gabungan keduanya
+        // (mis. "semua produk kategori Hosting" + "satu produk VPS
+        // tertentu di luar kategori itu").
+        Schema::create('coupon_product', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('coupon_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $table->timestamps();
+            $table->unique(['coupon_id', 'product_id']);
+        });
+
+        Schema::create('coupon_product_category', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('coupon_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_category_id')->constrained()->cascadeOnDelete();
+            $table->timestamps();
+            $table->unique(['coupon_id', 'product_category_id']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('coupon_product_category');
+        Schema::dropIfExists('coupon_product');
+
         Schema::table('invoices', function (Blueprint $table) {
             $table->dropConstrainedForeignId('coupon_id');
             $table->dropColumn('discount');

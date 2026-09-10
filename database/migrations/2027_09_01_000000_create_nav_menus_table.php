@@ -11,6 +11,11 @@ return new class extends Migration
     {
         Schema::create('nav_menus', function (Blueprint $table) {
             $table->id();
+            // Memungkinkan menu jadi dropdown — item dengan parent_id
+            // terisi ditampilkan sebagai submenu di bawah menu induknya
+            // (mis. "Hosting" punya submenu "Shared Hosting", "VPS", dst),
+            // bukan sejajar di baris menu utama.
+            $table->foreignId('parent_id')->nullable()->constrained('nav_menus')->cascadeOnDelete();
             $table->string('label');
 
             // route  = halaman bawaan sistem (Hosting, Domain, Pengumuman)

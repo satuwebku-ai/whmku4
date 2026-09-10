@@ -16,6 +16,12 @@ return new class extends Migration
             $table->text('server_key')->nullable();      // dienkripsi — Midtrans Server Key / Xendit Secret Key
             $table->text('client_key')->nullable();      // dienkripsi — Midtrans Client Key
             $table->text('callback_token')->nullable();  // dienkripsi — Xendit callback verification token
+            // Kode metode QRIS spesifik Duitku (mis. "SP", "NQ" — beda
+            // tergantung channel QRIS yang aktif di akun merchant). Diisi
+            // admin sendiri lewat form, BUKAN ditebak sistem. Dikosongkan
+            // = fitur QRIS tertanam tidak aktif, klien tetap bisa bayar
+            // lewat halaman Duitku biasa (redirect).
+            $table->string('qris_method_code')->nullable();
             $table->text('instructions')->nullable();    // instruksi transfer manual (nomor rekening dsb)
             $table->decimal('fee_flat', 12, 2)->default(0);      // biaya tambahan tetap
             $table->decimal('fee_percent', 5, 2)->default(0);    // biaya tambahan persentase

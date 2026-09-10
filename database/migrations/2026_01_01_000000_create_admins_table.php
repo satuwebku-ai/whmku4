@@ -19,7 +19,19 @@ return new class extends Migration
             $table->string('password');
             $table->string('avatar')->nullable();
             $table->string('role')->default('admin'); // admin, staff, superadmin
+            // Daftar modul (array JSON) yang boleh diakses admin ini, mis.
+            // ["billing","support"]. NULL berarti belum diatur manual oleh
+            // superadmin -> dipakai daftar bawaan sesuai peran (lihat
+            // Admin::ROLE_DEFAULT_MODULES). Array kosong [] berarti sengaja
+            // dikunci total dari semua modul.
+            $table->json('permissions')->nullable();
             $table->boolean('is_active')->default(true);
+            // OTP dikirim lewat email — tidak butuh aplikasi authenticator
+            // maupun paket tambahan.
+            $table->boolean('two_factor_enabled')->default(false);
+            $table->string('otp_code_hash')->nullable();
+            $table->timestamp('otp_expires_at')->nullable();
+            $table->unsignedTinyInteger('otp_attempts')->default(0);
             $table->timestamp('last_login_at')->nullable();
             $table->string('last_login_ip')->nullable();
             $table->rememberToken();

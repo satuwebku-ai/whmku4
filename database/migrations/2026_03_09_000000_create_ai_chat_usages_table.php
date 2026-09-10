@@ -22,7 +22,7 @@ return new class extends Migration
             $table->id();
             // constrained() ke 'chat_conversations' tidak bisa dipasang di
             // sini -- tabelnya baru dibuat belakangan (2027_07_01). FK-nya
-            // ditambahkan di 2027_07_01_000002_catchup_deferred_chat_alterations.php
+            // dipasang di 2027_07_01_000000_create_chat_tables.php.
             $table->foreignId('chat_conversation_id');
             $table->string('model', 100);
             $table->unsignedInteger('input_tokens');

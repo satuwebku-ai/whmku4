@@ -21,7 +21,7 @@ return new class extends Migration
             $table->id();
             // constrained() ke 'products' tidak bisa dipasang di sini --
             // tabel products baru dibuat belakangan (2026_10_01). FK-nya
-            // ditambahkan di 2026_10_01_000002_catchup_deferred_product_alterations.php
+            // dipasang di 2026_10_01_000001_create_products_table.php.
             $table->foreignId('product_id');
             $table->string('name');
             $table->enum('selection_type', ['checkbox', 'radio'])->default('checkbox');

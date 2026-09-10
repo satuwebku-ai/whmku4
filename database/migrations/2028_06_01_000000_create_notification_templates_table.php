@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('subject')->nullable();
             $table->text('body_mail')->nullable();
             $table->text('body_whatsapp')->nullable();
+            $table->text('body_sms')->nullable();
             $table->timestamps();
         });
     }

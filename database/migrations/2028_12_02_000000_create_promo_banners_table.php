@@ -10,7 +10,8 @@ return new class extends Migration
     {
         Schema::create('promo_banners', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            // Boleh kosong kalau gambar bannernya sudah punya teks sendiri.
+            $table->string('title')->nullable();
             $table->string('subtitle')->nullable();
             $table->string('image'); // disimpan di public/uploads/banners, BUKAN storage/app/public
             $table->string('link_url')->nullable();
@@ -18,6 +19,9 @@ return new class extends Migration
             $table->boolean('open_in_new_tab')->default(false);
             $table->boolean('is_active')->default(true);
             $table->unsignedInteger('sort_order')->default(0);
+            // Halaman tujuan banner ditampilkan: Beranda, Katalog, Cek
+            // Domain, atau Semua Halaman.
+            $table->string('display_page')->default('all');
             // Opsional — kosongkan supaya tayang terus tanpa batas waktu.
             $table->date('starts_at')->nullable();
             $table->date('ends_at')->nullable();

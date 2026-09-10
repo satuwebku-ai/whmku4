@@ -19,8 +19,20 @@ return new class extends Migration
 
             $table->string('name')->nullable();
             $table->string('email')->nullable();
+            $table->string('phone')->nullable();
 
             $table->enum('status', ['open', 'closed'])->default('open');
+            $table->foreignId('assigned_admin_id')->nullable()->constrained('admins')->nullOnDelete();
+            $table->timestamp('assigned_at')->nullable();
+            // Menandai satu percakapan live chat SUDAH pernah dijadikan
+            // tiket -- supaya tidak bisa dikonversi dua kali, dan supaya
+            // halaman chat bisa menampilkan tautan langsung ke tiketnya.
+            $table->foreignId('ticket_id')->nullable()->constrained()->nullOnDelete();
+
+            // Membedakan percakapan dari widget web vs WhatsApp asli --
+            // keduanya memakai tabel yang SAMA supaya admin, AiChatService,
+            // dan seluruh UI kelola chat yang sudah ada bisa dipakai ulang.
+            $table->enum('channel', ['web', 'whatsapp'])->default('web');
 
             $table->timestamp('last_message_at')->nullable();
             $table->unsignedInteger('unread_for_admin')->default(0);
@@ -56,10 +68,25 @@ return new class extends Migration
 
             $table->index(['chat_conversation_id', 'id']);
         });
+
+        // ai_chat_usages dibuat sebelum chat_conversations (2026_03_09), jadi
+        // kolom chat_conversation_id-nya dibuat tanpa FK saat itu --
+        // constraint-nya dipasang di sini, begitu chat_conversations ada.
+        if (Schema::hasTable('ai_chat_usages')) {
+            Schema::table('ai_chat_usages', function (Blueprint $table) {
+                $table->foreign('chat_conversation_id')->references('id')->on('chat_conversations')->cascadeOnDelete();
+            });
+        }
     }
 
     public function down(): void
     {
+        if (Schema::hasTable('ai_chat_usages')) {
+            Schema::table('ai_chat_usages', function (Blueprint $table) {
+                $table->dropForeign(['chat_conversation_id']);
+            });
+        }
+
         Schema::dropIfExists('chat_messages');
         Schema::dropIfExists('chat_conversations');
     }
