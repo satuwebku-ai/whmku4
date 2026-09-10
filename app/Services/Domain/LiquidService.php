@@ -405,27 +405,69 @@ class LiquidService implements DomainRegistrarInterface
      * yang dipakai testing hosting kemarin, kalau kebetulan juga sempat
      * dipakai coba daftar domain).
      */
+    /**
+     * $limit di sini artinya "maksimal total customer yang mau diambil",
+     * BUKAN nilai limit yang dikirim mentah ke API. Liqu.id menolak kalau
+     * parameter limit per-request > 100 ("Limit records should not be
+     * more than 100. (invalid_argument)") -- jadi kalau $limit lebih dari
+     * 100 (mis. dipanggil dengan 500 dari fitur ekspor/impor customer),
+     * diambil bertahap per halaman (page_no) 100 baris sekaligus lalu
+     * digabung, sampai total yang diminta terpenuhi atau datanya habis.
+     */
     public function listCustomers(int $limit = 20): array
     {
-        $result = $this->call('get', '/customers', ['limit' => $limit, 'page_no' => 1]);
+        $perPage = 100; // batas maksimal API per request
+        $limit = max(1, $limit);
 
-        if (! $result['success']) {
-            return ['success' => false, 'message' => $result['message'], 'customers' => [], 'raw' => $result['raw']];
+        $customers = [];
+        $page = 1;
+
+        while (count($customers) < $limit) {
+            $remaining = $limit - count($customers);
+            $result = $this->call('get', '/customers', [
+                'limit' => min($perPage, $remaining),
+                'page_no' => $page,
+            ]);
+
+            if (! $result['success']) {
+                // Kalau halaman-halaman sebelumnya sudah berhasil, jangan buang
+                // semuanya cuma gara-gara satu halaman lanjutan gagal --
+                // kembalikan yang sudah berhasil terkumpul.
+                if (! empty($customers)) {
+                    break;
+                }
+
+                return ['success' => false, 'message' => $result['message'], 'customers' => [], 'raw' => $result['raw']];
+            }
+
+            $rows = $result['raw']['data'] ?? $result['raw'] ?? [];
+            $rows = is_array($rows) ? $rows : [];
+
+            if (empty($rows)) {
+                break; // halaman kosong -- data sudah habis
+            }
+
+            foreach ($rows as $row) {
+                $customers[] = [
+                    'id' => $row['customer_id'] ?? $row['id'] ?? null,
+                    'name' => $row['name'] ?? null,
+                    'email' => $row['email'] ?? null,
+                    'company' => $row['company'] ?? null,
+                ];
+            }
+
+            if (count($rows) < $perPage) {
+                break; // halaman terakhir (baris < limit per halaman -> tidak ada halaman berikutnya)
+            }
+
+            $page++;
         }
-
-        $rows = $result['raw']['data'] ?? $result['raw'] ?? [];
-        $rows = is_array($rows) ? $rows : [];
 
         return [
             'success' => true,
             'message' => 'OK',
-            'customers' => array_map(fn ($row) => [
-                'id' => $row['customer_id'] ?? $row['id'] ?? null,
-                'name' => $row['name'] ?? null,
-                'email' => $row['email'] ?? null,
-                'company' => $row['company'] ?? null,
-            ], $rows),
-            'raw' => $rows,
+            'customers' => $customers,
+            'raw' => $customers,
         ];
     }
 
