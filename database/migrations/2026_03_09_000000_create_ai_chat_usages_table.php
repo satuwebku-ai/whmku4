@@ -20,7 +20,10 @@ return new class extends Migration
     {
         Schema::create('ai_chat_usages', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('chat_conversation_id')->constrained()->cascadeOnDelete();
+            // constrained() ke 'chat_conversations' tidak bisa dipasang di
+            // sini -- tabelnya baru dibuat belakangan (2027_07_01). FK-nya
+            // ditambahkan di 2027_07_01_000002_catchup_deferred_chat_alterations.php
+            $table->foreignId('chat_conversation_id');
             $table->string('model', 100);
             $table->unsignedInteger('input_tokens');
             $table->unsignedInteger('output_tokens');

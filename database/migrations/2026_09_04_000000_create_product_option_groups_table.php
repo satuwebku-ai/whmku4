@@ -19,7 +19,10 @@ return new class extends Migration
     {
         Schema::create('product_option_groups', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
+            // constrained() ke 'products' tidak bisa dipasang di sini --
+            // tabel products baru dibuat belakangan (2026_10_01). FK-nya
+            // ditambahkan di 2026_10_01_000002_catchup_deferred_product_alterations.php
+            $table->foreignId('product_id');
             $table->string('name');
             $table->enum('selection_type', ['checkbox', 'radio'])->default('checkbox');
             $table->boolean('is_required')->default(false);
