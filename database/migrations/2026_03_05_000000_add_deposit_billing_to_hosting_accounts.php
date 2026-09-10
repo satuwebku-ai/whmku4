@@ -16,15 +16,27 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Idempotent: migration ini pernah gagal di tengah jalan (statement
+        // client_balance_logs di bawah error karena tabelnya belum ada saat
+        // itu), sementara ALTER TABLE hosting_accounts di atasnya sudah
+        // sempat kebentuk (MySQL DDL tidak transactional). Cek hasColumn
+        // supaya aman dijalankan ulang.
         Schema::table('hosting_accounts', function (Blueprint $table) {
-            $table->enum('billing_mode', ['invoice', 'deposit'])->default('invoice')->after('billing_cycle');
-            $table->decimal('hourly_rate', 12, 4)->nullable()->after('billing_mode');
-            $table->timestamp('last_billed_at')->nullable()->after('hourly_rate');
+            if (! Schema::hasColumn('hosting_accounts', 'billing_mode')) {
+                $table->enum('billing_mode', ['invoice', 'deposit'])->default('invoice')->after('billing_cycle');
+            }
+            if (! Schema::hasColumn('hosting_accounts', 'hourly_rate')) {
+                $table->decimal('hourly_rate', 12, 4)->nullable()->after('billing_mode');
+            }
+            if (! Schema::hasColumn('hosting_accounts', 'last_billed_at')) {
+                $table->timestamp('last_billed_at')->nullable()->after('hourly_rate');
+            }
         });
 
-        // Tipe baru di ledger saldo -- MySQL enum perlu dimodifikasi
-        // langsung (Laravel tidak punya cara "tambah nilai enum" bawaan).
-        DB::statement("ALTER TABLE client_balance_logs MODIFY type ENUM('topup', 'payment', 'refund', 'admin_adjustment', 'usage_charge') NOT NULL");
+        // Catatan: penambahan nilai 'usage_charge' ke enum client_balance_logs.type
+        // dipindah ke migration 2028_02_01_000001_add_usage_charge_to_client_balance_logs_type.php
+        // karena tabel client_balance_logs baru dibuat belakangan (2028_02_01),
+        // jauh setelah migration ini.
     }
 
     public function down(): void
@@ -32,7 +44,5 @@ return new class extends Migration
         Schema::table('hosting_accounts', function (Blueprint $table) {
             $table->dropColumn(['billing_mode', 'hourly_rate', 'last_billed_at']);
         });
-
-        DB::statement("ALTER TABLE client_balance_logs MODIFY type ENUM('topup', 'payment', 'refund', 'admin_adjustment') NOT NULL");
     }
 };
