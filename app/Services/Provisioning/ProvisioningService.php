@@ -226,6 +226,15 @@ class ProvisioningService
         $registrar = $domain->registrar;
         $client = $order->client;
 
+        // Dipindahkan ke sini (sebelumnya baru didefinisikan di bawah,
+        // setelah gerbang kelayakan) karena sudah dipakai duluan oleh
+        // $eligibilityTlds tepat di bawah ini — bug lama: $service belum
+        // ada saat get_class($service) dipanggil, jadi TypeError dan
+        // SEMUA registrasi/transfer domain otomatis gagal diam-diam
+        // (tertangkap try/catch di provisionInvoice(), cuma tercatat di
+        // log error).
+        $service = DomainRegistrarFactory::make($registrar);
+
         // TLD yang mewajibkan data kelayakan (lihat
         // LiquidService::ELIGIBILITY_REQUIRED_TLDS) TIDAK didaftarkan
         // otomatis sampai admin mengisi datanya — kalau dipaksa lanjut
@@ -338,8 +347,6 @@ class ProvisioningService
             'phone'        => $client->phone,
             'email'        => $client->email,
         ];
-
-        $service = DomainRegistrarFactory::make($registrar);
 
         if ($domain->is_transfer) {
             if (! method_exists($service, 'transferDomain')) {
