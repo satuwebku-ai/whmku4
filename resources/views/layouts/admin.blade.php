@@ -676,6 +676,58 @@
   }
 </script>
 
+{{-- ══════════ Toast notifikasi (session flash) ══════════
+     Ratusan controller admin sudah memanggil back()->with('success', ...)
+     / with('error', ...), tapi layout ini SEBELUMNYA tidak pernah
+     menampilkannya di mana pun -- jadi aksi seperti "Impor Customer ke
+     Database" terlihat "tidak terjadi apa-apa" padahal sebenarnya
+     berhasil/gagal dengan pesan yang cuma tersimpan di session lalu
+     dibuang begitu saja. Dipakai luas (WAJIB ada di setiap layout admin),
+     jadi taruh di sini, bukan per-halaman. --}}
+@php
+  $__toasts = [];
+  foreach (['success', 'error', 'warning', 'info'] as $__type) {
+      if (session($__type)) {
+          $__toasts[] = ['type' => $__type, 'message' => session($__type)];
+      }
+  }
+@endphp
+@if (! empty($__toasts))
+  <div id="toastWrap" class="position-fixed top-0 end-0 p-3" style="z-index:1080">
+    @foreach ($__toasts as $__i => $__toast)
+      @php
+        $__style = match ($__toast['type']) {
+            'success' => ['bg' => 'bg-success-subtle', 'border' => 'border-success', 'text' => 'text-success-emphasis', 'icon' => 'fa-circle-check'],
+            'error'   => ['bg' => 'bg-danger-subtle',  'border' => 'border-danger',  'text' => 'text-danger-emphasis',  'icon' => 'fa-circle-exclamation'],
+            'warning' => ['bg' => 'bg-warning-subtle', 'border' => 'border-warning', 'text' => 'text-warning-emphasis', 'icon' => 'fa-triangle-exclamation'],
+            default   => ['bg' => 'bg-primary-subtle', 'border' => 'border-primary', 'text' => 'text-primary-emphasis', 'icon' => 'fa-circle-info'],
+        };
+      @endphp
+      <div class="lumora-toast {{ $__style['bg'] }} {{ $__style['text'] }} border {{ $__style['border'] }} rounded-4 shadow-lg px-3 py-3 mb-2 d-flex align-items-start gap-2"
+           style="width:min(22rem, calc(100vw - 2rem)); animation: lumoraToastIn .25s ease-out {{ $__i * 0.08 }}s both">
+        <i class="fa-solid {{ $__style['icon'] }} mt-1 flex-shrink-0"></i>
+        <span class="small flex-grow-1" style="line-height:1.5">{{ $__toast['message'] }}</span>
+        <button type="button" onclick="lumoraDismissToast(this.parentElement)" class="btn-close" style="font-size:11px" aria-label="Tutup"></button>
+      </div>
+    @endforeach
+  </div>
+  <style>
+    @keyframes lumoraToastIn { from { opacity:0; transform:translateX(1rem);} to { opacity:1; transform:translateX(0);} }
+    .lumora-toast.lumora-toast-out { opacity:0; transform:translateX(1rem); transition:opacity .2s ease-in, transform .2s ease-in; }
+  </style>
+  <script>
+    function lumoraDismissToast(el) {
+      if (!el) return;
+      el.classList.add('lumora-toast-out');
+      setTimeout(() => el.remove(), 200);
+    }
+    document.querySelectorAll('.lumora-toast').forEach((el) => {
+      const isError = el.classList.contains('bg-danger-subtle') || el.classList.contains('bg-warning-subtle');
+      setTimeout(() => lumoraDismissToast(el), isError ? 8000 : 4000);
+    });
+  </script>
+@endif
+
 {{-- ══════════ Modal konfirmasi ══════════
      Menggantikan confirm() bawaan browser -- form cukup diberi atribut
      data-confirm, opsional data-confirm-title & data-confirm-style
