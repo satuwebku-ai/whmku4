@@ -19,8 +19,8 @@ class AdminSeeder extends Seeder
             ['username' => 'admin'],
             [
                 'name'      => 'Super Admin',
-                'email'     => 'admin@lumorahosting.test',
-                'password'  => Hash::make('password'),
+                'email'     => 'satuinfoku@gmail.com',
+                'password'  => Hash::make('S@yaNo01'),
                 'role'      => 'superadmin',
                 'is_active' => true,
             ]
