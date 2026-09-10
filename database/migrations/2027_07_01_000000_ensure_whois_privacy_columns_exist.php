@@ -29,7 +29,7 @@ return new class extends Migration
             });
         }
 
-        if (! Schema::hasColumn('registrars', 'whois_privacy_price')) {
+        if (Schema::hasColumn('registrars', 'default_ns2') && ! Schema::hasColumn('registrars', 'whois_privacy_price')) {
             Schema::table('registrars', function (Blueprint $table) {
                 $table->decimal('whois_privacy_price', 12, 2)->nullable()->after('default_ns2');
             });

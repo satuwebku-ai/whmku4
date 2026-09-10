@@ -8,37 +8,21 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * PANDI (pengelola domain .id) TIDAK mengizinkan WHOIS Privacy untuk
-     * domain di bawah .id -- data pendaftar wajib bisa diverifikasi &
-     * terbuka, beda dari gTLD internasional (.com, .net, dst.) yang
-     * memang mengizinkan anonimisasi. Kolom ini memisahkan mana TLD yang
-     * boleh ditawari ID Protection dan mana yang tidak, dicentang manual
-     * per-TLD di halaman TLD Pricing.
+     * Dipindah dari 2026_09_01_000000_add_whois_privacy_eligible_to_tlds.php
+     * -- migrasi itu memakai ->after('show_in_search'), padahal kolom
+     * show_in_search baru dibuat di file ini (2027_04_01).
      */
     public function up(): void
     {
-        // show_in_search baru dibuat belakangan (2027_04_01) -- kalau
-        // belum ada, tunda semua logika di bawah ke catch-up migration
-        // 2027_04_01_000001_catchup_deferred_tld_whois_privacy_columns.php
-        if (! Schema::hasColumn('tlds', 'show_in_search')) {
-            return;
-        }
-
         if (Schema::hasColumn('tlds', 'whois_privacy_eligible')) {
             return;
         }
 
         Schema::table('tlds', function (Blueprint $table) {
             $table->boolean('whois_privacy_eligible')->default(true)->after('show_in_search');
-            // NULL = ikut harga global (Setting whois_privacy_price di
-            // panel "Harga Add-On Domain") -- diisi angka cuma kalau mau
-            // beda dari harga global untuk TLD ini secara spesifik.
             $table->decimal('whois_privacy_price', 12, 2)->nullable()->after('whois_privacy_eligible');
         });
 
-        // Default aman: semua ekstensi turunan .id (diatur PANDI) langsung
-        // dimatikan begitu kolomnya dibuat -- supaya tidak keburu terjual
-        // ke klien sebelum admin sempat meninjau satu per satu.
         DB::table('tlds')
             ->where(function ($q) {
                 $q->where('extension', '.id')
@@ -59,8 +43,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('tlds', function (Blueprint $table) {
-            $table->dropColumn(['whois_privacy_eligible', 'whois_privacy_price']);
-        });
+        if (Schema::hasColumn('tlds', 'whois_privacy_eligible')) {
+            Schema::table('tlds', function (Blueprint $table) {
+                $table->dropColumn(['whois_privacy_eligible', 'whois_privacy_price']);
+            });
+        }
     }
 };
