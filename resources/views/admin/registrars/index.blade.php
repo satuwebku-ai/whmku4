@@ -126,6 +126,18 @@
                       <i class="fa-solid fa-stethoscope" style="font-size:11px"></i>
                     </a>
                   @endif
+                  @if ($supportsCustomers[$registrar->id] ?? false)
+                    <a href="{{ route('admin.registrars.customers.export', $registrar) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Tarik Data Customer (unduh CSV, tidak menyentuh database)">
+                      <i class="fa-solid fa-users" style="font-size:11px"></i>
+                    </a>
+                    <form method="POST" action="{{ route('admin.registrars.customers.import', $registrar) }}"
+                          data-confirm="Tarik semua customer dari {{ $registrar->name }} dan simpan ke tabel Klien? Email yang SUDAH ADA di database akan dilewati (tidak ditimpa), hanya email baru yang akan dibuat." data-confirm-title="Impor Customer ke Database" data-confirm-style="info" data-confirm-label="Ya, Impor">
+                      @csrf
+                      <button type="submit" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Impor Customer ke Database (untuk pemulihan kalau data hilang)">
+                        <i class="fa-solid fa-database" style="font-size:11px"></i>
+                      </button>
+                    </form>
+                  @endif
                   <a href="{{ route('admin.registrars.edit', $registrar) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Edit">
                     <i class="fa-regular fa-pen-to-square" style="font-size:11px"></i>
                   </a>

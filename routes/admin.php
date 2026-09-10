@@ -222,6 +222,8 @@ Route::middleware('auth:admin')->group(function () {
         Route::resource('registrars', RegistrarController::class)->except('show');
         Route::post('registrars/{registrar}/test-connection', [RegistrarController::class, 'testConnection'])->name('registrars.test-connection');
         Route::post('registrars/{registrar}/sync-tlds', [RegistrarController::class, 'syncTlds'])->name('registrars.sync-tlds');
+        Route::get('registrars/{registrar}/customers/export', [RegistrarController::class, 'exportCustomers'])->name('registrars.customers.export');
+        Route::post('registrars/{registrar}/customers/import', [RegistrarController::class, 'importCustomers'])->name('registrars.customers.import');
         Route::get('registrars/{registrar}/transactions', [RegistrarController::class, 'transactionsBootstrap'])->name('registrars.transactions');
         Route::get('registrars/{registrar}/debug-balance', [RegistrarController::class, 'debugBalance'])->name('registrars.debug-balance');
         Route::get('registrars/{registrar}/diagnostics', [RegistrarController::class, 'diagnosticsBootstrap'])->name('registrars.diagnostics');

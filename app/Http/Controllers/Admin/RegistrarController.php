@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
 use App\Models\Registrar;
 use App\Models\Tld;
 use App\Services\Domain\DomainRegistrarFactory;
@@ -27,6 +28,11 @@ class RegistrarController extends Controller
         // (Dnama, dst) otomatis dapat tombol ini asal service-nya
         // benar-benar mengimplementasikan method yang dibutuhkan.
         $supportsSync = [];
+        // Tombol "Tarik Customer" cuma muncul untuk provider yang punya
+        // endpoint daftar customer (mis. Liqu.id) -- provider tanpa
+        // endpoint ini (mis. DNAMA, cuma bisa cari per username) tidak
+        // dapat tombol yang ujung-ujungnya gagal kalau diklik.
+        $supportsCustomers = [];
 
         foreach ($registrars as $registrar) {
             if (! $registrar->is_active) {
@@ -36,6 +42,7 @@ class RegistrarController extends Controller
             $service = \App\Services\Domain\DomainRegistrarFactory::make($registrar);
 
             $supportsSync[$registrar->id] = method_exists($service, 'listTlds');
+            $supportsCustomers[$registrar->id] = method_exists($service, 'listCustomers');
 
             if (method_exists($service, 'getAccountBalance')) {
                 try {
@@ -47,7 +54,7 @@ class RegistrarController extends Controller
             }
         }
 
-        return view('admin.registrars.index', compact('registrars', 'balances', 'supportsSync'));
+        return view('admin.registrars.index', compact('registrars', 'balances', 'supportsSync', 'supportsCustomers'));
     }
 
     public function indexBootstrap(): View
@@ -56,6 +63,7 @@ class RegistrarController extends Controller
 
         $balances = [];
         $supportsSync = [];
+        $supportsCustomers = [];
 
         foreach ($registrars as $registrar) {
             if (! $registrar->is_active) {
@@ -65,6 +73,7 @@ class RegistrarController extends Controller
             $service = \App\Services\Domain\DomainRegistrarFactory::make($registrar);
 
             $supportsSync[$registrar->id] = method_exists($service, 'listTlds');
+            $supportsCustomers[$registrar->id] = method_exists($service, 'listCustomers');
 
             if (method_exists($service, 'getAccountBalance')) {
                 try {
@@ -76,7 +85,7 @@ class RegistrarController extends Controller
             }
         }
 
-        return view('admin.registrars.index', compact('registrars', 'balances', 'supportsSync'));
+        return view('admin.registrars.index', compact('registrars', 'balances', 'supportsSync', 'supportsCustomers'));
     }
 
     public function create(): View
@@ -367,6 +376,119 @@ class RegistrarController extends Controller
             'warning' => $result['success'] ? null : $result['message'],
             'page' => $page,
         ]);
+    }
+
+    /**
+     * Tarik daftar Customer dari akun registrar (mis. Liqu.id) dan
+     * unduh sebagai CSV. Ini murni baca (GET /customers) -- tidak
+     * mengubah/menghapus apa pun di sisi registrar maupun database
+     * lokal. Berguna untuk melihat/menyalin data customer yang sudah
+     * pernah dibuat di registrar tanpa harus login ke dashboard mereka.
+     */
+    public function exportCustomers(Registrar $registrar): \Symfony\Component\HttpFoundation\StreamedResponse|RedirectResponse
+    {
+        $service = DomainRegistrarFactory::make($registrar);
+
+        if (! method_exists($service, 'listCustomers')) {
+            return back()->with('error', 'Registrar ini tidak punya endpoint daftar customer.');
+        }
+
+        $result = $service->listCustomers(500);
+
+        if (! $result['success']) {
+            return back()->with('error', 'Gagal menarik data customer: ' . $result['message']);
+        }
+
+        if (empty($result['customers'])) {
+            return back()->with('error', 'Tidak ada data customer yang bisa diambil dari registrar ini.');
+        }
+
+        $filename = 'customers_' . $registrar->provider . '_' . $registrar->id . '_' . now()->format('Y-m-d_His') . '.csv';
+
+        return response()->streamDownload(function () use ($result) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['customer_id', 'nama', 'email', 'perusahaan']);
+
+            foreach ($result['customers'] as $c) {
+                fputcsv($out, [
+                    $c['id'] ?? '',
+                    $c['name'] ?? '',
+                    $c['email'] ?? '',
+                    $c['company'] ?? '',
+                ]);
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Tarik daftar Customer dari registrar dan TULIS ke tabel `clients`
+     * lokal -- ini yang dipakai untuk skenario "data hilang", beda dari
+     * exportCustomers() di atas yang cuma mengunduh CSV tanpa menyentuh
+     * database.
+     *
+     * Pencocokan pakai EMAIL (kolom itu unique di tabel clients):
+     *   - Email sudah ada di database  -> DILEWATI, tidak ditimpa. Data
+     *     lokal (yang mungkin sudah diedit admin: alamat, saldo, dst)
+     *     tidak boleh rusak gara-gara ditimpa versi lama dari registrar.
+     *   - Email belum ada               -> dibuat Client baru.
+     *
+     * Password SENGAJA dikosongkan (null): Liqu.id tidak pernah mengirim
+     * password asli client (memang tidak bisa, itu tersimpan ter-hash
+     * di sisi mereka). Client yang datanya baru dipulihkan lewat cara
+     * ini harus pakai "Lupa Password" untuk login pertama kali.
+     */
+    public function importCustomers(Registrar $registrar): RedirectResponse
+    {
+        $service = DomainRegistrarFactory::make($registrar);
+
+        if (! method_exists($service, 'listCustomers')) {
+            return back()->with('error', 'Registrar ini tidak punya endpoint daftar customer.');
+        }
+
+        $result = $service->listCustomers(500);
+
+        if (! $result['success']) {
+            return back()->with('error', 'Gagal menarik data customer: ' . $result['message']);
+        }
+
+        $created = 0;
+        $skipped = 0;
+        $invalid = 0;
+
+        foreach ($result['customers'] as $c) {
+            $email = trim((string) ($c['email'] ?? ''));
+
+            if ($email === '') {
+                $invalid++;
+                continue;
+            }
+
+            if (Client::where('email', $email)->exists()) {
+                $skipped++;
+                continue;
+            }
+
+            Client::create([
+                'name' => $c['name'] ?: $email,
+                'email' => $email,
+                'company' => $c['company'] ?? null,
+                'password' => null,
+                'status' => 'active',
+                'internal_notes' => "Dipulihkan otomatis dari {$registrar->name} (customer_id: " . ($c['id'] ?? '-') . ') pada ' . now()->format('Y-m-d H:i'),
+            ]);
+
+            $created++;
+        }
+
+        $message = "Impor selesai: {$created} klien baru dibuat, {$skipped} dilewati (email sudah ada di database).";
+
+        if ($invalid > 0) {
+            $message .= " {$invalid} baris dilewati karena tidak ada email.";
+        }
+
+        return back()->with($created > 0 ? 'success' : 'error', $message);
     }
 
     public function syncTlds(Registrar $registrar): RedirectResponse
