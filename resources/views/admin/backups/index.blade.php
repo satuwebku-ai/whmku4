@@ -39,6 +39,9 @@
                   <i class="fa-solid fa-download" style="font-size:12px"></i>
                 </a>
                 @if (auth('admin')->user()?->role === 'superadmin')
+                  <a href="{{ route('admin.backups.selective', $backup['name']) }}" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Pulihkan sebagian (pilih tabel)">
+                    <i class="fa-solid fa-list-check" style="font-size:12px"></i>
+                  </a>
                   <form method="POST" action="{{ route('admin.backups.restore', $backup['name']) }}"
                         data-confirm="PULIHKAN dari cadangan {{ $backup['name'] }}? SELURUH DATA SAAT INI akan DITIMPA dengan isi cadangan ini (yang dibuat {{ $backup['created_at']->format('d M Y H:i') }}). Cadangan pengaman dari keadaan sekarang akan dibuat otomatis dulu sebelum menimpa, tapi proses ini tetap butuh waktu dan TIDAK BOLEH diinterupsi." data-confirm-title="Pulihkan Database" data-confirm-style="danger" data-confirm-label="Ya, Timpa & Pulihkan">
                     @csrf
@@ -63,6 +66,24 @@
       </div>
 
       @if (auth('admin')->user()?->role === 'superadmin')
+        <div class="card border rounded-4 p-4 mt-3">
+          <h2 class="small fw-bold text-dark mb-2">
+            <i class="fa-solid fa-list-check"></i> Pilih Data dari File Unggahan
+          </h2>
+          <p class="text-muted mb-3" style="font-size:12px">
+            Unggah cadangan (.zip), lalu pilih sendiri tabel mana yang dimasukkan. Belum ada data yang diubah
+            sampai Anda konfirmasi di halaman berikutnya. Untuk cadangan yang ada di daftar di atas, pakai ikon
+            <i class="fa-solid fa-list-check"></i> di barisnya.
+          </p>
+          <form method="POST" action="{{ route('admin.backups.selective-upload') }}" enctype="multipart/form-data">
+            @csrf
+            <input type="file" name="backup_file" accept=".zip" required class="form-control form-control-sm mb-2">
+            <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+              <i class="fa-solid fa-upload" style="font-size:11px"></i> Unggah &amp; Pilih Data
+            </button>
+          </form>
+        </div>
+
         <div class="card border rounded-4 p-4 mt-3" style="background:#fef2f2;border-color:#fecaca!important">
           <h2 class="small fw-bold mb-2" style="color:#991b1b">
             <i class="fa-solid fa-clock-rotate-left"></i> Pulihkan dari File Unggahan

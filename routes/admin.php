@@ -577,6 +577,13 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::middleware('role:superadmin')->group(function () {
                 Route::post('{filename}/restore', 'restore')->name('restore');
                 Route::post('restore-upload', 'restoreUpload')->name('restore-upload');
+
+                // Pemulihan SEBAGIAN -- pilih tabel mana yang dimasukkan kembali.
+                Route::get('{filename}/selective', 'selective')->name('selective');
+                Route::post('{filename}/selective', 'selectiveRestore')->name('selective.run');
+                Route::post('selective-upload', 'selectiveUpload')->name('selective-upload');
+                Route::get('staged/{token}/selective', 'selectiveStaged')->name('selective.staged');
+                Route::post('staged/{token}/selective', 'selectiveRestoreStaged')->name('selective.staged.run');
             });
         });
 
