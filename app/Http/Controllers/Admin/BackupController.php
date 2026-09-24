@@ -120,6 +120,94 @@ class BackupController extends Controller
         }
     }
 
+    /**
+     * Pulihkan dari salah satu cadangan yang SUDAH ADA di server (daftar
+     * di halaman ini). Lihat performRestore() untuk pengaman yang
+     * dijalankan sebelum data ditimpa.
+     */
+    public function restore(string $filename): RedirectResponse
+    {
+        $this->validateFilename($filename);
+
+        $path = storage_path("app/backups/{$filename}");
+
+        abort_unless(file_exists($path), 404);
+
+        return $this->performRestore($path);
+    }
+
+    /**
+     * Pulihkan dari file ZIP yang diunggah langsung (mis. hasil unduh
+     * dari Google Drive, atau cadangan dari server lain) -- tidak harus
+     * sudah ada di daftar backup server ini.
+     */
+    public function restoreUpload(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'backup_file' => ['required', 'file', 'mimes:zip', 'max:512000'], // maks 500MB
+        ]);
+
+        $uploadDir = storage_path('app/backups/uploads');
+
+        if (! is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $tempPath = $uploadDir . '/' . uniqid('upload_') . '.zip';
+        $request->file('backup_file')->move($uploadDir, basename($tempPath));
+
+        try {
+            return $this->performRestore($tempPath);
+        } finally {
+            // Salinan upload sementara ini SELALU dihapus setelah dipakai
+            // (berhasil maupun gagal) -- bukan cadangan resmi yang perlu
+            // disimpan, cuma titik singgah sebelum diproses.
+            if (file_exists($tempPath)) {
+                unlink($tempPath);
+            }
+        }
+    }
+
+    /**
+     * Inti proses restore, dipakai baik dari cadangan yang sudah ada
+     * maupun dari upload baru.
+     *
+     * PENGAMAN WAJIB: cadangan keadaan SAAT INI dibuat dulu (ditandai
+     * "pre-restore" di namanya) SEBELUM data ditimpa. Kalau langkah ini
+     * sendiri gagal, seluruh proses restore DIBATALKAN -- tanpa jaring
+     * pengaman ini, sekali restore salah pilih file berarti data
+     * sebelumnya hilang permanen tanpa cara kembali.
+     */
+    private function performRestore(string $zipPath): RedirectResponse
+    {
+        try {
+            $safetyResult = Artisan::call('lumora:backup');
+        } catch (\Throwable $e) {
+            $safetyResult = 1;
+        }
+
+        if ($safetyResult !== 0) {
+            return back()->with('error', 'Restore DIBATALKAN: gagal membuat cadangan pengaman dari data saat ini. Tidak ada data yang diubah.');
+        }
+
+        try {
+            $exitCode = Artisan::call('lumora:restore', [
+                'file' => $zipPath,
+                '--force' => true,
+            ]);
+
+            $output = Artisan::output();
+
+            if ($exitCode !== 0) {
+                return back()->with('error', "Restore gagal: {$output}");
+            }
+
+            return back()->with('success', 'Database & file berhasil dipulihkan dari cadangan. Cadangan keadaan sebelumnya (pra-restore) sudah dibuat otomatis di daftar backup, kalau perlu kembali.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Restore gagal: ' . $e->getMessage());
+        }
+    }
+
     public function download(string $filename)
     {
         $this->validateFilename($filename);

@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
-use App\Services\Provisioning\ProvisioningService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Throwable;
 
 class Invoice extends Model
@@ -16,7 +15,7 @@ class Invoice extends Model
     use HasFactory;
 
     protected $fillable = [
-        'invoice_number', 'client_id', 'order_id', 'coupon_id', 'amount', 'tax', 'discount', 'total',
+        'invoice_number', 'client_id', 'order_id', 'coupon_id', 'tax_id', 'tax_rate', 'amount', 'tax', 'discount', 'total',
         'status', 'issue_date', 'due_date', 'paid_at', 'payment_method', 'notes', 'is_topup',
     ];
 
@@ -26,38 +25,37 @@ class Invoice extends Model
             'amount' => 'decimal:2',
             'tax' => 'decimal:2',
             'discount' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
             'total' => 'decimal:2',
             'issue_date' => 'date',
             'due_date' => 'date',
             'is_topup' => 'boolean',
-            'paid_at' => 'date',
+            'paid_at' => 'datetime',
         ];
     }
 
     protected static function booted(): void
     {
         static::creating(function (Invoice $invoice) {
+            // Eloquent tidak menghidrasi nilai DEFAULT database kembali ke
+            // instance setelah INSERT. Tetapkan state awal di model juga,
+            // supaya operasi langsung setelah create() (mis. markOverdue)
+            // tidak melihat status null.
+            $invoice->status ??= 'unpaid';
+
             if (empty($invoice->invoice_number)) {
                 $invoice->invoice_number = static::generateInvoiceNumber();
             }
 
-            $invoice->total = max(0, (float) $invoice->amount + (float) $invoice->tax - (float) $invoice->discount);
+            $invoice->recalculateTotal();
         });
 
         static::updating(function (Invoice $invoice) {
             if ($invoice->isDirty(['amount', 'tax', 'discount'])) {
-                $invoice->total = max(0, (float) $invoice->amount + (float) $invoice->tax - (float) $invoice->discount);
+                $invoice->recalculateTotal();
             }
         });
 
-        /*
-         * Titik pemicu TUNGGAL untuk auto-provisioning (Fase 7c). Dipilih
-         * lewat event model, bukan dipanggil manual di tiap tempat yang
-         * bisa melunasi invoice (webhook Midtrans/Xendit, approve transfer
-         * manual, edit manual admin) — supaya tidak ada jalur yang lupa
-         * memicu provisioning kalau nanti ditambah cara baru untuk
-         * melunasi invoice.
-         */
         // Invoice baru terbit → kirim ke email klien.
         static::created(function (Invoice $invoice) {
             try {
@@ -68,75 +66,14 @@ class Invoice extends Model
         });
 
         static::updated(function (Invoice $invoice) {
-            if ($invoice->wasChanged('status') && $invoice->status === 'paid') {
+            if ($invoice->wasChanged('status') && in_array($invoice->status, ['overdue', 'cancelled'], true)) {
                 try {
-                    app(\App\Services\Notification\NotificationService::class)->invoicePaid($invoice);
-                } catch (Throwable $e) {
-                    Log::warning('Notifikasi pembayaran gagal: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
-                }
-
-                // Invoice isi ulang saldo TIDAK melalui provisioning/
-                // perpanjangan/upgrade sama sekali — tidak ada order,
-                // layanan, atau domain yang terkait dengannya. Cabang
-                // terpisah di sini supaya jelas disengaja, bukan cuma
-                // kebetulan tidak menemukan apa pun untuk diproses.
-                if ($invoice->is_topup) {
-                    try {
-                        app(ProvisioningService::class)->processTopupPayment($invoice);
-                    } catch (Throwable $e) {
-                        Log::error('Memproses isi ulang saldo gagal: ' . $e->getMessage(), [
-                            'invoice_id' => $invoice->id,
-                        ]);
+                    app(\App\Services\Billing\CouponService::class)->releaseForInvoice($invoice);
+                    if (! $invoice->is_topup) {
+                        app(\App\Services\Provisioning\ProvisioningService::class)->releaseCheckoutReservations($invoice);
                     }
-
-                    return;
-                }
-
-                try {
-                    app(ProvisioningService::class)->provisionInvoice($invoice);
                 } catch (Throwable $e) {
-                    // Provisioning gagal TIDAK boleh membatalkan pelunasan invoice
-                    // yang sudah tercatat — klien sudah bayar, jadi kegagalan di
-                    // sini harus tercatat untuk ditindaklanjuti admin, bukan
-                    // membuat request yang sedang berjalan (mis. webhook) error.
-                    Log::error('Auto-provisioning gagal total: ' . $e->getMessage(), [
-                        'invoice_id' => $invoice->id,
-                    ]);
-                }
-
-                // Perpanjangan layanan yang sudah aktif — beda dari
-                // provisioning order baru di atas. Lihat
-                // ProvisioningService::processRenewalPayment().
-                try {
-                    app(ProvisioningService::class)->processRenewalPayment($invoice);
-                } catch (Throwable $e) {
-                    Log::error('Memproses pembayaran perpanjangan gagal: ' . $e->getMessage(), [
-                        'invoice_id' => $invoice->id,
-                    ]);
-                }
-
-                try {
-                    app(ProvisioningService::class)->processUpgradePayment($invoice);
-                } catch (Throwable $e) {
-                    Log::error('Memproses pembayaran upgrade gagal: ' . $e->getMessage(), [
-                        'invoice_id' => $invoice->id,
-                    ]);
-                }
-
-                try {
-                    app(ProvisioningService::class)->processAddonPayment($invoice);
-                } catch (Throwable $e) {
-                    Log::error('Memproses pembayaran addon gagal: ' . $e->getMessage(), [
-                        'invoice_id' => $invoice->id,
-                    ]);
-                }
-
-                try {
-                    app(ProvisioningService::class)->processPrivacyPayment($invoice);
-                } catch (Throwable $e) {
-                    Log::error('Memproses pembayaran ID Protection gagal: ' . $e->getMessage(), [
-                        'invoice_id' => $invoice->id,
-                    ]);
+                    Log::error('Gagal melepas reservation checkout: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
                 }
             }
         });
@@ -145,10 +82,46 @@ class Invoice extends Model
     public static function generateInvoiceNumber(): string
     {
         $year = now()->year;
-        $last = static::whereYear('created_at', $year)->orderByDesc('id')->first();
-        $next = $last ? ((int) Str::afterLast($last->invoice_number, '-') + 1) : 1;
+        $next = NumberSequence::next('invoices:' . $year, 1);
 
         return "INV-{$year}-" . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+    }
+
+
+    public function taxRule(): BelongsTo
+    {
+        return $this->belongsTo(Tax::class, 'tax_id');
+    }
+
+    public function recalculateTotal(): void
+    {
+        $result = app(\App\Services\Billing\InvoiceCalculationService::class)->calculate(
+            $this->amount ?? 0,
+            $this->tax ?? 0,
+            $this->discount ?? 0,
+            $this->tax_rate !== null ? (string) $this->tax_rate : null,
+        );
+
+        $this->total = $result['total'];
+    }
+
+    public function recalculateFromItems(): self
+    {
+        $amount = $this->items()->sum('amount');
+        $this->amount = $amount;
+        $this->recalculateTotal();
+        $this->save();
+
+        return $this->refresh();
+    }
+
+    public function markOverdue(): bool
+    {
+        if ($this->status !== 'unpaid' || ! $this->due_date?->isPast()) {
+            return false;
+        }
+
+        return $this->update(['status' => 'overdue']);
     }
 
     public function client(): BelongsTo
@@ -166,6 +139,11 @@ class Invoice extends Model
         return $this->belongsTo(Coupon::class);
     }
 
+    public function couponUsage(): HasOne
+    {
+        return $this->hasOne(CouponUsage::class);
+    }
+
     /**
      * Rincian per item — dipakai invoice hasil checkout keranjang yang bisa
      * berisi beberapa order sekaligus. Invoice manual lama (Fase 2) tidak
@@ -174,6 +152,16 @@ class Invoice extends Model
     public function items(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 
     public function getIsOverdueAttribute(): bool

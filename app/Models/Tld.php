@@ -110,10 +110,6 @@ class Tld extends Model
     }
 
     /**
-     * Apakah harga modal sudah terisi? Markup hanya bisa dihitung
-     * kalau nilai ini tersedia.
-     */
-    /**
      * Harga registrasi untuk durasi tertentu.
      *
      * Kalau ada harga khusus per tahun, itu yang dipakai. Kalau tidak,
@@ -190,6 +186,10 @@ class Tld extends Model
         return null;
     }
 
+    /**
+     * Apakah harga modal sudah terisi? Markup hanya bisa dihitung
+     * kalau nilai ini tersedia.
+     */
     public function hasCost(): bool
     {
         return (float) $this->cost_register > 0;

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Page;
+use App\Models\CmsPage;
 use Illuminate\Support\Str;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +23,7 @@ class PageController extends Controller
 
     private function indexData(Request $request): array
     {
-        $pages = Page::query()
+        $pages = CmsPage::query()
             ->when($request->search, fn ($q) => $q->where('title', 'like', "%{$request->search}%"))
             ->orderBy('sort_order')
             ->orderBy('title')
@@ -35,12 +35,12 @@ class PageController extends Controller
 
     public function create(): View
     {
-        return view('admin.pages.form', ['page' => new Page()]);
+        return view('admin.pages.form', ['page' => new CmsPage()]);
     }
 
     public function createBootstrap(): View
     {
-        return view('admin.pages.form', ['page' => new Page()]);
+        return view('admin.pages.form', ['page' => new CmsPage()]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -48,22 +48,22 @@ class PageController extends Controller
         $data = $this->validated($request);
         $data = $this->withBooleans($request, $data);
 
-        Page::create($data);
+        CmsPage::create($data);
 
         return redirect()->route('admin.pages')->with('success', 'Halaman berhasil dibuat.');
     }
 
-    public function edit(Page $page): View
+    public function edit(CmsPage $page): View
     {
         return view('admin.pages.form', compact('page'));
     }
 
-    public function editBootstrap(Page $page): View
+    public function editBootstrap(CmsPage $page): View
     {
         return view('admin.pages.form', compact('page'));
     }
 
-    public function update(Request $request, Page $page): RedirectResponse
+    public function update(Request $request, CmsPage $page): RedirectResponse
     {
         $data = $this->validated($request, $page->id);
         $data = $this->withBooleans($request, $data);
@@ -73,7 +73,7 @@ class PageController extends Controller
         return redirect()->route('admin.pages')->with('success', 'Halaman berhasil diperbarui.');
     }
 
-    public function destroy(Page $page): RedirectResponse
+    public function destroy(CmsPage $page): RedirectResponse
     {
         $page->delete();
 
@@ -92,14 +92,14 @@ class PageController extends Controller
 
         $slug = Str::slug($data['slug']);
 
-        if (Page::isReservedSlug($slug)) {
+        if (CmsPage::isReservedSlug($slug)) {
             return response()->json([
                 'available' => false,
                 'reason' => 'Alamat ini dipakai oleh fitur sistem, bukan halaman lain.',
             ]);
         }
 
-        $exists = Page::where('slug', $slug)
+        $exists = CmsPage::where('slug', $slug)
             ->when($data['id'] ?? null, fn ($q, $id) => $q->where('id', '!=', $id))
             ->exists();
 
@@ -108,7 +108,7 @@ class PageController extends Controller
 
     public function status(Request $request): RedirectResponse
     {
-        $page = Page::findOrFail($request->input('page_id'));
+        $page = CmsPage::findOrFail($request->input('page_id'));
         $page->update(['is_published' => ! $page->is_published]);
 
         return back()->with('success', 'Status halaman diperbarui.');
@@ -129,9 +129,9 @@ class PageController extends Controller
             'title'            => ['required', 'string', 'max:255'],
             'slug'             => [
                 'nullable', 'string', 'max:255',
-                'unique:pages,slug' . ($ignoreId ? ",{$ignoreId}" : ''),
+                'unique:cms_pages,slug' . ($ignoreId ? ",{$ignoreId}" : ''),
                 function ($attribute, $value, $fail) {
-                    if ($value && \App\Models\Page::isReservedSlug($value)) {
+                    if ($value && \App\Models\CmsPage::isReservedSlug($value)) {
                         $fail('Alamat "' . \Illuminate\Support\Str::slug($value) . '" sudah dipakai oleh fitur sistem. Pilih alamat lain, mis. "' . \Illuminate\Support\Str::slug($value) . '-1".');
                     }
                 },

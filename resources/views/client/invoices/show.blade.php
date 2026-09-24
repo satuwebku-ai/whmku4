@@ -147,8 +147,11 @@
             {{-- Jalan pintas QRIS tertanam --}}
             @php $qrisGateway = $gateways->first(fn ($g) => $g->supportsEmbeddedQris()); @endphp
             @if ($qrisGateway)
-              <a href="{{ route('client.invoices.qris', [$invoice, $qrisGateway]) }}"
-                 class="d-flex align-items-center gap-3 p-3 mb-3 rounded-3 text-decoration-none" style="border:2px solid rgba(79,70,229,.25);background:rgba(79,70,229,.04)">
+              <form method="POST" action="{{ route('client.invoices.qris', [$invoice, $qrisGateway]) }}"
+                    class="mb-3">
+                @csrf
+                <button type="submit"
+                        class="w-100 d-flex align-items-center gap-3 p-3 rounded-3 text-start border-0 text-decoration-none" style="border:2px solid rgba(79,70,229,.25)!important;background:rgba(79,70,229,.04)">
                 <span class="rounded-3 bg-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;border:1px solid rgba(79,70,229,.2)">
                   <i class="fa-solid fa-qrcode text-theme"></i>
                 </span>
@@ -157,7 +160,8 @@
                   <span class="d-block text-muted" style="font-size:11px">Scan langsung dari halaman ini — tanpa pindah situs</span>
                 </span>
                 <i class="fa-solid fa-arrow-right text-theme" style="font-size:11px"></i>
-              </a>
+                </button>
+              </form>
 
               <div class="d-flex align-items-center gap-3 mb-3">
                 <span class="flex-grow-1 border-top"></span>

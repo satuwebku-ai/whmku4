@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Events\Invoice\InvoicePaid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
+use App\Enums\OrderStatus;
+use App\Models\Transaction;
 
 class Payment extends Model
 {
@@ -41,13 +45,24 @@ class Payment extends Model
                 $payment->total = (float) $payment->amount + (float) $payment->fee;
             }
         });
+
+        static::updated(function (Payment $payment) {
+            if ($payment->wasChanged('status') && $payment->status === 'refunded') {
+                app(\App\Services\Affiliate\AffiliateCommissionService::class)
+                    ->reverseForInvoice($payment->invoice_id, 'Payment invoice direfund/chargeback otomatis.');
+                app(\App\Services\Billing\RefundService::class)->apply($payment);
+            }
+        });
     }
 
     public static function generateReference(): string
     {
         $year = now()->year;
         $last = static::whereYear('created_at', $year)->orderByDesc('id')->first();
-        $next = $last ? ((int) Str::afterLast($last->reference, '-') + 1) : 1;
+        $lastNumber = $last && preg_match('/(\d+)$/', (string) $last->reference, $matches)
+            ? (int) $matches[1]
+            : 0;
+        $next = \App\Models\NumberSequence::nextAtLeast('payments:' . $year, $lastNumber + 1);
 
         return "PAY-{$year}-" . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
@@ -67,54 +82,120 @@ class Payment extends Model
         return $this->belongsTo(PaymentGateway::class, 'payment_gateway_id');
     }
 
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
     /**
      * Tandai lunas dan otomatis lunasi invoice terkait.
      */
     public function markAsPaid(?string $method = null, array $raw = []): void
     {
-        // Invoice sudah lunas lewat pembayaran lain — jangan diproses lagi.
-        // Ini bisa terjadi kalau klien membayar via dua jalur, atau webhook
-        // gateway datang setelah admin menyetujui transfer manual.
-        if ($this->invoice && $this->invoice->status === 'paid' && $this->status !== 'paid') {
-            $this->update([
+        $invoiceWasPaid = DB::transaction(function () use ($method, $raw): bool {
+            $payment = static::query()->lockForUpdate()->findOrFail($this->id);
+            $invoice = Invoice::query()->lockForUpdate()->find($payment->invoice_id);
+
+            if (! $invoice || $payment->status === 'paid') {
+                return false;
+            }
+
+            // Hanya pembayaran yang masih menunggu yang boleh masuk ke state
+            // paid. Payment failed/expired/refunded tidak boleh dihidupkan
+            // kembali oleh approval admin atau webhook yang terlambat.
+            if (! in_array($payment->status, ['initiated', 'pending'], true)) {
+                return false;
+            }
+
+            if ($invoice->status === 'cancelled') {
+                throw new \App\Exceptions\Billing\InvoiceException(
+                    "Invoice {$invoice->invoice_number} sudah dibatalkan dan tidak bisa dibayar."
+                );
+            }
+
+            // Webhook/callback tidak boleh menjadi jalur pembayaran alternatif
+            // yang melewati aturan invoice dan dokumen. Semua entry point
+            // memakai service yang sama sebelum fulfillment dijalankan.
+            $eligibility = app(\App\Services\Payment\PaymentEligibilityService::class)->check($invoice);
+            if (! $eligibility['allowed']) {
+                $payment->update([
+                    'status' => 'expired',
+                    'gateway_response' => $raw ?: $payment->gateway_response,
+                    'admin_note' => trim(($payment->admin_note ? $payment->admin_note . ' ' : '')
+                        . '[Otomatis] Callback ditolak: ' . ($eligibility['message'] ?? 'invoice tidak dapat dibayar.')),
+                ]);
+
+                return false;
+            }
+
+            // Invoice sudah lunas lewat pembayaran lain. Payment kedua
+            // ditutup sebagai expired, bukan ikut ditandai paid.
+            if ($invoice->status === 'paid') {
+                $payment->update([
+                    'status' => 'expired',
+                    'admin_note' => trim(($payment->admin_note ? $payment->admin_note . ' ' : '')
+                        . '[Otomatis] Pembayaran ditutup karena invoice sudah lunas lewat pembayaran lain.'),
+                ]);
+
+                return false;
+            }
+
+            $payment->update([
                 'status' => 'paid',
                 'paid_at' => now(),
-                'payment_method' => $method ?? $this->payment_method,
-                'gateway_response' => $raw ?: $this->gateway_response,
-                'admin_note' => trim(($this->admin_note ? $this->admin_note . ' ' : '')
-                    . '[Otomatis] Invoice sudah lunas lewat pembayaran lain.'),
+                'payment_method' => $method ?? $payment->payment_method,
+                'gateway_response' => $raw ?: $payment->gateway_response,
             ]);
 
-            return;
-        }
+            $invoice->update([
+                'status' => 'paid',
+                'paid_at' => now(),
+                'payment_method' => $payment->gateway?->name ?? $method,
+            ]);
 
-        $this->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-            'payment_method' => $method ?? $this->payment_method,
-            'gateway_response' => $raw ?: $this->gateway_response,
-        ]);
+            // Catat charge finansial tepat sekali. Webhook replay tidak boleh
+            // membuat transaksi ledger kedua. Constraint DB pada
+            // idempotency_key menjadi lapisan terakhir selain firstOrCreate.
+            Transaction::firstOrCreate(
+                ['idempotency_key' => 'payment:' . $payment->id . ':paid'],
+                [
+                    'client_id' => $payment->client_id,
+                    'invoice_id' => $payment->invoice_id,
+                    'payment_id' => $payment->id,
+                    'type' => 'charge',
+                    'amount' => $payment->total,
+                    'description' => 'Pembayaran invoice ' . ($invoice->invoice_number ?? $invoice->id),
+                ]
+            );
 
-        $this->invoice?->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-            'payment_method' => $this->gateway->name ?? $method,
-        ]);
+            // Payment completion advances every service order attached to
+            // this invoice. invoice_items is the canonical multi-order path;
+            // invoices.order_id remains supported for legacy single-order invoices.
+            $orders = $invoice->items()->with('order')->get()->pluck('order')->filter();
+            if ($invoice->order) {
+                $orders->push($invoice->order);
+            }
+            foreach ($orders->unique('id') as $order) {
+                if ($order->status === OrderStatus::PendingPayment) {
+                    $order->markPaid('Invoice pembayaran terverifikasi.');
+                }
+            }
 
-        // Pembayaran lain yang masih menggantung untuk invoice yang sama
-        // dibatalkan otomatis. Tanpa ini, admin melihat transaksi "pending"
-        // selamanya untuk invoice yang sebenarnya sudah lunas.
-        if ($this->invoice) {
-            static::where('invoice_id', $this->invoice_id)
-                ->where('id', '!=', $this->id)
+            // Payment::markAsPaid adalah satu-satunya titik yang memicu
+            // fulfillment. Listener hanya memasukkan invoice ke queue billing.
+            static::where('invoice_id', $payment->invoice_id)
+                ->where('id', '!=', $payment->id)
                 ->whereIn('status', ['initiated', 'pending'])
-                // Dipakai "expired" karena kolom status memang tidak punya
-                // nilai "cancelled" — artinya sama: pembayaran ini sudah
-                // tidak berlaku lagi.
                 ->update([
                     'status' => 'expired',
-                    'admin_note' => 'Dibatalkan otomatis: invoice sudah lunas lewat ' . $this->reference . '.',
+                    'admin_note' => 'Dibatalkan otomatis: invoice sudah lunas lewat ' . $payment->reference . '.',
                 ]);
+
+            return true;
+        });
+
+        if ($invoiceWasPaid) {
+            InvoicePaid::dispatch(Invoice::findOrFail($this->invoice_id));
         }
     }
 

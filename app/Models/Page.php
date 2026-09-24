@@ -12,6 +12,12 @@ class Page extends Model
     use HasFactory;
 
     /**
+     * Kompatibilitas untuk pemanggil lama setelah tabel pages di-rename
+     * menjadi cms_pages. Model utama yang dipakai aplikasi adalah CmsPage.
+     */
+    protected $table = 'cms_pages';
+
+    /**
      * Kata yang tidak boleh dipakai sebagai slug halaman.
      *
      * Sejak URL halaman dipindah ke root (tanpa awalan /p/), setiap slug

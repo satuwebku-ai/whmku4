@@ -38,22 +38,19 @@ use Throwable;
 class LiquidService implements DomainRegistrarInterface
 {
     /**
-     * Base URL default kalau field "API URL" di form Registrar dikosongkan.
-     */
-    /**
      * Endpoint harga mengembalikan ratusan TLD sekaligus sehingga jauh
      * lebih lambat dari request biasa — timeout dibuat lebih longgar.
      */
     protected const PRICE_TIMEOUT = 90;
 
+    /**
+     * Base URL default kalau field "API URL" di form Registrar dikosongkan.
+     */
     protected const DEFAULT_LIVE_URL = 'https://api.liqu.id/v1';
     protected const DEFAULT_DEMO_URL = 'https://api.domainsas.com/v1';
 
     public function __construct(protected Registrar $registrar) {}
 
-    /**
-     * GET /domains/availability?domain=a.com,b.com
-     */
     /**
      * Berapa domain yang dikirim per request.
      *
@@ -63,6 +60,9 @@ class LiquidService implements DomainRegistrarInterface
      */
     protected const AVAILABILITY_CHUNK = 15;
 
+    /**
+     * GET /domains/availability?domain=a.com,b.com
+     */
     public function checkAvailability(array $domains): array
     {
         $results = [];
@@ -404,8 +404,7 @@ class LiquidService implements DomainRegistrarInterface
      * percobaan domain sebelumnya (mis. "Satuwebku" / "fahri alhaddar"
      * yang dipakai testing hosting kemarin, kalau kebetulan juga sempat
      * dipakai coba daftar domain).
-     */
-    /**
+     *
      * $limit di sini artinya "maksimal total customer yang mau diambil",
      * BUKAN nilai limit yang dikirim mentah ke API. Liqu.id menolak kalau
      * parameter limit per-request > 100 ("Limit records should not be
@@ -827,9 +826,6 @@ class LiquidService implements DomainRegistrarInterface
     }
 
     /**
-     * Samakan format jadi berawalan titik: "com" → ".com"
-     */
-    /**
      * Ambil harga modal (cost price) dari Liqu.id.
      *
      * Struktur API-nya terpecah dua dan harus digabung:
@@ -1000,6 +996,9 @@ class LiquidService implements DomainRegistrarInterface
         return null;
     }
 
+    /**
+     * Samakan format jadi berawalan titik: "com" → ".com"
+     */
     protected function normalizeExtension(string $ext): string
     {
         return '.' . ltrim(strtolower(trim($ext)), '.');
@@ -1070,11 +1069,6 @@ class LiquidService implements DomainRegistrarInterface
     }
 
     /**
-     * POST /customers/{customer_id}/contacts
-     *
-     * @return array{success: bool, contact_id: int|string|null, message: string, raw: mixed}
-     */
-    /**
      * TLD yang butuh data kelayakan tambahan (eligibility) sebelum bisa
      * didaftarkan — dikonfirmasi dari spesifikasi resmi Liqu.id, endpoint
      * PUT /customers/{id}/contacts/{id}/extra. Domain untuk TLD ini
@@ -1109,6 +1103,11 @@ class LiquidService implements DomainRegistrarInterface
         ]);
     }
 
+    /**
+     * POST /customers/{customer_id}/contacts
+     *
+     * @return array{success: bool, contact_id: int|string|null, message: string, raw: mixed}
+     */
     protected function createContact(int|string $customerId, array $c): array
     {
         [$ccNo, $telNo] = $this->splitPhone($c['phone']);

@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClientBalanceLog extends Model
 {
+    /**
+     * Kompatibilitas untuk pemanggil lama setelah tabel ini di-rename
+     * menjadi credits. Model utama yang dipakai aplikasi adalah Credit.
+     */
+    protected $table = 'credits';
+
     protected $fillable = [
         'client_id', 'amount', 'type', 'description', 'invoice_id', 'admin_id', 'balance_after',
     ];

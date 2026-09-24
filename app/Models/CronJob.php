@@ -76,6 +76,12 @@ class CronJob extends Model
             'command' => 'lumora:reconcile-provisioning',
             'interval_minutes' => 180,
         ],
+        'reconcile_billing' => [
+            'name' => 'Rekonsiliasi Billing',
+            'description' => 'Audit dan perbaiki gap deterministik antara payment, invoice, transaction ledger, dan top-up.',
+            'command' => 'lumora:reconcile-billing --repair',
+            'interval_minutes' => 60,
+        ],
         'close_inactive_chats' => [
             'name' => 'Tutup Chat Tidak Aktif',
             'description' => 'Tutup otomatis percakapan live chat yang sudah lama tidak ada aktivitas.',

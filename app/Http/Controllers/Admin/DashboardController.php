@@ -8,6 +8,7 @@ use App\Models\HostingAccount;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Ticket;
+use App\Enums\OrderStatus;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -41,8 +42,8 @@ class DashboardController extends Controller
             ->where('created_at', '<', now()->subMonth())->count();
         $serviceDelta = $this->percentDelta($activeServicesLastMonth, $activeServices);
 
-        $pendingOrders = Order::where('status', 'pending')->count();
-        $pendingOrdersLastWeek = Order::where('status', 'pending')
+        $pendingOrders = Order::where('status', OrderStatus::PendingPayment->value)->count();
+        $pendingOrdersLastWeek = Order::where('status', OrderStatus::PendingPayment->value)
             ->where('created_at', '<', now()->subWeek())->count();
 
         $revenueThisMonth = Invoice::where('status', 'paid')

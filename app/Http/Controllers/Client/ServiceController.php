@@ -11,9 +11,12 @@ use App\Models\InvoiceItem;
 use App\Models\Product;
 use App\Services\Domain\DomainRegistrarFactory;
 use App\Services\Hosting\HostingPanelFactory;
+use App\Services\Billing\UpgradeAddonService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ServiceController extends Controller
@@ -35,7 +38,7 @@ class ServiceController extends Controller
         // VPS/cloud punya menu sendiri (client.vps) karena cara
         // mengelolanya beda -- jadi dikecualikan dari daftar ini supaya
         // tidak muncul dobel di dua tempat.
-        $cloudServerIds = \App\Models\Server::whereIn('panel', ['idcloudhost'])->pluck('id');
+        $cloudServerIds = \App\Models\Server::cloud()->pluck('id');
 
         $services = Auth::guard('client')->user()
             ->hostingAccounts()
@@ -297,8 +300,10 @@ class ServiceController extends Controller
             return back()->with('error', 'Domain ini tidak terhubung ke registrar. Silakan hubungi support.');
         }
 
-        $result = DomainRegistrarFactory::make($domain->registrar)
-            ->setNameservers($domain->domain_name, $nameservers);
+        $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($nameservers): array {
+            return DomainRegistrarFactory::make($current->registrar)
+                ->setNameservers($current->domain_name, $nameservers);
+        });
 
         if (! $result['success']) {
             return back()->with('error', 'Gagal mengubah nameserver: ' . $result['message']);
@@ -319,9 +324,14 @@ class ServiceController extends Controller
     {
         $this->authorizeOwner($domain);
 
-        $domain->update(['auto_renew' => ! $domain->auto_renew]);
+        $autoRenew = DB::transaction(function () use ($domain): bool {
+            $current = Domain::query()->lockForUpdate()->findOrFail($domain->id);
+            $current->update(['auto_renew' => ! $current->auto_renew]);
 
-        return back()->with('success', $domain->auto_renew
+            return (bool) $current->auto_renew;
+        });
+
+        return back()->with('success', $autoRenew
             ? 'Perpanjangan otomatis diaktifkan. Invoice akan dibuat otomatis mendekati tanggal kedaluwarsa.'
             : 'Perpanjangan otomatis dimatikan. Anda perlu memperpanjang domain secara manual sebelum kedaluwarsa.');
     }
@@ -333,9 +343,6 @@ class ServiceController extends Controller
      * Method ini spesifik Liqu.id (belum tentu didukung registrar lain),
      * jadi dicek lewat method_exists sebelum dipanggil — sama seperti pola
      * yang dipakai untuk fitur QRIS tertanam di Duitku.
-     */
-    /**
-     * Nyalakan/matikan ID Protection.
      *
      * MENGAKTIFKAN berbayar — tiap aktivasi memotong saldo deposit kita
      * di registrar, jadi harus dibayar klien dulu (invoice dibuat di
@@ -362,17 +369,21 @@ class ServiceController extends Controller
                 return back()->with('error', 'Registrar domain ini belum mendukung pengaturan ID Protection lewat sistem.');
             }
 
-            $result = $service->disablePrivacyProtection($domain->domain_name);
+            $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($service): array {
+                $providerResult = $service->disablePrivacyProtection($current->domain_name);
+
+                if ($providerResult['success']) {
+                    // Sisa masa yang sudah dibayar tetap disimpan untuk
+                    // aktivasi ulang sebelum tanggal kedaluwarsa.
+                    $current->update(['whois_privacy' => false]);
+                }
+
+                return $providerResult;
+            });
 
             if (! $result['success']) {
                 return back()->with('error', 'Gagal mematikan ID Protection: ' . $result['message']);
             }
-
-            // privacy_expires_at TIDAK dikosongkan — kalau klien
-            // menyalakannya lagi sebelum tanggal itu lewat, sisa masa
-            // yang sudah dibayar masih dihormati (lihat
-            // processPrivacyPayment yang memperpanjang dari tanggal lama).
-            $domain->update(['whois_privacy' => false]);
 
             return back()->with('success', 'ID Protection dimatikan.');
         }
@@ -382,37 +393,55 @@ class ServiceController extends Controller
             return back()->with('error', 'Registrar domain ini belum mendukung pengaturan ID Protection lewat sistem.');
         }
 
-        if ($domain->privacy_invoice_id) {
-            return redirect()->route('client.invoices.show', $domain->privacy_invoice_id)
-                ->with('error', 'Sudah ada invoice ID Protection yang menunggu dibayar.');
-        }
-
         $price = (float) \App\Models\Setting::get('whois_privacy_price', 0);
 
         if ($price <= 0) {
             return back()->with('error', 'Harga ID Protection belum diatur. Silakan hubungi support.');
         }
 
-        $invoice = \App\Models\Invoice::create([
-            'client_id' => $domain->client_id,
-            'amount' => $price,
-            'tax' => 0,
-            'discount' => 0,
-            'status' => 'unpaid',
-            'issue_date' => now(),
-            'due_date' => now()->addDays(3),
-        ]);
+        // Cek lalu insert harus dikunci. Dua klik paralel sebelumnya dapat
+        // sama-sama melihat privacy_invoice_id kosong lalu membuat dua
+        // invoice ID Protection untuk domain yang sama.
+        $state = DB::transaction(function () use ($domain, $price): array {
+            $current = Domain::query()->lockForUpdate()->findOrFail($domain->id);
 
-        $isRenewal = $domain->privacy_expires_at !== null;
+            if ($current->privacy_invoice_id) {
+                return [
+                    'existing' => true,
+                    'invoice' => Invoice::findOrFail($current->privacy_invoice_id),
+                ];
+            }
 
-        \App\Models\InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => ($isRenewal ? 'Perpanjangan ID Protection' : 'ID Protection')
-                . " — {$domain->domain_name} (1 tahun)",
-            'amount' => $price,
-        ]);
+            $invoice = Invoice::create([
+                'client_id' => $current->client_id,
+                'amount' => $price,
+                'tax' => 0,
+                'discount' => 0,
+                'status' => 'unpaid',
+                'issue_date' => now(),
+                'due_date' => now()->addDays(3),
+            ]);
 
-        $domain->update(['privacy_invoice_id' => $invoice->id]);
+            $isRenewal = $current->privacy_expires_at !== null;
+
+            InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'description' => ($isRenewal ? 'Perpanjangan ID Protection' : 'ID Protection')
+                    . " — {$current->domain_name} (1 tahun)",
+                'amount' => $price,
+            ]);
+
+            $current->update(['privacy_invoice_id' => $invoice->id]);
+
+            return ['existing' => false, 'invoice' => $invoice];
+        });
+
+        if ($state['existing']) {
+            return redirect()->route('client.invoices.show', $state['invoice'])
+                ->with('error', 'Sudah ada invoice ID Protection yang menunggu dibayar.');
+        }
+
+        $invoice = $state['invoice'];
 
         return redirect()->route('client.invoices.show', $invoice)
             ->with('success', 'Invoice ID Protection dibuat — Rp ' . number_format($price, 0, ',', '.') . '. Aktif otomatis setelah dibayar.');
@@ -432,22 +461,25 @@ class ServiceController extends Controller
             return back()->with('error', 'Domain ini tidak terhubung ke registrar. Silakan hubungi support.');
         }
 
-        $service = DomainRegistrarFactory::make($domain->registrar);
+        $result = $this->withDomainProviderLock($domain, function (Domain $current): array {
+            $service = DomainRegistrarFactory::make($current->registrar);
 
-        if (! method_exists($service, 'lockDomain')) {
-            return back()->with('error', 'Registrar domain ini belum mendukung Registrar Lock lewat sistem.');
-        }
+            if (! method_exists($service, 'lockDomain')) {
+                return ['success' => false, 'message' => 'Registrar domain ini belum mendukung Registrar Lock lewat sistem.'];
+            }
 
-        // Status sekarang diambil langsung dari registrar (bukan disimpan
-        // di database kita) — ini satu-satunya sumber kebenaran, supaya
-        // tidak ada kondisi "menurut sistem kita aktif, tapi sebenarnya
-        // di registrar tidak".
-        $status = $service->getDomainLockStatus($domain->domain_name);
-        $turnOn = ! ($status['locked'] ?? false);
+            // Baca status dan ubah status di dalam lock yang sama. Tanpa
+            // ini, dua klik paralel bisa sama-sama membaca "unlocked" lalu
+            // mengirim dua perintah lock, atau menimpa toggle satu sama lain.
+            $status = $service->getDomainLockStatus($current->domain_name);
+            $turnOn = ! ($status['locked'] ?? false);
 
-        $result = $turnOn
-            ? $service->lockDomain($domain->domain_name, 'Dikunci oleh klien lewat panel.')
-            : $service->unlockDomain($domain->domain_name);
+            $providerResult = $turnOn
+                ? $service->lockDomain($current->domain_name, 'Dikunci oleh klien lewat panel.')
+                : $service->unlockDomain($current->domain_name);
+
+            return $providerResult + ['turn_on' => $turnOn];
+        });
 
         // Kalau ternyata status sungguhan di registrar SUDAH sesuai yang
         // diminta (registrar menolak dengan pesan "already locked/
@@ -459,7 +491,7 @@ class ServiceController extends Controller
             return back()->with('error', 'Gagal mengubah Registrar Lock: ' . $result['message']);
         }
 
-        return back()->with('success', $turnOn
+        return back()->with('success', $result['turn_on'] ?? false
             ? 'Registrar Lock diaktifkan — domain tidak bisa dipindah ke registrar lain sampai dimatikan.'
             : 'Registrar Lock dimatikan. Domain sekarang bisa ditransfer.');
     }
@@ -502,34 +534,53 @@ class ServiceController extends Controller
             return back()->with('error', 'Domain ini belum terdaftar, jadi belum bisa diajukan permintaan kode transfer.');
         }
 
-        // Cegah tiket dobel kalau klien klik berkali-kali sebelum admin
-        // sempat memproses yang pertama.
-        $existing = Ticket::where('domain_id', $domain->id)
-            ->where('client_id', $domain->client_id)
-            ->where('subject', 'like', 'Permintaan Kode Transfer%')
-            ->whereIn('status', ['open', 'answered', 'customer_reply'])
-            ->first();
+        // Cek dan pembuatan tiket harus berada dalam transaksi yang mengunci
+        // domain. Tanpa ini, dua klik paralel sama-sama dapat melihat belum
+        // ada tiket lalu membuat dua permintaan EPP.
+        $state = DB::transaction(function () use ($domain): array {
+            $current = Domain::query()->lockForUpdate()->findOrFail($domain->id);
 
-        if ($existing) {
-            return redirect()->route('client.tickets.show', $existing)
+            if ($current->provision_status !== 'registered') {
+                return ['blocked' => true];
+            }
+
+            $existing = Ticket::where('domain_id', $current->id)
+                ->where('client_id', $current->client_id)
+                ->where('subject', 'like', 'Permintaan Kode Transfer%')
+                ->whereIn('status', ['open', 'answered', 'customer_reply'])
+                ->first();
+
+            if ($existing) {
+                return ['existing' => true, 'ticket' => $existing];
+            }
+
+            $ticket = Ticket::create([
+                'client_id'  => $current->client_id,
+                'subject'    => "Permintaan Kode Transfer (EPP) — {$current->domain_name}",
+                'department' => 'support',
+                'priority'   => 'medium',
+                'domain_id'  => $current->id,
+                'status'     => 'open',
+            ]);
+
+            $ticket->replies()->create([
+                'client_id' => $current->client_id,
+                'message'   => "Saya minta kode transfer (EPP/Auth Code) untuk domain {$current->domain_name}, untuk keperluan pemindahan ke registrar lain.",
+            ]);
+
+            return ['existing' => false, 'ticket' => $ticket];
+        });
+
+        if ($state['blocked'] ?? false) {
+            return back()->with('error', 'Domain ini belum terdaftar, jadi belum bisa diajukan permintaan kode transfer.');
+        }
+
+        if ($state['existing'] ?? false) {
+            return redirect()->route('client.tickets.show', $state['ticket'])
                 ->with('success', 'Permintaan kamu sebelumnya masih diproses tim kami — lihat tiket ini untuk statusnya.');
         }
 
-        $ticket = Ticket::create([
-            'client_id'  => $domain->client_id,
-            'subject'    => "Permintaan Kode Transfer (EPP) — {$domain->domain_name}",
-            'department' => 'support',
-            'priority'   => 'medium',
-            'domain_id'  => $domain->id,
-            'status'     => 'open',
-        ]);
-
-        $ticket->replies()->create([
-            'client_id' => $domain->client_id,
-            'message'   => "Saya minta kode transfer (EPP/Auth Code) untuk domain {$domain->domain_name}, untuk keperluan pemindahan ke registrar lain.",
-        ]);
-
-        return redirect()->route('client.tickets.show', $ticket)
+        return redirect()->route('client.tickets.show', $state['ticket'])
             ->with('success', 'Permintaan kode transfer sudah diajukan. Tim kami akan meninjau dan mengirim kodenya ke email kamu setelah disetujui.');
     }
 
@@ -600,13 +651,15 @@ class ServiceController extends Controller
             return back()->with('error', 'Registrar domain ini belum mendukung manajemen DNS.');
         }
 
-        $result = $service->addDnsRecord(
-            $domain->domain_name,
-            $data['type'],
-            $data['hostname'],
-            $data['value'],
-            $data['priority'] ?? null,
-        );
+        $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($service, $data): array {
+            return $service->addDnsRecord(
+                $current->domain_name,
+                $data['type'],
+                $data['hostname'],
+                $data['value'],
+                $data['priority'] ?? null,
+            );
+        });
 
         return back()->with($result['success'] ? 'success' : 'error',
             $result['success'] ? 'Record DNS berhasil ditambahkan.' : 'Gagal menambah record: ' . $result['message']);
@@ -628,7 +681,9 @@ class ServiceController extends Controller
             return back()->with('error', 'Registrar domain ini belum mendukung manajemen DNS.');
         }
 
-        $result = $service->deleteDnsRecord($domain->domain_name, $data['type'], $data['hostname'], $data['value']);
+        $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($service, $data): array {
+            return $service->deleteDnsRecord($current->domain_name, $data['type'], $data['hostname'], $data['value']);
+        });
 
         return back()->with($result['success'] ? 'success' : 'error',
             $result['success'] ? 'Record DNS berhasil dihapus.' : 'Gagal menghapus record: ' . $result['message']);
@@ -644,23 +699,33 @@ class ServiceController extends Controller
     {
         $this->authorizeOwner($service);
 
-        if ($service->hasPendingCancellation()) {
-            return back()->with('error', 'Sudah ada pengajuan pembatalan yang sedang ditinjau untuk layanan ini.');
-        }
-
-        if ($service->status === 'terminated') {
-            return back()->with('error', 'Layanan ini sudah tidak aktif.');
-        }
-
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
-        $service->update([
-            'cancellation_status' => 'requested',
-            'cancellation_reason' => $data['reason'],
-            'cancellation_requested_at' => now(),
-        ]);
+        $result = DB::transaction(function () use ($service, $data): array {
+            $current = HostingAccount::query()->lockForUpdate()->findOrFail($service->id);
+
+            if ($current->hasPendingCancellation()) {
+                return ['success' => false, 'message' => 'Sudah ada pengajuan pembatalan yang sedang ditinjau untuk layanan ini.'];
+            }
+
+            if ($current->status === 'terminated') {
+                return ['success' => false, 'message' => 'Layanan ini sudah tidak aktif.'];
+            }
+
+            $current->update([
+                'cancellation_status' => 'requested',
+                'cancellation_reason' => $data['reason'],
+                'cancellation_requested_at' => now(),
+            ]);
+
+            return ['success' => true];
+        });
+
+        if (! $result['success']) {
+            return back()->with('error', $result['message']);
+        }
 
         return back()->with('success', 'Pengajuan pembatalan berhasil dikirim. Tim kami akan meninjau dalam 1x24 jam.');
     }
@@ -672,15 +737,25 @@ class ServiceController extends Controller
     {
         $this->authorizeOwner($service);
 
-        if (! $service->hasPendingCancellation()) {
-            return back()->with('error', 'Tidak ada pengajuan pembatalan yang aktif.');
-        }
+        $result = DB::transaction(function () use ($service): array {
+            $current = HostingAccount::query()->lockForUpdate()->findOrFail($service->id);
 
-        $service->update([
-            'cancellation_status' => 'none',
-            'cancellation_reason' => null,
-            'cancellation_requested_at' => null,
-        ]);
+            if (! $current->hasPendingCancellation()) {
+                return ['success' => false, 'message' => 'Tidak ada pengajuan pembatalan yang aktif.'];
+            }
+
+            $current->update([
+                'cancellation_status' => 'none',
+                'cancellation_reason' => null,
+                'cancellation_requested_at' => null,
+            ]);
+
+            return ['success' => true];
+        });
+
+        if (! $result['success']) {
+            return back()->with('error', $result['message']);
+        }
 
         return back()->with('success', 'Pengajuan pembatalan dibatalkan.');
     }
@@ -742,42 +817,17 @@ class ServiceController extends Controller
             'product_id' => ['required', 'exists:products,id'],
         ]);
 
-        $eligible = $service->upgradeEligibleProducts();
-        $newProduct = $eligible->firstWhere('id', (int) $data['product_id']);
-
-        if (! $newProduct) {
-            return back()->with('error', 'Paket yang dipilih tidak tersedia untuk upgrade dari paket Anda saat ini.');
+        try {
+            $invoice = app(UpgradeAddonService::class)->createUpgradeInvoice(
+                $service,
+                Product::findOrFail($data['product_id']),
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        $amount = $service->prorateUpgrade($newProduct);
-
-        if ($amount <= 0) {
-            return back()->with('error', 'Terjadi kesalahan menghitung biaya upgrade. Silakan hubungi support.');
-        }
-
-        $invoice = Invoice::create([
-            'client_id' => $service->client_id,
-            'amount' => $amount,
-            'tax' => 0,
-            'discount' => 0,
-            'status' => 'unpaid',
-            'issue_date' => now(),
-            'due_date' => now()->addDays(3),
-        ]);
-
-        InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => "Upgrade {$service->domain}: {$service->product?->name} → {$newProduct->name} (prorata sisa siklus)",
-            'amount' => $amount,
-        ]);
-
-        $service->update([
-            'pending_upgrade_product_id' => $newProduct->id,
-            'pending_upgrade_invoice_id' => $invoice->id,
-        ]);
 
         return redirect()->route('client.invoices.show', $invoice)
-            ->with('success', "Invoice upgrade dibuat — Rp " . number_format($amount, 0, ',', '.') . ". Paket akan diganti otomatis setelah dibayar.");
+            ->with('success', 'Invoice upgrade dibuat — paket akan diganti otomatis setelah dibayar.');
     }
 
     /**
@@ -787,18 +837,34 @@ class ServiceController extends Controller
     {
         $this->authorizeOwner($service);
 
-        if (! $service->pending_upgrade_invoice_id) {
-            return back()->with('error', 'Tidak ada permintaan upgrade yang aktif.');
+        $result = DB::transaction(function () use ($service): array {
+            $current = HostingAccount::query()->lockForUpdate()->findOrFail($service->id);
+
+            if (! $current->pending_upgrade_invoice_id) {
+                return ['success' => false, 'message' => 'Tidak ada permintaan upgrade yang aktif.'];
+            }
+
+            $invoice = Invoice::query()->lockForUpdate()->find($current->pending_upgrade_invoice_id);
+
+            if ($invoice?->status === 'paid') {
+                return ['success' => false, 'message' => 'Invoice upgrade sudah dibayar dan tidak bisa dibatalkan.'];
+            }
+
+            // Invoice-nya ikut dibatalkan supaya tidak menggantung sebagai
+            // tagihan yatim yang tidak akan pernah diproses.
+            $invoice?->update(['status' => 'cancelled']);
+
+            $current->update([
+                'pending_upgrade_product_id' => null,
+                'pending_upgrade_invoice_id' => null,
+            ]);
+
+            return ['success' => true];
+        });
+
+        if (! $result['success']) {
+            return back()->with('error', $result['message']);
         }
-
-        // Invoice-nya ikut dibatalkan supaya tidak menggantung sebagai
-        // tagihan yatim yang tidak akan pernah diproses.
-        $service->pendingUpgradeInvoice?->update(['status' => 'cancelled']);
-
-        $service->update([
-            'pending_upgrade_product_id' => null,
-            'pending_upgrade_invoice_id' => null,
-        ]);
 
         return back()->with('success', 'Permintaan upgrade dibatalkan.');
     }
@@ -878,7 +944,9 @@ class ServiceController extends Controller
 
         // String kosong = cara resmi mematikan forwarding (tidak ada
         // endpoint DELETE terpisah untuk fitur ini).
-        $result = $service->updateDomainForwarding($domain->domain_name, $data['forward_to'] ?? '');
+        $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($service, $data): array {
+            return $service->updateDomainForwarding($current->domain_name, $data['forward_to'] ?? '');
+        });
 
         return back()->with($result['success'] ? 'success' : 'error',
             $result['success']
@@ -896,25 +964,30 @@ class ServiceController extends Controller
             return back()->with('error', 'Domain ini tidak terhubung ke registrar.');
         }
 
-        $service = DomainRegistrarFactory::make($domain->registrar);
+        $result = $this->withDomainProviderLock($domain, function (Domain $current): array {
+            $service = DomainRegistrarFactory::make($current->registrar);
 
-        if (! method_exists($service, 'getTheftProtection')) {
-            return back()->with('error', 'Registrar domain ini belum mendukung Theft Protection.');
-        }
+            if (! method_exists($service, 'getTheftProtection')) {
+                return ['success' => false, 'message' => 'Registrar domain ini belum mendukung Theft Protection.'];
+            }
 
-        // Status diambil langsung dari registrar (bukan disimpan lokal),
-        // sama seperti pola Registrar Lock — satu-satunya sumber
-        // kebenaran.
-        $status = $service->getTheftProtection($domain->domain_name);
-        $turnOn = ! ($status['enabled'] ?? false);
+            // Pembacaan status dan perubahan harus atomik terhadap request
+            // lain agar dua toggle tidak saling membatalkan.
+            $status = $service->getTheftProtection($current->domain_name);
+            $turnOn = ! ($status['enabled'] ?? false);
 
-        $result = $turnOn ? $service->enableTheftProtection($domain->domain_name) : $service->disableTheftProtection($domain->domain_name);
+            $providerResult = $turnOn
+                ? $service->enableTheftProtection($current->domain_name)
+                : $service->disableTheftProtection($current->domain_name);
+
+            return $providerResult + ['turn_on' => $turnOn];
+        });
 
         $alreadyCorrect = ! $result['success'] && $this->isAlreadyCorrectError($result['message']);
 
         return back()->with(($result['success'] || $alreadyCorrect) ? 'success' : 'error',
             ($result['success'] || $alreadyCorrect)
-                ? ($turnOn ? 'Theft Protection diaktifkan.' : 'Theft Protection dimatikan.')
+                ? (($result['turn_on'] ?? false) ? 'Theft Protection diaktifkan.' : 'Theft Protection dimatikan.')
                 : 'Gagal mengubah Theft Protection: ' . $result['message']);
     }
 
@@ -967,7 +1040,9 @@ class ServiceController extends Controller
         $service = DomainRegistrarFactory::make($domain->registrar);
 
         $fullEmail = $data['email'] . '@' . $domain->domain_name;
-        $result = $service->addEmailForwarding($domain->domain_name, $fullEmail, [$data['forward_to']]);
+        $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($service, $fullEmail, $data): array {
+            return $service->addEmailForwarding($current->domain_name, $fullEmail, [$data['forward_to']]);
+        });
 
         return back()->with($result['success'] ? 'success' : 'error',
             $result['success'] ? 'Email forwarding berhasil ditambahkan.' : 'Gagal menambah: ' . $result['message']);
@@ -980,7 +1055,9 @@ class ServiceController extends Controller
         $data = $request->validate(['email' => ['required', 'string']]);
 
         $service = DomainRegistrarFactory::make($domain->registrar);
-        $result = $service->deleteEmailForwarding($domain->domain_name, $data['email']);
+        $result = $this->withDomainProviderLock($domain, function (Domain $current) use ($service, $data): array {
+            return $service->deleteEmailForwarding($current->domain_name, $data['email']);
+        });
 
         return back()->with($result['success'] ? 'success' : 'error',
             $result['success'] ? 'Email forwarding berhasil dihapus.' : 'Gagal menghapus: ' . $result['message']);
@@ -1067,27 +1144,49 @@ class ServiceController extends Controller
         ]);
 
         $requirementId = $data['document_requirement_id'] ?? null;
+        $file = $request->file('file');
 
         // Unggah ulang untuk persyaratan yang DITOLAK: berkas lama
         // ditandai 'replaced', bukan dihapus -- riwayatnya tetap ada
         // kalau nanti perlu ditelusuri kenapa ditolak, tapi tidak ikut
         // dihitung lagi sebagai berkas aktif.
-        if ($requirementId) {
-            $domain->documents()
-                ->where('document_requirement_id', $requirementId)
-                ->whereIn('status', ['rejected', 'pending'])
-                ->update(['status' => 'replaced']);
+        $stored = Cache::lock("domain-document-upload:{$domain->id}", 180)->get(function () use ($domain, $requirementId, $file): bool {
+            $current = $domain->fresh();
+
+            if (! $current) {
+                return false;
+            }
+
+            $path = $file->store('domain-documents', 'local');
+
+            try {
+                DB::transaction(function () use ($current, $requirementId, $path, $file): void {
+                    if ($requirementId) {
+                        $current->documents()
+                            ->where('document_requirement_id', $requirementId)
+                            ->whereIn('status', ['rejected', 'pending'])
+                            ->update(['status' => 'replaced']);
+                    }
+
+                    \App\Models\DomainDocument::create([
+                        'domain_id' => $current->id,
+                        'document_requirement_id' => $requirementId,
+                        'file_path' => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                        'status' => 'pending',
+                    ]);
+                });
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                throw $e;
+            }
+
+            return true;
+        });
+
+        if ($stored !== true) {
+            return back()->with('error', 'Unggahan dokumen lain sedang diproses. Silakan coba lagi sebentar.');
         }
-
-        $path = $request->file('file')->store('domain-documents', 'local');
-
-        \App\Models\DomainDocument::create([
-            'domain_id' => $domain->id,
-            'document_requirement_id' => $requirementId,
-            'file_path' => $path,
-            'original_name' => $request->file('file')->getClientOriginalName(),
-            'status' => 'pending',
-        ]);
 
         return back()->with('success', 'Berkas berhasil diunggah — menunggu diverifikasi tim kami.');
     }
@@ -1096,12 +1195,28 @@ class ServiceController extends Controller
     {
         $this->authorizeOwner($document->domain);
 
-        if ($document->status === 'approved') {
-            return back()->with('error', 'Dokumen yang sudah disetujui tidak bisa dihapus.');
+        $result = Cache::lock("domain-document-upload:{$document->domain_id}", 180)->get(function () use ($document): array {
+            return DB::transaction(function () use ($document): array {
+                $current = \App\Models\DomainDocument::query()->lockForUpdate()->findOrFail($document->id);
+
+                if ($current->status === 'approved') {
+                    return ['success' => false, 'message' => 'Dokumen yang sudah disetujui tidak bisa dihapus.'];
+                }
+
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($current->file_path);
+                $current->delete();
+
+                return ['success' => true];
+            });
+        });
+
+        if (! is_array($result)) {
+            return back()->with('error', 'Operasi dokumen lain sedang diproses. Silakan coba lagi sebentar.');
         }
 
-        \Illuminate\Support\Facades\Storage::disk('local')->delete($document->file_path);
-        $document->delete();
+        if (! $result['success']) {
+            return back()->with('error', $result['message']);
+        }
 
         return back()->with('success', 'Dokumen berhasil dihapus.');
     }
@@ -1161,58 +1276,78 @@ class ServiceController extends Controller
             'addon_id' => ['required', 'exists:addons,id'],
         ]);
 
-        $addon = \App\Models\Addon::active()->findOrFail($data['addon_id']);
-        $price = $addon->priceForCycle($service->billing_cycle);
-
-        if ($price === null) {
-            return back()->with('error', 'Addon ini tidak tersedia untuk siklus tagihan layanan Anda.');
+        try {
+            $invoice = app(UpgradeAddonService::class)->createAddonInvoice(
+                $service,
+                \App\Models\Addon::findOrFail($data['addon_id']),
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        $amount = $service->prorateAddon($addon);
-
-        if ($amount <= 0) {
-            return back()->with('error', 'Terjadi kesalahan menghitung biaya addon. Silakan hubungi support.');
-        }
-
-        $invoice = \App\Models\Invoice::create([
-            'client_id' => $service->client_id,
-            'amount' => $amount,
-            'tax' => 0,
-            'discount' => 0,
-            'status' => 'unpaid',
-            'issue_date' => now(),
-            'due_date' => now()->addDays(3),
-        ]);
-
-        \App\Models\InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => "Addon {$addon->name} — {$service->domain} (prorata sisa siklus)",
-            'amount' => $amount,
-        ]);
-
-        \App\Models\HostingAccountAddon::create([
-            'hosting_account_id' => $service->id,
-            'addon_id' => $addon->id,
-            'name' => $addon->name,
-            'price' => $price,
-            'status' => 'pending_payment',
-            'invoice_id' => $invoice->id,
-        ]);
 
         return redirect()->route('client.invoices.show', $invoice)
-            ->with('success', "Invoice addon dibuat — Rp " . number_format($amount, 0, ',', '.') . '. Addon aktif otomatis setelah dibayar.');
+            ->with('success', 'Invoice addon dibuat — addon aktif otomatis setelah dibayar.');
     }
 
     public function cancelAddon(\App\Models\HostingAccountAddon $addon): RedirectResponse
     {
         $this->authorizeOwner($addon->hostingAccount);
 
-        if ($addon->status === 'pending_payment') {
-            $addon->invoice?->update(['status' => 'cancelled']);
+        $result = Cache::lock("hosting-addon-operation:{$addon->id}", 180)->get(function () use ($addon): array {
+            return DB::transaction(function () use ($addon): array {
+                $current = \App\Models\HostingAccountAddon::query()->lockForUpdate()->findOrFail($addon->id);
+
+                if ($current->status === 'pending_payment' && $current->invoice_id) {
+                    $invoice = Invoice::query()->lockForUpdate()->find($current->invoice_id);
+
+                    if ($invoice?->status === 'paid') {
+                        return ['success' => false, 'message' => 'Invoice addon sudah dibayar dan tidak bisa dibatalkan.'];
+                    }
+
+                    $invoice?->update(['status' => 'cancelled']);
+                }
+
+                $current->update([
+                    'status' => 'cancelled',
+                    // Lepaskan unique key agar addon yang sama boleh dipasang lagi,
+                    // sementara nama/harga tetap menjadi snapshot histori.
+                    'addon_id' => null,
+                ]);
+
+                return ['success' => true];
+            });
+        });
+
+        if (! is_array($result)) {
+            return back()->with('error', 'Operasi addon lain sedang diproses. Silakan coba lagi sebentar.');
         }
 
-        $addon->update(['status' => 'cancelled']);
+        if (! $result['success']) {
+            return back()->with('error', $result['message']);
+        }
 
         return back()->with('success', "Addon {$addon->name} dihentikan — tidak akan ikut ditagih di perpanjangan berikutnya.");
+    }
+
+    /**
+     * Serialisasi operasi registrar yang membaca status lalu mengubahnya.
+     * Cache store harus shared (database/Redis) pada deployment multi-worker.
+     */
+    private function withDomainProviderLock(Domain $domain, callable $operation): array
+    {
+        $result = Cache::lock("domain-provider-operation:{$domain->id}", 180)->get(function () use ($domain, $operation) {
+            $current = $domain->fresh('registrar');
+
+            if (! $current || ! $current->registrar) {
+                return ['success' => false, 'message' => 'Domain ini tidak terhubung ke registrar.'];
+            }
+
+            return $operation($current);
+        });
+
+        return is_array($result) ? $result : [
+            'success' => false,
+            'message' => 'Operasi registrar lain sedang diproses. Silakan coba lagi sebentar.',
+        ];
     }
 }

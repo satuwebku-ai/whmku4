@@ -6,10 +6,10 @@ use App\Models\Client;
 use App\Models\HostingAccount;
 use App\Models\Invoice;
 use App\Models\Order;
-use App\Models\Page;
+use App\Models\CmsPage;
 use App\Models\PaymentGateway;
 use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Models\ProductGroup;
 use App\Models\Setting;
 use App\Models\Tld;
 use Illuminate\Database\Seeder;
@@ -146,7 +146,7 @@ class DemoDataSeeder extends Seeder
         ];
 
         foreach ($pageSeed as $i => $row) {
-            Page::firstOrCreate(
+            CmsPage::firstOrCreate(
                 ['slug' => $row['slug']],
                 [
                     'title' => $row['title'],
@@ -168,12 +168,12 @@ class DemoDataSeeder extends Seeder
         Setting::putMany(['livechat_provider' => 'none'], 'livechat');
 
         // Katalog produk contoh (Fase 7b) — dua kategori dengan beberapa paket.
-        $sharedCategory = ProductCategory::firstOrCreate(
+        $sharedCategory = ProductGroup::firstOrCreate(
             ['slug' => 'shared-hosting'],
             ['name' => 'Shared Hosting', 'description' => 'Cocok untuk website pribadi, blog, dan portofolio.', 'icon' => 'fa-server', 'is_active' => true, 'sort_order' => 1]
         );
 
-        $vpsCategory = ProductCategory::firstOrCreate(
+        $vpsCategory = ProductGroup::firstOrCreate(
             ['slug' => 'vps'],
             ['name' => 'VPS', 'description' => 'Sumber daya khusus untuk website dengan trafik tinggi.', 'icon' => 'fa-microchip', 'is_active' => true, 'sort_order' => 2]
         );

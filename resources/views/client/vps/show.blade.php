@@ -155,12 +155,25 @@
               <i class="fa-solid fa-terminal"></i> Cara Masuk ke VPS
             </h2>
             @if ($isWindows)
-              <p class="text-muted mb-2" style="font-size:14px">Gunakan Remote Desktop (RDP) ke alamat berikut:</p>
-              <div class="rounded-3 p-3" style="background:#1e293b;color:#f1f5f9;font-family:monospace;font-size:13px">{{ $ipAkses }}</div>
-              <p class="text-muted mt-2 mb-0" style="font-size:11px">Username: <b>{{ $userVm }}</b> — password sesuai yang Anda atur.</p>
+              @php
+                $rdpContent = "full address:s:{$ipAkses}\nusername:s:{$userVm}\nprompt for credentials:i:1\n";
+              @endphp
+              <p class="text-muted mb-2" style="font-size:14px">Klik tombol di bawah untuk membuka Remote Desktop Connection langsung ke VPS ini:</p>
+              <a href="data:application/x-rdp;charset=utf-8,{{ rawurlencode($rdpContent) }}" download="{{ Str::slug($vps->domain) }}.rdp" class="btn btn-theme btn-sm">
+                <i class="fa-solid fa-desktop" style="font-size:11px"></i> Masuk ke VPS (Unduh file RDP)
+              </a>
+              <p class="text-muted mt-2 mb-0" style="font-size:11px">Membutuhkan aplikasi <b>Remote Desktop Connection</b> (sudah bawaan Windows). Username: <b>{{ $userVm }}</b> — password sesuai yang Anda atur.</p>
+              <details class="mt-2">
+                <summary class="text-muted" style="font-size:11px;cursor:pointer">Atau masuk manual</summary>
+                <div class="rounded-3 p-3 mt-2" style="background:#1e293b;color:#f1f5f9;font-family:monospace;font-size:13px">{{ $ipAkses }}</div>
+              </details>
             @else
-              <p class="text-muted mb-2" style="font-size:14px">Jalankan perintah ini di Terminal / PowerShell komputer Anda:</p>
-              <div class="rounded-3 p-3 d-flex align-items-center justify-content-between gap-2" style="background:#1e293b;color:#f1f5f9;font-family:monospace;font-size:13px">
+              <p class="text-muted mb-2" style="font-size:14px">Klik tombol di bawah untuk membuka Terminal SSH ke VPS ini (butuh aplikasi SSH terpasang, mis. Terminal bawaan macOS/Linux, Windows Terminal dengan OpenSSH, atau Termius):</p>
+              <a href="ssh://{{ $userVm }}@{{ $ipAkses }}" class="btn btn-theme btn-sm">
+                <i class="fa-solid fa-terminal" style="font-size:11px"></i> Masuk ke VPS (SSH)
+              </a>
+              <p class="text-muted mt-2 mb-0" style="font-size:11px">Tidak terbuka? Salin perintah ini dan jalankan manual di Terminal / PowerShell:</p>
+              <div class="rounded-3 p-3 d-flex align-items-center justify-content-between gap-2 mt-1" style="background:#1e293b;color:#f1f5f9;font-family:monospace;font-size:13px">
                 <span id="sshCmd">ssh {{ $userVm }}@{{ $ipAkses }}</span>
                 <button type="button" onclick="salinSsh()" class="btn btn-sm btn-outline-light" style="font-size:11px">Salin</button>
               </div>
@@ -174,6 +187,7 @@
           </div>
         @endif
 
+        @if ($caps['password'])
         <div class="card-public p-4">
           <h2 class="small fw-bold text-dark mb-1">Ganti Password VPS</h2>
           <p class="text-muted mb-3" style="font-size:12px">VPS harus dalam keadaan <b>menyala</b> agar password bisa diganti.</p>
@@ -192,8 +206,10 @@
             </div>
           </form>
         </div>
+        @endif
 
         {{-- Ubah spesifikasi --}}
+        @if ($caps['resize'])
         <div class="card-public p-4">
           <h2 class="small fw-bold text-dark mb-1">Ubah Spesifikasi</h2>
           <p class="text-muted mb-3" style="font-size:12px">
@@ -224,8 +240,10 @@
             </p>
           @endif
         </div>
+        @endif
 
         {{-- Instal ulang -- destruktif, jadi konfirmasinya ketat --}}
+        @if ($caps['reinstall'])
         <div class="card-public p-4" style="border-color:#fecaca!important">
           <h2 class="small fw-bold mb-1" style="color:#b91c1c">Instal Ulang OS</h2>
           <p class="mb-3" style="font-size:12px;color:#b91c1c">
@@ -261,6 +279,7 @@
             </div>
           </form>
         </div>
+        @endif
       @endif
     </div>
 
@@ -279,6 +298,20 @@
               <p class="text-muted mb-0" style="font-size:11px">± Rp {{ number_format($rate * 730, 0, ',', '.') }} / bulan</p>
             @endif
           </div>
+
+          @if (! empty($breakdown))
+            <details class="mb-3">
+              <summary class="text-muted" style="font-size:11px;cursor:pointer">Lihat rincian tarif</summary>
+              <div class="mt-2">
+                @foreach ($breakdown as $label => $nominal)
+                  <div class="d-flex justify-content-between" style="font-size:12px">
+                    <span class="text-muted">{{ $label }}</span>
+                    <span class="text-dark">Rp {{ number_format($nominal, 2, ',', '.') }}/jam</span>
+                  </div>
+                @endforeach
+              </div>
+            </details>
+          @endif
 
           <div class="d-flex justify-content-between mb-2" style="font-size:14px">
             <span class="text-muted">Saldo Anda</span>

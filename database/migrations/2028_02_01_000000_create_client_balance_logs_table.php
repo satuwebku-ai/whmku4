@@ -13,7 +13,7 @@ return new class extends Migration
         // bayar invoice, potongan admin). Tanpa ini, saldo cuma jadi
         // satu angka tanpa jejak — tidak bisa diaudit kalau ada yang
         // komplain "kok saldo saya berkurang?".
-        Schema::create('client_balance_logs', function (Blueprint $table) {
+        Schema::create('credits', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
 
@@ -27,12 +27,13 @@ return new class extends Migration
             $table->foreignId('invoice_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('admin_id')->nullable()->constrained()->nullOnDelete();
             $table->decimal('balance_after', 14, 2);
+            $table->string('idempotency_key', 191)->nullable()->unique();
             $table->timestamps();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('client_balance_logs');
+        Schema::dropIfExists('credits');
     }
 };

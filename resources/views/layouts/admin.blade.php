@@ -97,9 +97,11 @@
               ['label' => 'Produk', 'route' => 'admin.products.index', 'match' => ['admin.products.*', 'admin.product-categories.*', 'admin.product.*', 'admin.addons.*', 'admin.addon.*']],
               ['label' => 'Order',  'route' => 'admin.orders', 'match' => ['admin.order*']],
               ['label' => 'Kupon',  'route' => 'admin.coupons', 'match' => ['admin.coupon*']],
+              ['label' => 'Affiliate', 'route' => 'admin.affiliate.index', 'match' => ['admin.affiliate.*']],
             ]],
 
             ['label' => 'Billing', 'icon' => 'M2 7h20v10H2zM2 10h20M6 15h4', 'module' => 'billing', 'children' => [
+              ['label' => 'Dashboard Billing', 'route' => 'admin.billing.dashboard', 'match' => ['admin.billing.*']],
               ['label' => 'Invoice',     'route' => 'admin.invoices', 'match' => ['admin.invoice*']],
               ['label' => 'Pembayaran',  'route' => 'admin.payments', 'match' => ['admin.payment*', 'admin.gateway*']],
             ]],

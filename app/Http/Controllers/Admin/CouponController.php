@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
 use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Models\ProductGroup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -38,7 +38,7 @@ class CouponController extends Controller
     {
         return view('admin.coupons.form', [
             'coupon' => new Coupon(),
-            'categories' => ProductCategory::orderBy('name')->get(),
+            'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
         ]);
     }
@@ -47,7 +47,7 @@ class CouponController extends Controller
     {
         return view('admin.coupons.form', [
             'coupon' => new Coupon(),
-            'categories' => ProductCategory::orderBy('name')->get(),
+            'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
         ]);
     }
@@ -69,7 +69,7 @@ class CouponController extends Controller
 
         return view('admin.coupons.form', [
             'coupon' => $coupon,
-            'categories' => ProductCategory::orderBy('name')->get(),
+            'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
         ]);
     }
@@ -80,7 +80,7 @@ class CouponController extends Controller
 
         return view('admin.coupons.form', [
             'coupon' => $coupon,
-            'categories' => ProductCategory::orderBy('name')->get(),
+            'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
         ]);
     }
@@ -144,7 +144,7 @@ class CouponController extends Controller
             'product_ids'             => ['nullable', 'array'],
             'product_ids.*'           => ['exists:products,id'],
             'category_ids'            => ['nullable', 'array'],
-            'category_ids.*'          => ['exists:product_categories,id'],
+            'category_ids.*'          => ['exists:product_groups,id'],
             'min_order'               => ['nullable', 'numeric', 'min:0'],
             'max_discount'            => ['nullable', 'numeric', 'min:0'],
             'usage_limit'             => ['nullable', 'integer', 'min:1'],

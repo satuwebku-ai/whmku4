@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Models\ProductGroup;
 use App\Services\Cart\CartService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,7 +32,7 @@ class CartController extends Controller
         // Ditampilkan di sidebar keranjang supaya pengunjung tetap bisa
         // menjelajah kategori lain tanpa harus kembali ke halaman utama —
         // paling berguna justru saat keranjang masih kosong.
-        $categories = ProductCategory::active()
+        $categories = ProductGroup::active()
             ->withCount(['products' => fn ($q) => $q->active()])
             ->orderBy('sort_order')
             ->orderBy('name')

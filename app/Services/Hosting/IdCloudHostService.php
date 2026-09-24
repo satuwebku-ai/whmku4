@@ -302,12 +302,6 @@ class IdCloudHostService implements HostingPanelInterface
     }
 
     /**
-     * "Ganti paket" = ubah vcpu/ram VM. PENTING: API IDCloudHost cuma
-     * mengizinkan ini saat VM berstatus stopped -- kalau masih running,
-     * panggilan ini akan ditolak. Disk TIDAK bisa diperkecil/diperbesar
-     * lewat endpoint ini (perlu Add Disk / Modify Disk terpisah).
-     */
-    /**
      * Matikan paksa -- setara mencabut listrik. Dipakai kalau VM tidak
      * merespons perintah matikan normal (OS hang). BERISIKO merusak
      * data yang belum tersimpan ke disk, jadi hanya untuk keadaan
@@ -318,6 +312,12 @@ class IdCloudHostService implements HostingPanelInterface
         return $this->call('post', '/user-resource/vm/stop', ['uuid' => $uuid, 'force' => true], 60);
     }
 
+    /**
+     * "Ganti paket" = ubah vcpu/ram VM. PENTING: API IDCloudHost cuma
+     * mengizinkan ini saat VM berstatus stopped -- kalau masih running,
+     * panggilan ini akan ditolak. Disk TIDAK bisa diperkecil/diperbesar
+     * lewat endpoint ini (perlu Add Disk / Modify Disk terpisah).
+     */
     public function changePackage(string $username, string $package): array
     {
         $spec = $this->decodePackage($package);

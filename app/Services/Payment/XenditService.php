@@ -108,10 +108,25 @@ class XenditService implements PaymentGatewayInterface
             return ['success' => false, 'message' => 'external_id tidak ada di payload.', 'status' => null, 'payment' => null];
         }
 
-        $payment = Payment::where('reference', $reference)->first();
+        $payment = Payment::where('reference', $reference)
+            ->where('payment_gateway_id', $this->gateway->id)
+            ->first();
 
         if (! $payment) {
             return ['success' => false, 'message' => "Pembayaran {$reference} tidak ditemukan.", 'status' => null, 'payment' => null];
+        }
+
+        if (isset($data['amount']) && number_format((float) $data['amount'], 2, '.', '') !== number_format((float) $payment->total, 2, '.', '')) {
+            Log::warning('Xendit callback ditolak: nominal tidak cocok.', [
+                'payment_id' => $payment->id,
+                'expected' => (string) $payment->total,
+                'received' => $data['amount'],
+            ]);
+            return ['success' => false, 'message' => 'Nominal pembayaran tidak cocok.', 'status' => null, 'payment' => null];
+        }
+
+        if (! empty($data['currency']) && strtoupper($data['currency']) !== strtoupper($payment->currency)) {
+            return ['success' => false, 'message' => 'Mata uang pembayaran tidak cocok.', 'status' => null, 'payment' => null];
         }
 
         $status = $this->mapStatus($data['status'] ?? '');

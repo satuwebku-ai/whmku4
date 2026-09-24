@@ -6,10 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\HostingAccount;
 use App\Models\Server;
+use App\Notifications\OrderProvisioned;
+use App\Enums\OrderStatus;
 use App\Services\Hosting\HostingPanelFactory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 class HostingAccountController extends Controller
 {
@@ -103,7 +108,7 @@ class HostingAccountController extends Controller
         // hosting di sini penuh istilah cPanel (nama plan WHM, username
         // panel, SSO) yang tidak berlaku untuk mesin virtual, jadi
         // dikecualikan supaya tidak salah diedit dari sini.
-        $cloudServerIds = \App\Models\Server::whereIn('panel', ['idcloudhost'])->pluck('id');
+        $cloudServerIds = \App\Models\Server::cloud()->pluck('id');
 
         $accounts = HostingAccount::query()
             ->with(['client', 'serverModel'])
@@ -139,7 +144,7 @@ class HostingAccountController extends Controller
      */
     private function redirectIfVps(HostingAccount $account): ?RedirectResponse
     {
-        $isVps = $account->serverModel && $account->serverModel->panel === 'idcloudhost';
+        $isVps = (bool) $account->serverModel?->isCloud();
 
         return $isVps
             ? redirect()->route('admin.vps')->with('error', "\"{$account->domain}\" adalah VPS — kelola lewat menu Layanan VPS, bukan Hosting Account.")
@@ -436,6 +441,45 @@ class HostingAccountController extends Controller
         );
     }
 
+    /**
+     * "Kirim info akun" — untuk kasus klien lupa/kehilangan email
+     * kredensial awal. Password TIDAK PERNAH disimpan di database (lihat
+     * catatan di ProvisioningService::notifyClient()), jadi satu-satunya
+     * cara mengirim ulang adalah membuat password BARU dulu lewat panel,
+     * baru kirim yang baru itu -- bukan "resend" email lama yang sudah
+     * tidak ada isinya.
+     */
+    public function sendInfo(HostingAccount $hostingAccount): RedirectResponse
+    {
+        if (! $hostingAccount->serverModel || ! $hostingAccount->username) {
+            return back()->with('error', 'Akun ini tidak terhubung ke server panel (dibuat manual), jadi tidak ada kredensial yang bisa dikirim ulang dari sini.');
+        }
+
+        if (! $hostingAccount->client) {
+            return back()->with('error', 'Akun ini tidak terhubung ke client mana pun.');
+        }
+
+        $newPassword = Str::password(14, symbols: false) . 'Aa1!';
+
+        $result = HostingPanelFactory::make($hostingAccount->serverModel)->changePassword($hostingAccount->username, $newPassword);
+
+        if (! $result['success']) {
+            return back()->with('error', 'Gagal membuat password baru untuk dikirim: ' . $result['message']);
+        }
+
+        try {
+            $hostingAccount->client->notify(new OrderProvisioned([
+                ['domain' => $hostingAccount->domain, 'username' => $hostingAccount->username, 'password' => $newPassword],
+            ], []));
+        } catch (Throwable $e) {
+            Log::error('Gagal mengirim ulang info akun: ' . $e->getMessage(), ['hosting_account_id' => $hostingAccount->id]);
+
+            return back()->with('error', 'Password berhasil direset, tapi email ke klien gagal terkirim. Sampaikan manual: ' . $newPassword);
+        }
+
+        return back()->with('success', 'Info akun (dengan password baru) berhasil dikirim ke email klien.');
+    }
+
     private function panelAction(HostingAccount $hostingAccount, string $method, string $newStatus, string $successMessage): RedirectResponse
     {
         if (! $hostingAccount->serverModel || ! $hostingAccount->username) {
@@ -563,10 +607,20 @@ class HostingAccountController extends Controller
         // ProvisioningService::provisionInvoice()), jadi disamakan di
         // sini supaya daftar Order tidak menggantung "Pending" selamanya
         // walau layanannya sendiri sudah aktif.
-        $hostingAccount->orders()
+                    $hostingAccount->orders()
             ->where('order_type', 'hosting')
-            ->where('status', 'pending')
-            ->update(['status' => 'active']);
+                        ->whereIn('status', [
+                            OrderStatus::Paid->value,
+                            OrderStatus::Provisioning->value,
+                            OrderStatus::Failed->value,
+                        ])
+                        ->get()
+                        ->each(function ($order) {
+                            if ($order->status === OrderStatus::Failed) {
+                                $order->markProvisioning('Provider sudah memiliki akun; status direkonsiliasi.');
+                            }
+                            $order->markCompleted('Provider sudah memiliki akun; status direkonsiliasi.');
+                        });
 
         return back()->with('success', "Berhasil disinkronkan — username panel: {$match['username']}.");
     }

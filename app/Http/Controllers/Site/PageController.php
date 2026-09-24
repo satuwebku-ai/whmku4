@@ -4,21 +4,21 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
-use App\Models\Page;
+use App\Models\CmsPage;
 use Illuminate\View\View;
 
 class PageController extends Controller
 {
     public function show(string $slug): View
     {
-        $page = Page::published()->where('slug', $slug)->firstOrFail();
+        $page = CmsPage::published()->where('slug', $slug)->firstOrFail();
 
         return view('public.page', compact('page'));
     }
 
     public function showBootstrap(string $slug): View
     {
-        $page = Page::published()->where('slug', $slug)->firstOrFail();
+        $page = CmsPage::published()->where('slug', $slug)->firstOrFail();
 
         return view('public.page', compact('page'));
     }

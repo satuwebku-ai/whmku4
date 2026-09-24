@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\Billing\BillingException;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Services\Billing\InvoiceService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class InvoiceController extends Controller
@@ -91,6 +95,23 @@ class InvoiceController extends Controller
         return view('admin.invoices.details', compact('invoice'));
     }
 
+    /**
+     * Route ini sudah ada di routes/admin.php sejak lama tapi method-nya
+     * belum pernah dibuat -- klik tombol download PDF di panel admin
+     * selalu 404. Memakai template PDF yang SAMA dengan
+     * Client\InvoiceController::downloadPdf() (client.invoices.pdf)
+     * supaya invoice yang dilihat admin & klien identik persis, bukan
+     * dua template yang bisa diam-diam berbeda.
+     */
+    public function pdf(Invoice $invoice): Response
+    {
+        $invoice->load(['order', 'items.order', 'client']);
+
+        $pdf = Pdf::loadView('client.invoices.pdf', compact('invoice'))->setPaper('a4');
+
+        return $pdf->download("Invoice-{$invoice->invoice_number}.pdf");
+    }
+
     public function detailsBootstrap(Invoice $invoice): View
     {
         $invoice->load(['client', 'order', 'items.order']);
@@ -114,11 +135,11 @@ class InvoiceController extends Controller
         return view('admin.invoices.form', ['invoice' => new Invoice(), 'clients' => $clients, 'orders' => $orders]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, InvoiceService $invoices): RedirectResponse
     {
         $data = $this->validated($request);
 
-        Invoice::create($data);
+        $invoices->create($data);
 
         return redirect()->route('admin.invoices')->with('success', 'Invoice berhasil dibuat.');
     }
@@ -139,7 +160,7 @@ class InvoiceController extends Controller
         return view('admin.invoices.form', ['invoice' => $invoice, 'clients' => $clients, 'orders' => $orders]);
     }
 
-    public function update(Request $request, Invoice $invoice): RedirectResponse
+    public function update(Request $request, Invoice $invoice, InvoiceService $invoices): RedirectResponse
     {
         $data = $this->validated($request);
 
@@ -147,7 +168,7 @@ class InvoiceController extends Controller
             $data['paid_at'] = now();
         }
 
-        $invoice->update($data);
+        $invoices->update($invoice, $data);
 
         return redirect()->route('admin.invoices')->with('success', 'Invoice berhasil diperbarui.');
     }
@@ -162,14 +183,14 @@ class InvoiceController extends Controller
     /**
      * Tandai invoice lunas.
      */
-    public function markPaid(Request $request): RedirectResponse
+    public function markPaid(Request $request, InvoiceService $invoices): RedirectResponse
     {
-        $invoice = Invoice::findOrFail($request->input('invoice_id'));
-        $invoice->update([
-            'status' => 'paid',
-            'paid_at' => $invoice->paid_at ?? now(),
-            'payment_method' => $request->input('payment_method', $invoice->payment_method ?? 'Manual'),
-        ]);
+        try {
+            $invoice = $invoices->findOrFail((int) $request->input('invoice_id'));
+            $invoices->markPaid($invoice, $request->input('payment_method'));
+        } catch (BillingException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', "Invoice {$invoice->invoice_number} ditandai lunas.");
     }
@@ -177,33 +198,31 @@ class InvoiceController extends Controller
     /**
      * Tandai invoice belum lunas (batalkan status lunas).
      */
-    public function markUnpaid(Request $request): RedirectResponse
+    public function markUnpaid(Request $request, InvoiceService $invoices): RedirectResponse
     {
-        $invoice = Invoice::findOrFail($request->input('invoice_id'));
-        $invoice->update(['status' => 'unpaid', 'paid_at' => null]);
+        try {
+            $invoice = $invoices->findOrFail((int) $request->input('invoice_id'));
+            $invoices->markUnpaid($invoice);
+        } catch (BillingException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', "Invoice {$invoice->invoice_number} ditandai belum lunas.");
     }
 
     /**
-     * Batalkan invoice.
+     * Batalkan invoice. Pelepasan renewal_invoice_id di domain/hosting
+     * terkait (supaya layanan tidak macet permanen) ada di
+     * InvoiceService::cancel(), bukan di sini lagi.
      */
-    public function cancel(Request $request): RedirectResponse
+    public function cancel(Request $request, InvoiceService $invoices): RedirectResponse
     {
-        $invoice = Invoice::findOrFail($request->input('invoice_id'));
-        $invoice->update(['status' => 'cancelled']);
-
-        // Invoice yang dibatalkan bisa saja tercatat sebagai
-        // "renewal_invoice_id" tertunda di domain/hosting account terkait
-        // (baik dari tombol "Perpanjang Sekarang" klien maupun dari
-        // pembuatan invoice terjadwal H-7) -- tanpa dilepas di sini,
-        // domain/hosting itu macet PERMANEN: tombol perpanjang klien
-        // tidak muncul lagi, dan lumora:generate-renewal-invoices juga
-        // akan terus melewatinya (query cron memfilter
-        // whereNull('renewal_invoice_id')), padahal invoice yang
-        // menghalanginya sudah tidak berlaku.
-        \App\Models\Domain::where('renewal_invoice_id', $invoice->id)->update(['renewal_invoice_id' => null]);
-        \App\Models\HostingAccount::where('renewal_invoice_id', $invoice->id)->update(['renewal_invoice_id' => null]);
+        try {
+            $invoice = $invoices->findOrFail((int) $request->input('invoice_id'));
+            $invoices->cancel($invoice);
+        } catch (BillingException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', "Invoice {$invoice->invoice_number} dibatalkan.");
     }
@@ -231,7 +250,9 @@ class InvoiceController extends Controller
             'order_id'       => ['nullable', 'exists:orders,id'],
             'amount'         => ['required', 'numeric', 'min:0'],
             'tax'            => ['nullable', 'numeric', 'min:0'],
-            'status'         => ['required', 'in:unpaid,paid,overdue,cancelled'],
+            'discount'      => ['nullable', 'numeric', 'min:0'],
+            'tax_id'        => ['nullable', 'exists:taxes,id'],
+            'status'         => ['required', 'in:unpaid,paid,overdue,cancelled,refunded'],
             'issue_date'     => ['required', 'date'],
             'due_date'       => ['required', 'date', 'after_or_equal:issue_date'],
             'payment_method' => ['nullable', 'string', 'max:100'],

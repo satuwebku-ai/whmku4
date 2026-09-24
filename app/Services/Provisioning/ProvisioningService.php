@@ -2,23 +2,27 @@
 
 namespace App\Services\Provisioning;
 
+use App\Services\Billing\OverdueServiceLifecycle;
+
 use App\Models\ActivityLog;
 use App\Models\Domain;
 use App\Models\HostingAccount;
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Enums\OrderStatus;
 use App\Notifications\OrderProvisioned;
 use App\Services\Domain\DomainRegistrarFactory;
 use App\Services\Hosting\HostingPanelFactory;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * Dipanggil otomatis lewat event Invoice::updated() saat status invoice
- * berubah jadi "paid" (lihat App\Models\Invoice) — baik itu dari webhook
- * gateway, approve transfer manual, atau admin edit langsung. Semua jalur
- * pelunasan berujung ke sini.
+ * Dipanggil oleh ProcessPaidInvoice setelah status invoice berubah menjadi
+ * "paid" — baik itu dari webhook gateway maupun approval transfer manual.
+ * Semua jalur pelunasan berujung ke job billing yang sama.
  *
  * Untuk tiap order di invoice: hosting → buat akun cPanel via Fase 3,
  * domain → registrasi via Fase 4. Kegagalan satu item TIDAK menghentikan
@@ -39,6 +43,13 @@ class ProvisioningService
         $domainResults = [];
 
         foreach ($orders as $order) {
+            // Paid/failed orders enter the same fulfillment state machine.
+            // Failed is retryable because provider failure must not require a
+            // new payment or invoice.
+            if (in_array($order->status, [OrderStatus::Paid, OrderStatus::Failed], true)) {
+                $order->markProvisioning('Fulfillment diproses melalui ProcessPaidInvoice.');
+            }
+
             try {
                 if ($order->order_type === 'hosting' && $order->hostingAccount) {
                     $cred = $this->provisionHosting($order->hostingAccount, $order);
@@ -55,17 +66,60 @@ class ProvisioningService
                 Log::error("Provisioning order #{$order->id} gagal: " . $e->getMessage(), ['order_id' => $order->id]);
             }
 
-            // Order dianggap selesai dari sisi billing begitu invoice lunas,
-            // terlepas dari sukses/gagalnya provisioning otomatis — status
-            // provisioning detail ada di provision_status hosting/domain-nya.
-            if ($order->status === 'pending') {
-                $order->update(['status' => 'active']);
+            // Order hanya aktif bila fulfillment benar-benar sukses.
+            // Pembayaran lunas tidak sama dengan provisioning sukses.
+            $order->refresh();
+            $success = $order->order_type === 'hosting'
+                ? $order->hostingAccount?->provision_status === 'provisioned'
+                : ($order->order_type === 'domain' && $order->domain
+                    ? in_array($order->domain->provision_status, ['registered', 'manual'], true)
+                    : false);
+            if ($success && $order->status === OrderStatus::Provisioning) {
+                $order->markCompleted('Provisioning berhasil diverifikasi pada provider.');
+            } elseif (! $success && $order->status === OrderStatus::Provisioning) {
+                $order->markFailed('Provisioning belum berhasil; invoice tetap paid dan akan diproses melalui retry/reconcile.');
             }
         }
 
         if ($hostingCredentials || $domainResults) {
             $this->notifyClient($invoice, $hostingCredentials, $domainResults);
         }
+    }
+
+    public function consumeCheckoutReservations(Invoice $invoice): void
+    {
+        DB::transaction(function () use ($invoice) {
+            $invoice->loadMissing('items.order.product');
+            foreach ($invoice->items->pluck('order')->filter()->unique('id') as $order) {
+                if ($order->stock_reservation_status !== 'reserved' || ! $order->product_id) continue;
+                $product = \App\Models\Product::whereKey($order->product_id)->lockForUpdate()->first();
+                if (! $product || $product->stock === null) {
+                    $order->update(['stock_reservation_status' => 'consumed']);
+                    continue;
+                }
+                if ((int) $product->reserved_stock <= 0 || (int) $product->stock <= 0) {
+                    throw new \RuntimeException("Reservation stok untuk produk #{$product->id} tidak valid saat pembayaran invoice {$invoice->invoice_number}.");
+                }
+                $product->decrement('reserved_stock');
+                $product->decrement('stock');
+                $order->update(['stock_reservation_status' => 'consumed']);
+            }
+        });
+    }
+
+    public function releaseCheckoutReservations(Invoice $invoice): void
+    {
+        DB::transaction(function () use ($invoice) {
+            $invoice->loadMissing('items.order');
+            foreach ($invoice->items->pluck('order')->filter()->unique('id') as $order) {
+                if ($order->stock_reservation_status !== 'reserved' || ! $order->product_id) continue;
+                $product = \App\Models\Product::whereKey($order->product_id)->lockForUpdate()->first();
+                if ($product && (int) $product->reserved_stock > 0) {
+                    $product->decrement('reserved_stock');
+                }
+                $order->update(['stock_reservation_status' => 'released']);
+            }
+        });
     }
 
     /**
@@ -88,114 +142,154 @@ class ProvisioningService
      */
     private function provisionHosting(HostingAccount $account, Order $order): ?array
     {
-        // Sudah pernah diprovision (mis. event ini terpicu lagi) — jangan
-        // buat akun dobel di server.
-        if ($account->provision_status === 'provisioned') {
-            return null;
-        }
+        // Provider calls are not database transactions. A queue retry or a
+        // duplicate webhook must therefore never issue two create-account
+        // requests concurrently for the same hosting account.
+        return Cache::lock('provision-hosting:' . $account->id, 1800)->get(function () use ($account, $order) {
+            $account->refresh();
 
-        // Tidak ada server tujuan = memang manual, bukan kegagalan.
-        if (! $account->server_id) {
-            return null;
-        }
+            if ($account->provision_status === 'provisioned') {
+                return null;
+            }
 
-        $server = $account->serverModel;
+            if (! $account->server_id) {
+                $account->update([
+                    'provision_status' => 'manual',
+                    'provision_message' => 'Tidak ada server tujuan; provisioning otomatis tidak dijalankan.',
+                ]);
+                return null;
+            }
 
-        if (! $server) {
-            $account->update(['provision_status' => 'failed', 'provision_message' => 'Server tujuan tidak ditemukan.']);
+            $server = $account->serverModel;
+            if (! $server) {
+                $account->update([
+                    'provision_status' => 'failed',
+                    'provision_message' => 'Server tujuan tidak ditemukan.',
+                ]);
+                return null;
+            }
 
-            return null;
-        }
+            $panel = HostingPanelFactory::make($server);
+            $account->increment('provisioning_attempts');
+            $account->forceFill([
+                'provisioning_started_at' => now(),
+                'provisioning_finished_at' => null,
+                'provisioning_key' => $account->provisioning_key ?: (string) Str::uuid(),
+                'provision_status' => 'provisioning',
+                'provision_message' => 'Provisioning sedang dijalankan.',
+            ])->save();
 
-        $username = $account->username ?: $this->generateUsername($account->domain);
-        $password = $this->generatePassword();
-
-        $result = HostingPanelFactory::make($server)->createAccount([
-            'domain'   => $account->domain,
-            'username' => $username,
-            'password' => $password,
-            'package'  => $account->package,
-            'email'    => $order->client->email ?? '',
-        ]);
-
-        // PENTING untuk provider VM/cloud (mis. IDCloudHost): createAccount()
-        // mengembalikan UUID VM sebagai 'username' -- itulah SATU-SATUNYA
-        // pengenal yang dipakai semua operasi berikutnya (start/stop/
-        // hapus/resize/ganti password). Kalau ditimpa dengan username
-        // hasil generate ala cPanel, semua operasi VM setelah ini akan
-        // menunjuk ke resource yang tidak ada.
-        $identifier = $result['username'] ?? $username;
-
-        $updates = [
-            'username'          => $identifier,
-            'status'            => $result['success'] ? 'active' : $account->status,
-            'provision_status'  => $result['success'] ? 'provisioned' : 'failed',
-            'provision_message' => $result['message'],
-        ];
-
-        // IP hasil provisioning VM disimpan ke info akses klien, supaya
-        // klien langsung tahu alamat servernya tanpa harus tanya support.
-        if ($result['success'] && ! empty($result['ip'])) {
-            $updates['client_details'] = trim(
-                (string) $account->client_details . "\n"
-                . "IP Server: {$result['ip']}\n"
-                . "Username: {$username}\n"
-                . "Password: {$password}"
-            );
-        }
-
-        $account->update($updates);
-
-        if (! $result['success']) {
-            return null;
-        }
-
-        // Kalau domain ini juga terdaftar lewat sistem kita sendiri (klien
-        // yang sama), otomatis arahkan nameservernya ke server hosting
-        // ini — supaya klien tidak perlu atur manual lagi setelah beli
-        // hosting. Kegagalan di sini TIDAK membatalkan hosting yang sudah
-        // berhasil dibuat, cuma dicatat.
-        //
-        // Diutamakan nameserver yang BENAR-BENAR dikembalikan WHM lewat
-        // createacct() (paling akurat, langsung dari server) -- baru
-        // jatuh ke pengaturan manual Server->ns1/ns2 kalau WHM tidak
-        // mengembalikannya untuk alasan apa pun.
-        $nameservers = $result['nameservers'] ?? array_values(array_filter([$server->ns1, $server->ns2]));
-
-        if (count($nameservers) >= 2) {
-            $matchingDomain = Domain::where('domain_name', $account->domain)
-                ->where('client_id', $order->client_id)
-                ->where('provision_status', 'registered')
-                ->first();
-
-            if ($matchingDomain && $matchingDomain->registrar) {
+            // First reconcile the provider. This is especially important for
+            // cPanel: an HTTP timeout can happen after WHM created the account
+            // but before our application received the response.
+            if (method_exists($panel, 'listAccounts')) {
                 try {
-                    $nsResult = DomainRegistrarFactory::make($matchingDomain->registrar)
-                        ->setNameservers($matchingDomain->domain_name, $nameservers);
-
-                    if ($nsResult['success']) {
-                        $matchingDomain->update(['nameservers' => $nameservers]);
-                    } else {
-                        Log::warning('Auto-arahkan nameserver ke hosting gagal: ' . $nsResult['message'], [
-                            'domain_id' => $matchingDomain->id,
-                            'hosting_account_id' => $account->id,
-                        ]);
+                    $listed = $panel->listAccounts();
+                    if ($listed['success'] ?? false) {
+                        $match = collect($listed['accounts'] ?? [])->firstWhere('domain', $account->domain);
+                        if ($match) {
+                            $account->update([
+                                'username' => $match['username'] ?? $account->username,
+                                'status' => ! empty($match['suspended']) ? 'suspended' : 'active',
+                                'provision_status' => 'provisioned',
+                                'provision_message' => 'Akun sudah ada di provider dan disinkronkan tanpa membuat akun baru.',
+                                'provisioning_finished_at' => now(),
+                            ]);
+                            return null;
+                        }
                     }
                 } catch (Throwable $e) {
-                    Log::warning('Auto-arahkan nameserver ke hosting error: ' . $e->getMessage(), [
-                        'domain_id' => $matchingDomain->id,
+                    Log::warning('Preflight list akun hosting gagal; provisioning akan tetap dicoba.', [
+                        'hosting_account_id' => $account->id,
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
-        }
 
-        return ['domain' => $account->domain, 'username' => $username, 'password' => $password];
+            $username = $account->username ?: $this->generateUsername($account->domain);
+            $password = $this->generatePassword();
+
+            try {
+                $result = $panel->createAccount([
+                    'domain'   => $account->domain,
+                    'username' => $username,
+                    'password' => $password,
+                    'package'  => $account->package,
+                    'email'    => $order->client->email ?? '',
+                ]);
+            } catch (Throwable $e) {
+                $account->update([
+                    'provision_status' => 'failed',
+                    'provision_message' => 'Provider error: ' . $e->getMessage(),
+                ]);
+                throw $e;
+            }
+
+            $identifier = $result['username'] ?? $username;
+            $success = (bool) ($result['success'] ?? false);
+            $updates = [
+                'username' => $identifier,
+                'status' => $success ? 'active' : $account->status,
+                'provision_status' => $success ? 'provisioned' : 'failed',
+                'provision_message' => $result['message'] ?? null,
+                'provisioning_finished_at' => now(),
+            ];
+
+            if ($success && ! empty($result['ip'])) {
+                $updates['client_details'] = trim(
+                    (string) $account->client_details . "\n"
+                    . "IP Server: {$result['ip']}\n"
+                    . "Username: {$username}\n"
+                    . "Password: {$password}"
+                );
+            }
+
+            $account->update($updates);
+
+            if (! $success) {
+                return null;
+            }
+
+            $nameservers = $result['nameservers'] ?? array_values(array_filter([$server->ns1, $server->ns2]));
+            if (count($nameservers) >= 2) {
+                $matchingDomain = Domain::where('domain_name', $account->domain)
+                    ->where('client_id', $order->client_id)
+                    ->where('provision_status', 'registered')
+                    ->first();
+
+                if ($matchingDomain && $matchingDomain->registrar) {
+                    try {
+                        $nsResult = DomainRegistrarFactory::make($matchingDomain->registrar)
+                            ->setNameservers($matchingDomain->domain_name, $nameservers);
+                        if ($nsResult['success']) {
+                            $matchingDomain->update(['nameservers' => $nameservers]);
+                        } else {
+                            Log::warning('Auto-arahkan nameserver ke hosting gagal: ' . $nsResult['message'], ['domain' => $matchingDomain->domain_name]);
+                        }
+                    } catch (Throwable $e) {
+                        Log::warning('Auto-arahkan nameserver exception: ' . $e->getMessage(), ['domain' => $matchingDomain->domain_name]);
+                    }
+                }
+            }
+
+            return [
+                'domain' => $account->domain,
+                'username' => $username,
+                'password' => $password,
+            ];
+        });
     }
 
-    /**
-     * @return array{domain: string, success: bool, message: string}|null
-     */
     private function provisionDomain(Domain $domain, Order $order): ?array
+    {
+        return Cache::lock('provision-domain:' . $domain->id, 1800)->get(function () use ($domain, $order) {
+            $domain->refresh();
+
+            return $this->provisionDomainLocked($domain, $order);
+        });
+    }
+
+    private function provisionDomainLocked(Domain $domain, Order $order): ?array
     {
         if (in_array($domain->provision_status, ['registered', 'transfer_pending'], true)) {
             return null;
@@ -348,6 +442,11 @@ class ProvisioningService
             'email'        => $client->email,
         ];
 
+        // Semua validasi lokal sudah lolos. Mulai sekarang proses menyentuh
+        // provider eksternal, sehingga attempt/key dicatat sebelum request.
+        // Lock di atas mencegah webhook/job replay mengirim request paralel.
+        $domain->markProvisioning();
+
         if ($domain->is_transfer) {
             if (! method_exists($service, 'transferDomain')) {
                 $message = 'Registrar domain ini belum mendukung transfer otomatis lewat sistem. Proses manual di panel registrar.';
@@ -371,12 +470,12 @@ class ProvisioningService
             // Status TIDAK diubah jadi "active" di sini — admin yang
             // memastikan dan mengaktifkan manual setelah transfer benar-
             // benar selesai di sisi Liqu.id.
-            $domain->update([
-                'provision_status'  => $result['success'] ? 'transfer_pending' : 'failed',
-                'provision_message' => $result['success']
-                    ? 'Permintaan transfer terkirim ke Liqu.id — menunggu persetujuan pemilik domain di registrar lama (biasanya 5-7 hari). Cek status dan aktifkan manual setelah transfer selesai.'
+            $domain->markProvisioningFinished(
+                $result['success'] ? 'transfer_pending' : 'failed',
+                $result['success']
+                    ? 'Permintaan transfer terkirim ke registrar — menunggu persetujuan/penyelesaian transfer. Domain belum dianggap aktif sampai transfer benar-benar selesai.'
                     : $result['message'],
-            ]);
+            );
 
             return ['domain' => $domain->domain_name, 'success' => $result['success'], 'message' => $result['message']];
         }
@@ -406,6 +505,7 @@ class ProvisioningService
         $domain->update([
             'provision_status'  => $result['success'] ? 'registered' : 'failed',
             'provision_message' => $result['message'],
+            'provisioning_finished_at' => now(),
             'status'            => $result['success'] ? 'active' : $domain->status,
             'register_date'     => $result['success'] ? now() : $domain->register_date,
             'expiry_date'       => $result['success'] ? now()->addYears($domain->years ?: 1) : $domain->expiry_date,
@@ -512,24 +612,6 @@ class ProvisioningService
     }
 
     /**
-     * Dipanggil dari hook "invoice lunas" yang sama dengan provisioning
-     * order baru — tapi ini untuk kasus yang berbeda: invoice PERPANJANGAN
-     * layanan yang sudah aktif, dibuat oleh lumora:generate-renewal-invoices.
-     *
-     * Tidak ada apa pun yang perlu di-"provision" ulang (akun hosting dan
-     * domainnya sudah ada) — yang perlu dilakukan hanya menggeser tanggal
-     * jatuh tempo/kedaluwarsa ke siklus berikutnya, dan melepas tanda
-     * "invoice perpanjangan sedang menunggu" supaya siklus berikutnya bisa
-     * dibuatkan invoice baru lagi nanti.
-     */
-    /**
-     * Dipanggil dari hook "invoice lunas" yang sama — kalau invoice ini
-     * ternyata invoice upgrade (bukan invoice biasa/perpanjangan), paket
-     * hosting-nya benar-benar diganti sekarang, baru setelah pembayaran
-     * dikonfirmasi. Sebelum ini, upgrade baru sebatas "diminta", akun
-     * aslinya belum tersentuh sama sekali.
-     */
-    /**
      * Invoice isi ulang saldo lunas — tambahkan ke saldo klien lewat
      * satu-satunya jalan resmi (Client::adjustBalance), supaya tercatat
      * di buku besar. Tidak ada provisioning apa pun di sini.
@@ -542,12 +624,8 @@ class ProvisioningService
             return;
         }
 
-        $client->adjustBalance(
-            (float) $invoice->total,
-            'topup',
-            "Isi ulang saldo — invoice {$invoice->invoice_number}",
-            $invoice,
-        );
+        app(\App\Services\Billing\TopupService::class)->applyPaidInvoice($invoice);
+        $client->refresh();
 
         try {
             app(\App\Services\Notification\NotificationService::class)->balanceTopupPaid($client, (float) $invoice->total);
@@ -566,17 +644,13 @@ class ProvisioningService
     }
 
     /**
-     * Invoice addon lunas — addon-nya diaktifkan, mulai ikut ditagih di
-     * perpanjangan berikutnya (lihat HostingAccount::renewalAmount()
-     * yang sudah menjumlahkan addon aktif).
-     */
-    /**
      * Invoice ID Protection lunas — baru sekarang benar-benar diaktifkan
      * di registrar. Sebelum ini klien bisa mengaktifkannya gratis lewat
      * tombol, padahal tiap aktivasi memotong saldo deposit kita.
      */
     public function processPrivacyPayment(Invoice $invoice): void
     {
+        Cache::lock('process-privacy-payment:' . $invoice->id, 1800)->block(5, function () use ($invoice): void {
         $domain = Domain::where('privacy_invoice_id', $invoice->id)->first();
 
         if (! $domain || ! $domain->registrar) {
@@ -636,32 +710,57 @@ class ProvisioningService
             'success',
             $domain->client_id,
         );
+        });
     }
 
+    /**
+     * Invoice addon lunas — addon-nya diaktifkan, mulai ikut ditagih di
+     * perpanjangan berikutnya (lihat HostingAccount::renewalAmount()
+     * yang sudah menjumlahkan addon aktif).
+     */
     public function processAddonPayment(Invoice $invoice): void
     {
-        $addon = \App\Models\HostingAccountAddon::where('invoice_id', $invoice->id)
-            ->where('status', 'pending_payment')
-            ->first();
+        Cache::lock('process-addon-payment:' . $invoice->id, 1800)->block(5, function () use ($invoice): void {
+            $addon = DB::transaction(function () use ($invoice) {
+                $current = \App\Models\HostingAccountAddon::query()
+                    ->where('invoice_id', $invoice->id)
+                    ->lockForUpdate()
+                    ->first();
 
-        if (! $addon) {
-            return;
-        }
+                if (! $current || $current->status !== 'pending_payment') {
+                    return null;
+                }
 
-        $addon->update(['status' => 'active']);
+                $current->update(['status' => 'active']);
 
-        ActivityLog::record(
-            'service',
-            "Addon diaktifkan: {$addon->name}",
-            $addon->hostingAccount?->domain ?? '—',
-            route('admin.hosting-accounts.details', $addon->hosting_account_id),
-            'success',
-            $addon->hostingAccount?->client_id,
-        );
+                return $current->fresh('hostingAccount');
+            });
+
+            if (! $addon) {
+                return;
+            }
+
+            ActivityLog::record(
+                'service',
+                "Addon diaktifkan: {$addon->name}",
+                $addon->hostingAccount?->domain ?? '—',
+                route('admin.hosting-accounts.details', $addon->hosting_account_id),
+                'success',
+                $addon->hostingAccount?->client_id,
+            );
+        });
     }
 
+    /**
+     * Dipanggil dari hook "invoice lunas" yang sama — kalau invoice ini
+     * ternyata invoice upgrade (bukan invoice biasa/perpanjangan), paket
+     * hosting-nya benar-benar diganti sekarang, baru setelah pembayaran
+     * dikonfirmasi. Sebelum ini, upgrade baru sebatas "diminta", akun
+     * aslinya belum tersentuh sama sekali.
+     */
     public function processUpgradePayment(Invoice $invoice): void
     {
+        Cache::lock('process-upgrade-payment:' . $invoice->id, 1800)->block(5, function () use ($invoice): void {
         $hosting = HostingAccount::where('pending_upgrade_invoice_id', $invoice->id)->first();
 
         if (! $hosting || ! $hosting->pendingUpgradeProduct) {
@@ -681,12 +780,11 @@ class ProvisioningService
                     ->changePackage($hosting->username, $newProduct->panel_package);
 
                 if (! $result['success']) {
-                    Log::error('Upgrade paket gagal di panel, status database TETAP diperbarui: ' . $result['message'], [
-                        'hosting_account_id' => $hosting->id,
-                    ]);
+                    throw new \RuntimeException('Upgrade paket gagal di panel: ' . $result['message']);
                 }
             } catch (Throwable $e) {
                 Log::error('Upgrade paket error: ' . $e->getMessage(), ['hosting_account_id' => $hosting->id]);
+                throw $e;
             }
         }
 
@@ -706,10 +804,23 @@ class ProvisioningService
             'success',
             $hosting->client_id,
         );
+        });
     }
 
+    /**
+     * Dipanggil dari hook "invoice lunas" yang sama dengan provisioning
+     * order baru — tapi ini untuk kasus yang berbeda: invoice PERPANJANGAN
+     * layanan yang sudah aktif, dibuat oleh lumora:generate-renewal-invoices.
+     *
+     * Tidak ada apa pun yang perlu di-"provision" ulang (akun hosting dan
+     * domainnya sudah ada) — yang perlu dilakukan hanya menggeser tanggal
+     * jatuh tempo/kedaluwarsa ke siklus berikutnya, dan melepas tanda
+     * "invoice perpanjangan sedang menunggu" supaya siklus berikutnya bisa
+     * dibuatkan invoice baru lagi nanti.
+     */
     public function processRenewalPayment(Invoice $invoice): void
     {
+        Cache::lock('process-renewal-payment:' . $invoice->id, 1800)->block(5, function () use ($invoice): void {
         $hosting = HostingAccount::where('renewal_invoice_id', $invoice->id)->first();
 
         if ($hosting) {
@@ -726,22 +837,13 @@ class ProvisioningService
             } else {
                 $wasSuspended = $hosting->status === 'suspended';
 
-                // Kalau akun sungguhan pernah disuspend lewat API (auto-suspend
-                // atau manual), harus dinyalakan lagi lewat API juga — mengubah
-                // status di database saja TIDAK membuka akses klien di server
-                // yang sebenarnya, akun tetap terkunci di sisi cPanel/WHM.
-                if ($wasSuspended && $hosting->serverModel && $hosting->username) {
-                    try {
-                        $result = HostingPanelFactory::make($hosting->serverModel)->unsuspendAccount($hosting->username);
-
-                        if (! $result['success']) {
-                            Log::error('Gagal unsuspend otomatis setelah pembayaran: ' . $result['message'], [
-                                'hosting_account_id' => $hosting->id,
-                            ]);
-                        }
-                    } catch (Throwable $e) {
-                        Log::error('Unsuspend otomatis error: ' . $e->getMessage(), ['hosting_account_id' => $hosting->id]);
-                    }
+                // Reaktivasi provider dan perubahan status database harus
+                // memakai satu service agar jalur auto-suspend dan pembayaran
+                // renewal tidak memiliki aturan berbeda. Jika provider gagal
+                // unsuspend, status tetap suspended dan invoice tetap terikat
+                // sehingga job dapat di-retry tanpa membuat siklus baru.
+                if ($wasSuspended && ! app(OverdueServiceLifecycle::class)->reactivateHosting($hosting)) {
+                    throw new \RuntimeException('Hosting belum dapat diaktifkan kembali di provider.');
                 }
 
                 $hosting->update([
@@ -764,6 +866,30 @@ class ProvisioningService
         $domain = Domain::where('renewal_invoice_id', $invoice->id)->first();
 
         if ($domain) {
+            $registrarMessage = null;
+
+            // Jangan menggeser expiry lokal sebelum registrar mengonfirmasi
+            // renewal. Kalau provider gagal, invoice tetap paid tetapi relasi
+            // renewal tetap ada sehingga job dapat mencoba ulang tanpa
+            // memberi kesan domain sudah diperpanjang.
+            if ($domain->registrar) {
+                $result = DomainRegistrarFactory::make($domain->registrar)
+                    ->renewDomain($domain->domain_name, 1);
+
+                if (! $result['success']) {
+                    $domain->update([
+                        'provision_status' => 'failed',
+                        'provision_message' => 'Renewal registrar gagal: ' . $result['message'],
+                    ]);
+
+                    throw new \RuntimeException(
+                        "Renewal domain {$domain->domain_name} gagal: {$result['message']}"
+                    );
+                }
+
+                $registrarMessage = $result['message'];
+            }
+
             // Tahun ditambahkan dari expiry_date SEBELUMNYA, bukan dari hari
             // ini — supaya domain yang dibayar lebih awal tidak kehilangan
             // sisa masa aktifnya.
@@ -773,20 +899,10 @@ class ProvisioningService
                 'expiry_date' => $newExpiry,
                 'renewal_invoice_id' => null,
                 'status' => 'active',
+                'provision_status' => $domain->registrar_id ? 'registered' : $domain->provision_status,
+                'provision_message' => $registrarMessage
+                    ?: 'Perpanjangan domain tercatat secara manual di sistem.',
             ]);
-
-            // Domain dengan registrar sungguhan idealnya juga memanggil API
-            // renew di sini. Belum diimplementasikan — untuk sekarang
-            // perpanjangan dicatat di database, dan admin perlu memastikan
-            // perpanjangan juga diproses di sisi registrar kalau TLD-nya
-            // bukan TLD demo. Ditandai jelas di provision_message supaya
-            // tidak diam-diam terlewat.
-            if ($domain->registrar_id) {
-                $domain->update([
-                    'provision_message' => 'Perpanjangan tercatat di sistem pada ' . now()->format('d M Y')
-                        . '. Pastikan juga diperpanjang di panel registrar jika belum otomatis.',
-                ]);
-            }
 
             ActivityLog::record(
                 'domain',
@@ -797,5 +913,6 @@ class ProvisioningService
                 $domain->client_id,
             );
         }
+        });
     }
 }

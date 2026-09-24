@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class Client extends Authenticatable
@@ -14,7 +17,7 @@ class Client extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'name', 'email', 'phone', 'company', 'address',
+        'name', 'email', 'phone', 'company', 'address', 'client_group_id',
         'city', 'state', 'postal_code', 'country', 'password', 'status', 'internal_notes',
         'email_verified_at', 'last_login_at', 'last_login_ip',
         'whatsapp_number', 'notify_promo', 'notify_whatsapp', 'notify_sms',
@@ -43,21 +46,39 @@ class Client extends Authenticatable
      * di buku besar (client_balance_logs). $amount boleh negatif (untuk
      * mengurangi), boleh positif (untuk menambah).
      */
-    public function adjustBalance(float $amount, string $type, string $description, ?\App\Models\Invoice $invoice = null, ?\App\Models\Admin $admin = null): \App\Models\ClientBalanceLog
+    public function adjustBalance(
+        float $amount,
+        string $type,
+        string $description,
+        ?\App\Models\Invoice $invoice = null,
+        ?\App\Models\Admin $admin = null,
+        ?string $idempotencyKey = null,
+    ): \App\Models\Credit
     {
-        $newBalance = round((float) $this->balance + $amount, 2);
+        return DB::transaction(function () use ($amount, $type, $description, $invoice, $admin, $idempotencyKey) {
+            if ($idempotencyKey) {
+                $existing = \App\Models\Credit::where('idempotency_key', $idempotencyKey)->first();
+                if ($existing) {
+                    return $existing;
+                }
+            }
 
-        $this->update(['balance' => $newBalance]);
+            $client = static::query()->lockForUpdate()->findOrFail($this->id);
+            $newBalance = round((float) $client->balance + $amount, 2);
 
-        return \App\Models\ClientBalanceLog::create([
-            'client_id' => $this->id,
-            'amount' => $amount,
-            'type' => $type,
-            'description' => $description,
-            'invoice_id' => $invoice?->id,
-            'admin_id' => $admin?->id,
-            'balance_after' => $newBalance,
-        ]);
+            $client->update(['balance' => $newBalance]);
+
+            return \App\Models\Credit::create([
+                'client_id' => $client->id,
+                'amount' => $amount,
+                'type' => $type,
+                'description' => $description,
+                'invoice_id' => $invoice?->id,
+                'admin_id' => $admin?->id,
+                'balance_after' => $newBalance,
+                'idempotency_key' => $idempotencyKey,
+            ]);
+        });
     }
 
     /**
@@ -130,7 +151,22 @@ class Client extends Authenticatable
 
     public function balanceLogs(): HasMany
     {
-        return $this->hasMany(ClientBalanceLog::class);
+        return $this->hasMany(Credit::class);
+    }
+
+    public function credits(): HasMany
+    {
+        return $this->hasMany(Credit::class);
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function couponUsages(): HasMany
+    {
+        return $this->hasMany(CouponUsage::class);
     }
 
     public function domains(): HasMany
@@ -146,6 +182,35 @@ class Client extends Authenticatable
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Profil affiliate MILIK client ini (kalau ia mendaftar jadi
+     * affiliate lewat Client\AffiliateController) -- bukan affiliate
+     * yang MEREFERENSIKAN client ini, itu affiliateReferral() di bawah.
+     */
+    public function affiliate(): HasOne
+    {
+        return $this->hasOne(Affiliate::class);
+    }
+
+    /**
+     * Atribusi: affiliate mana yang mereferensikan client ini saat
+     * mendaftar (kalau ada). Lihat App\Services\Affiliate\AffiliateTrackingService.
+     */
+    public function affiliateReferral(): HasOne
+    {
+        return $this->hasOne(AffiliateReferral::class);
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(ClientGroup::class, 'client_group_id');
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(ClientAddress::class);
     }
 
     public function getInitialsAttribute(): string

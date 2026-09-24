@@ -6,11 +6,13 @@ use App\Models\ActivityLog;
 use App\Models\Admin;
 use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\NotificationDelivery;
 use App\Models\Setting;
 use App\Notifications\AdminAlert;
 use App\Notifications\ClientWelcome;
 use App\Notifications\InvoiceCreated;
 use App\Notifications\InvoicePaid;
+use App\Jobs\Notification\DeliverNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -34,7 +36,7 @@ class NotificationService
     public function clientRegistered(Client $client): void
     {
         if ($this->enabled('notify_welcome')) {
-            $this->send($client, new ClientWelcome());
+            $this->send($client, new ClientWelcome(), 'client:registered:' . $client->id);
         }
 
         ActivityLog::record(
@@ -60,7 +62,7 @@ class NotificationService
         $client = $invoice->client;
 
         if ($client && $this->enabled('notify_invoice')) {
-            $this->send($client, new InvoiceCreated($invoice));
+            $this->send($client, new InvoiceCreated($invoice), 'invoice:created:' . $invoice->id);
         }
 
         ActivityLog::record(
@@ -91,7 +93,7 @@ class NotificationService
         // notifikasi generik "Invoice dibayar" juga di sini akan jadi
         // dua email untuk satu kejadian yang sama.
         if ($client && $this->enabled('notify_paid') && ! $invoice->is_topup) {
-            $this->send($client, new InvoicePaid($invoice));
+            $this->send($client, new InvoicePaid($invoice), 'invoice:paid:' . $invoice->id);
         }
 
         ActivityLog::record(
@@ -118,7 +120,7 @@ class NotificationService
     public function balanceTopupPaid(\App\Models\Client $client, float $amount): void
     {
         if ($this->enabled('notify_paid')) {
-            $this->send($client, new \App\Notifications\BalanceTopupPaid($amount, (float) $client->balance));
+            $this->send($client, new \App\Notifications\BalanceTopupPaid($amount, (float) $client->balance), null);
         }
     }
 
@@ -137,11 +139,6 @@ class NotificationService
     }
 
     /**
-     * Domain untuk TLD yang mewajibkan data kelayakan (.us, .asia, dll)
-     * berhenti sejenak menunggu admin mengisi datanya sebelum bisa
-     * didaftarkan — lihat LiquidService::ELIGIBILITY_REQUIRED_TLDS.
-     */
-    /**
      * Klien sudah bayar ID Protection tapi aktivasi di registrar gagal —
      * uangnya sudah masuk, jadi ini WAJIB ditindaklanjuti admin manual,
      * tidak boleh didiamkan.
@@ -155,6 +152,11 @@ class NotificationService
         ], route('admin.domains.details', $domain), 'warning');
     }
 
+    /**
+     * Domain untuk TLD yang mewajibkan data kelayakan (.us, .asia, dll)
+     * berhenti sejenak menunggu admin mengisi datanya sebelum bisa
+     * didaftarkan — lihat LiquidService::ELIGIBILITY_REQUIRED_TLDS.
+     */
     public function domainNeedsEligibility(\App\Models\Domain $domain, string $tldExt): void
     {
         $this->alertAdmins('notify_admin_payment', "Domain .{$tldExt} butuh data kelayakan tambahan", [
@@ -174,7 +176,7 @@ class NotificationService
         $client = $domain->client;
 
         if ($client && $this->enabled('notify_paid')) {
-            $this->send($client, new \App\Notifications\DomainNeedsDocuments($domain, $tldExt));
+            $this->send($client, new \App\Notifications\DomainNeedsDocuments($domain, $tldExt), 'domain:documents:' . $domain->id);
         }
 
         $this->alertAdmins('notify_admin_payment', "Domain .{$tldExt} menunggu dokumen klien", [
@@ -215,7 +217,7 @@ class NotificationService
     public function ticketRepliedByAdmin(\App\Models\Ticket $ticket, \App\Models\TicketReply $reply): void
     {
         if ($ticket->client && $this->enabled('notify_ticket_reply')) {
-            $this->send($ticket->client, new \App\Notifications\TicketReplied($ticket, $reply));
+            $this->send($ticket->client, new \App\Notifications\TicketReplied($ticket, $reply), 'ticket:reply:' . $reply->id);
         }
     }
 
@@ -260,7 +262,7 @@ class NotificationService
         }
 
         foreach ($this->admins() as $admin) {
-            $this->send($admin, new AdminAlert($judul, $details, $link, $level));
+            $this->send($admin, new AdminAlert($judul, $details, $link, $level), 'admin-alert:' . sha1($admin->getKey() . '|' . $judul . '|' . ($link ?? '') . '|' . json_encode($details)));
         }
     }
 
@@ -285,12 +287,44 @@ class NotificationService
      * Bungkus pengiriman supaya kegagalan notifikasi tidak pernah
      * menggagalkan proses bisnis yang memanggilnya.
      */
-    private function send(object $notifiable, $notification): void
+    private function send(object $notifiable, $notification, ?string $eventKey = null): void
     {
         try {
-            $notifiable->notify($notification);
+            $dedupeKey = $eventKey
+                ? hash('sha256', implode('|', [
+                    $notifiable::class,
+                    $notifiable->getKey(),
+                    $notification::class,
+                    $eventKey,
+                ]))
+                : (string) str()->uuid();
+
+            $delivery = NotificationDelivery::firstOrCreate(
+                ['dedupe_key' => $dedupeKey],
+                [
+                    'notifiable_type' => $notifiable::class,
+                    'notifiable_id' => $notifiable->getKey(),
+                    'notification_type' => $notification::class,
+                    'event_key' => $eventKey,
+                    'status' => 'pending',
+                ],
+            );
+
+            if ($delivery->status === 'sent') {
+                return;
+            }
+
+            if ($delivery->status === 'failed') {
+                $delivery->forceFill([
+                    'status' => 'pending',
+                    'failed_at' => null,
+                    'error' => null,
+                ])->save();
+            }
+
+            DeliverNotification::dispatch($delivery->id, $notifiable, $notification);
         } catch (Throwable $e) {
-            Log::warning('Notifikasi gagal dikirim: ' . $e->getMessage(), [
+            Log::warning('Notifikasi gagal diantrikan: ' . $e->getMessage(), [
                 'penerima' => $notifiable->email ?? '—',
                 'jenis' => $notification::class,
             ]);

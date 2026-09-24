@@ -121,7 +121,8 @@ class SendInvoiceReminders extends Command
         if ($daysLeft < 0 && ! $dry) {
             Invoice::where('status', 'unpaid')
                 ->whereDate('due_date', '<', now()->toDateString())
-                ->update(['status' => 'overdue']);
+                ->get()
+                ->each(fn (Invoice $invoice) => $invoice->markOverdue());
         }
 
         return $count;

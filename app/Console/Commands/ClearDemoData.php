@@ -3,10 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\Client;
-use App\Models\Page;
+use App\Models\CmsPage;
 use App\Models\PaymentGateway;
 use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Models\ProductGroup;
 use App\Models\Tld;
 use Illuminate\Console\Command;
 
@@ -102,7 +102,7 @@ class ClearDemoData extends Command
                 : '  Gateway contoh: <fg=yellow>Transfer Bank (Manual)</>');
         }
 
-        $pages = $doPages ? Page::whereIn('slug', self::DEMO_PAGE_SLUGS)->get() : collect();
+        $pages = $doPages ? CmsPage::whereIn('slug', self::DEMO_PAGE_SLUGS)->get() : collect();
 
         if ($doPages) {
             $this->line($pages->isEmpty()
@@ -111,7 +111,7 @@ class ClearDemoData extends Command
             $this->line('    <fg=gray>Catatan: kalau isinya sudah kamu ubah jadi konten asli, jangan hapus ini.</>');
         }
 
-        $categories = $doCatalog ? ProductCategory::whereIn('slug', self::DEMO_CATEGORY_SLUGS)->withCount('products')->get() : collect();
+        $categories = $doCatalog ? ProductGroup::whereIn('slug', self::DEMO_CATEGORY_SLUGS)->withCount('products')->get() : collect();
 
         if ($doCatalog) {
             if ($categories->isEmpty()) {

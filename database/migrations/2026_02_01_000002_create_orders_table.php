@@ -21,7 +21,14 @@ return new class extends Migration
             $table->string('product_name'); // mis. "Cloud Hosting - Pro", "Domain .com"
             $table->enum('order_type', ['hosting', 'domain', 'vps', 'other'])->default('hosting');
             $table->decimal('amount', 12, 2)->default(0);
-            $table->enum('status', ['pending', 'active', 'suspended', 'cancelled'])->default('pending');
+            // Canonical lifecycle; legacy values are intentionally not part
+            // of a fresh schema.
+            $table->string('status', 40)->default('draft');
+            $table->enum('stock_reservation_status', ['none', 'reserved', 'consumed', 'released'])->default('none')->index();
+            $table->timestamp('provisioning_started_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
+            $table->text('failure_message')->nullable();
             $table->text('internal_notes')->nullable();
             $table->timestamps();
         });

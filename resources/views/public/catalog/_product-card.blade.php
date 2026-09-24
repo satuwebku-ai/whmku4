@@ -15,6 +15,12 @@
     <span class="badge-public-inactive position-absolute" style="top:1rem;right:1rem">Stok Habis</span>
   @endif
 
+  @if ($product->isDepositBilled())
+    <span class="badge rounded-pill mb-2 align-self-start" style="font-size:10.5px;background:#eef2ff;color:#4338ca;padding:.3rem .65rem">
+      <i class="fa-solid fa-bolt" style="font-size:9px"></i> Bayar per Jam
+    </span>
+  @endif
+
   <h3 class="fw-semibold text-dark mb-2" style="font-size:16px">{{ $product->name }}</h3>
   @if ($product->tagline)
     <p class="text-muted mb-3" style="font-size:13px;line-height:1.6">{{ $product->tagline }}</p>
@@ -34,7 +40,19 @@
   @endif
 
   <div class="pt-3 border-top">
-    @if ($product->starting_price !== null)
+    @if ($product->isDepositBilled())
+      @php $hourly = $product->estimatedHourlyRate(); @endphp
+      @if ($hourly)
+        <p class="fw-bold text-dark mb-0" style="font-size:1.5rem;letter-spacing:-.01em">
+          Rp {{ number_format($hourly, 2, ',', '.') }}
+          <span class="text-muted fw-normal" style="font-size:12px">/ jam</span>
+        </p>
+        <p class="text-muted mb-0" style="font-size:11.5px">± Rp {{ number_format($hourly * 730, 0, ',', '.') }} / bulan bila menyala terus · dipotong dari saldo</p>
+      @else
+        <p class="fw-bold text-dark mb-0" style="font-size:1.1rem;letter-spacing:-.01em">Sesuai Pemakaian</p>
+        <p class="text-muted mb-0" style="font-size:11.5px">Dipotong otomatis dari saldo, per jam</p>
+      @endif
+    @elseif ($product->starting_price !== null)
       <p class="fw-bold text-dark mb-0" style="font-size:1.5rem;letter-spacing:-.01em">
         Rp {{ number_format($product->starting_price, 0, ',', '.') }}
         <span class="text-muted fw-normal" style="font-size:12px">{{ $unit[$firstCycleKey] ?? '' }}</span>

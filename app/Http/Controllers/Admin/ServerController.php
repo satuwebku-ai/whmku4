@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Server;
 use App\Services\Hosting\HostingPanelFactory;
+use App\Services\Vps\VpsProviderFactory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ServerController extends Controller
@@ -20,9 +22,7 @@ class ServerController extends Controller
 
     public function indexBootstrap(): View
     {
-        $servers = Server::withCount('hostingAccounts')->latest()->paginate(10);
-
-        return view('admin.servers.index', compact('servers'));
+        return $this->index();
     }
 
     public function create(): View
@@ -32,7 +32,7 @@ class ServerController extends Controller
 
     public function createBootstrap(): View
     {
-        return view('admin.servers.form', ['server' => new Server()]);
+        return $this->create();
     }
 
     public function store(Request $request): RedirectResponse
@@ -55,7 +55,7 @@ class ServerController extends Controller
 
     public function editBootstrap(Server $server): View
     {
-        return view('admin.servers.form', compact('server'));
+        return $this->edit($server);
     }
 
     public function update(Request $request, Server $server): RedirectResponse
@@ -89,7 +89,9 @@ class ServerController extends Controller
 
     public function testConnection(Server $server): RedirectResponse
     {
-        $result = HostingPanelFactory::make($server)->testConnection();
+        $result = $server->isCloud()
+            ? VpsProviderFactory::make($server)->testConnection()
+            : HostingPanelFactory::make($server)->testConnection();
 
         $server->update([
             'last_checked_at' => now(),
@@ -108,6 +110,10 @@ class ServerController extends Controller
      */
     public function loginWhm(Server $server): RedirectResponse
     {
+        if ($server->isCloud()) {
+            return back()->with('error', 'Server VM/VPS tidak punya WHM.');
+        }
+
         $panel = HostingPanelFactory::make($server);
 
         if (! method_exists($panel, 'createWhmSsoSession')) {
@@ -128,34 +134,33 @@ class ServerController extends Controller
      * paket yang BENAR-BENAR ada di server — sumber error paling sering
      * saat provisioning otomatis gagal diam-diam.
      */
-    public function diagnostics(Server $server): View
+    public function diagnostics(Server $server): View|RedirectResponse
     {
-        if ($server->panel === 'idcloudhost') {
+        if ($server->isCloud()) {
+            // Diagnosa detail (daftar VM, OS, harga modal) baru ada untuk
+            // IDCloudHost. Provider lain: cukup Tes Koneksi.
+            if ($server->vpsDriver() !== 'idcloudhost') {
+                return redirect()->route('admin.servers.index')
+                    ->with('error', 'Diagnosa detail belum tersedia untuk ' . $server->vpsLabel() . '. Gunakan Tes Koneksi.');
+            }
+
             return view('admin.servers.diagnostics-idcloudhost', $this->idCloudHostDiagnosticsData($server));
         }
 
         return view('admin.servers.diagnostics', $this->diagnosticsData($server));
     }
 
-    public function diagnosticsBootstrap(Server $server): View
+    public function diagnosticsBootstrap(Server $server): View|RedirectResponse
     {
-        if ($server->panel === 'idcloudhost') {
-            return view('admin.servers.diagnostics-idcloudhost', $this->idCloudHostDiagnosticsData($server));
-        }
-
-        return view('admin.servers.diagnostics', $this->diagnosticsData($server));
+        return $this->diagnostics($server);
     }
 
+    /**
+     * Diagnosa server hosting biasa (cPanel/DirectAdmin/Plesk). Server
+     * VM/VPS tidak lewat sini -- lihat diagnostics().
+     */
     private function diagnosticsData(Server $server): array
     {
-        // IDCloudHost bukan panel di server yang sudah ada -- tidak
-        // punya konsep "paket" atau "akun" seperti cPanel/WHM, jadi
-        // dapat tampilan Diagnosa tersendiri: daftar VM & OS tersedia,
-        // bukan perbandingan paket/akun yang tidak relevan untuknya.
-        if ($server->panel === 'idcloudhost') {
-            return $this->idCloudHostDiagnosticsData($server);
-        }
-
         $service = HostingPanelFactory::make($server);
 
         $packages = [];
@@ -226,82 +231,58 @@ class ServerController extends Controller
     }
 
     /**
-     * Tarik harga modal terbaru dari provider lalu simpan ke cost_cache.
-     * Dipakai mode markup -- harga jual dihitung dari angka ini, jadi
-     * perlu disegarkan sesekali (atau setiap kali provider mengubah
-     * harga). Hanya membaca, tidak mengubah apa pun di provider.
+     * Tarik harga modal terbaru dari provider (lewat pricing() milik adapter
+     * provider-nya) lalu simpan ke cost_cache. Dipakai mode markup -- harga
+     * jual dihitung dari angka ini, jadi perlu disegarkan sesekali (atau
+     * setiap kali provider mengubah harga). Hanya membaca, tidak mengubah
+     * apa pun di provider.
      */
     public function syncCost(Server $server): RedirectResponse
     {
-        if ($server->panel !== 'idcloudhost') {
-            return back()->with('error', 'Tarik harga modal baru tersedia untuk provider IDCloudHost.');
+        if (! $server->isCloud() || ! config('vps_providers.' . $server->vpsDriver() . '.cost_sync', false)) {
+            return back()->with('error', 'Tarik harga modal belum tersedia untuk provider ini.');
         }
 
-        $result = (new \App\Services\Hosting\IdCloudHostService($server))->getPricingPolicy();
+        try {
+            $result = VpsProviderFactory::make($server)->pricing();
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menarik harga modal: ' . $e->getMessage());
+        }
 
         if (! $result['success']) {
             return back()->with('error', 'Gagal menarik harga modal: ' . $result['message']);
         }
 
-        // Ambil tingkat TERENDAH tiap komponen (paling umum dipakai).
-        // Lihat catatan tiering di idCloudHostDiagnosticsData().
-        $tiers = ['cpu' => [], 'ram' => [], 'main' => [], 'backup' => [], 'snapshot' => []];
-        $windows = 0;
+        $server->update(['cost_cache' => $result['cost'], 'cost_cached_at' => now()]);
 
-        foreach (($result['raw']['policy'] ?? []) as $policy) {
-            $price = (float) ($policy['pricePerUnit'] ?? $policy['price'] ?? 0);
-            $type = $policy['resourceType'] ?? '';
-            $service = $policy['serviceNameInUptime'] ?? '';
+        $note = ($result['cost']['currency'] ?? 'IDR') !== 'IDR' && ! $server->costFxRate()
+            ? ' Isi kurs ke Rupiah di form Server supaya harga modal bisa dipakai.'
+            : '';
 
-            if ($type === 'CPU') {
-                $tiers['cpu'][(int) ($policy['numCpus'] ?? 0)] = $price;
-            } elseif ($type === 'RAM') {
-                $tiers['ram'][(int) ($policy['megsRam'] ?? 0)] = $price;
-            } elseif ($type === 'STORAGE' && isset($tiers[$service])) {
-                $tiers[$service][(int) ($policy['gigsStorage'] ?? 0)] = $price;
-            } elseif ($type === 'LICENSE' && $service === 'windows') {
-                $windows = $price;
-            }
-        }
-
-        $lowest = function (array $list) {
-            if (! $list) return 0;
-            ksort($list);
-
-            return reset($list);
-        };
-
-        $server->update([
-            'cost_cache' => [
-                'vcpu'     => $lowest($tiers['cpu']),
-                'ram'      => $lowest($tiers['ram']),
-                'storage'  => $lowest($tiers['main']),
-                'backup'   => $lowest($tiers['backup']),
-                'snapshot' => $lowest($tiers['snapshot']),
-                'windows'  => $windows,
-            ],
-            'cost_cached_at' => now(),
-        ]);
-
-        return back()->with('success', 'Harga modal berhasil disegarkan dari IDCloudHost.');
+        return back()->with('success', 'Harga modal berhasil disegarkan dari ' . $server->vpsLabel() . '.' . $note);
     }
 
     private function validated(Request $request, bool $updating = false): array
     {
-        // IDCloudHost memakai field hostname & api_username secara
-        // berbeda (slug lokasi opsional + billing account id opsional),
-        // bukan hostname server & username API biasa -- jadi keduanya
-        // tidak wajib khusus untuk provider ini. Lihat IdCloudHostService.
-        $isIdCloudHost = $request->input('panel') === 'idcloudhost';
+        // Jenis Panel "vps" = server cloud: provider-nya dipilih di
+        // "VPS Provider", dan field yang wajib mengikuti profil provider itu
+        // di config/vps_providers.php (mis. IDCloudHost: hostname = slug
+        // lokasi & api_username = billing account id, keduanya opsional;
+        // DigitalOcean: cuma API Token). Server hosting biasa (cPanel dst)
+        // tetap wajib Hostname, Port, dan API Username.
+        $isVps = $request->input('panel') === 'vps';
+        $fields = $isVps ? (array) config('vps_providers.' . $request->input('vps_provider') . '.fields', []) : [];
+        $required = fn (string $field) => $isVps ? (bool) ($fields[$field]['required'] ?? false) : true;
 
-        return $request->validate([
+        $data = $request->validate([
             'name'         => ['required', 'string', 'max:255'],
-            'hostname'     => [$isIdCloudHost ? 'nullable' : 'required', 'string', 'max:255'],
+            'hostname'     => [$required('hostname') ? 'required' : 'nullable', 'string', 'max:255'],
             'ns1'          => ['nullable', 'string', 'max:255'],
             'ns2'          => ['nullable', 'string', 'max:255'],
-            'port'         => ['required', 'integer', 'min:1', 'max:65535'],
-            'panel'        => ['required', 'in:cpanel,directadmin,plesk,idcloudhost'],
-            'api_username' => [$isIdCloudHost ? 'nullable' : 'required', 'string', 'max:100'],
+            'port'         => [$isVps ? 'nullable' : 'required', 'integer', 'min:1', 'max:65535'],
+            'panel'        => ['required', Rule::in(['cpanel', 'directadmin', 'plesk', 'vps'])],
+            'vps_provider' => [Rule::requiredIf($isVps), 'nullable', 'string', Rule::in(array_keys(config('vps_providers', [])))],
+            'api_username' => [$required('api_username') ? 'required' : 'nullable', 'string', 'max:100'],
             'api_token'    => [$updating ? 'nullable' : 'required', 'string'],
             'verify_ssl'   => ['nullable', 'boolean'],
             'max_accounts' => ['nullable', 'integer', 'min:1'],
@@ -313,8 +294,24 @@ class ServerController extends Controller
             'price_windows_license_per_vcpu_hour' => ['nullable', 'numeric', 'min:0'],
             'pricing_mode' => ['nullable', 'in:manual,markup'],
             'markup_percent' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'cost_fx_rate' => ['nullable', 'numeric', 'min:0'],
             'is_active'    => ['nullable', 'boolean'],
+        ], [
+            'vps_provider.required' => 'Pilih VPS Provider dulu.',
+            'vps_provider.in'       => 'VPS Provider tidak dikenali.',
         ]);
+
+        if ($isVps) {
+            // Nameserver & port tidak berlaku untuk server VPS. Port tidak
+            // diisi supaya kolomnya tetap memakai nilai bawaan/lama.
+            $data['ns1'] = null;
+            $data['ns2'] = null;
+            unset($data['port']);
+        } else {
+            $data['vps_provider'] = null;
+        }
+
+        return $data;
     }
 
     /**

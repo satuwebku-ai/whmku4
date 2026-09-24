@@ -172,11 +172,6 @@ class DnamaService implements DomainRegistrarInterface
     /**
      * POST /domains/{domain_name}/renew
      *
-     * Body butuh current_expiry_date -- diambil dari sistem kita kalau
-     * tidak dikirim eksplisit, karena DNAMA butuh titik acuan tanggal
-     * (bukan cuma "tambah N tahun dari sekarang").
-     */
-    /**
      * Dnama MEWAJIBKAN current_expiry_date SAMA PERSIS dengan tanggal
      * expiry yang tercatat di sisi mereka -- dokumen resmi eksplisit
      * menyebut error "Current expiry date does not match with

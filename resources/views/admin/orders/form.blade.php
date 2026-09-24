@@ -4,7 +4,10 @@
 
 @section('content')
 
-  @php $selectStyle = 'padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem'; @endphp
+  @php
+    $selectStyle = 'padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem';
+    $currentStatus = $order->status instanceof \App\Enums\OrderStatus ? $order->status->value : ($order->status ?: 'draft');
+  @endphp
 
   <div class="mb-4">
     <h1 class="h4 fw-bold text-dark mb-1">{{ $order->exists ? 'Edit Order' : 'Buat Order Baru' }}</h1>
@@ -67,10 +70,9 @@
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Status</label>
         <select name="status" class="form-select" style="{{ $selectStyle }}">
-          <option value="pending" @selected(old('status', $order->status) === 'pending')>Pending</option>
-          <option value="active" @selected(old('status', $order->status) === 'active')>Aktif</option>
-          <option value="suspended" @selected(old('status', $order->status) === 'suspended')>Suspended</option>
-          <option value="cancelled" @selected(old('status', $order->status) === 'cancelled')>Cancelled</option>
+          @foreach (\App\Enums\OrderStatus::cases() as $status)
+            <option value="{{ $status->value }}" @selected(old('status', $currentStatus) === $status->value)>{{ str_replace('_', ' ', ucfirst($status->value)) }}</option>
+          @endforeach
         </select>
       </div>
     </div>

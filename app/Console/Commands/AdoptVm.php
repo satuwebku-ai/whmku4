@@ -39,7 +39,7 @@ class AdoptVm extends Command
             return self::FAILURE;
         }
 
-        if (! $account->serverModel || $account->serverModel->panel !== 'idcloudhost') {
+        if ($account->serverModel?->vpsDriver() !== 'idcloudhost') {
             $this->error('Layanan ini bukan VPS IDCloudHost.');
 
             return self::FAILURE;
@@ -116,7 +116,7 @@ class AdoptVm extends Command
         $kandidat = HostingAccount::with('serverModel')
             ->where('provision_status', '!=', 'provisioned')
             ->get()
-            ->filter(fn ($a) => $a->serverModel && $a->serverModel->panel === 'idcloudhost');
+            ->filter(fn ($a) => $a->serverModel?->vpsDriver() === 'idcloudhost');
 
         if ($kandidat->isEmpty()) {
             $this->info('Tidak ada VPS yang perlu diadopsi — semuanya sudah terhubung.');

@@ -107,10 +107,23 @@ class MidtransService implements PaymentGatewayInterface
             return ['success' => false, 'message' => 'Signature tidak valid.', 'status' => null, 'payment' => null];
         }
 
-        $payment = Payment::where('reference', $orderId)->first();
+        $payment = Payment::where('reference', $orderId)
+            ->where('payment_gateway_id', $this->gateway->id)
+            ->first();
 
         if (! $payment) {
             return ['success' => false, 'message' => "Pembayaran {$orderId} tidak ditemukan.", 'status' => null, 'payment' => null];
+        }
+
+        $expectedAmount = number_format((float) $payment->total, 2, '.', '');
+        $receivedAmount = number_format((float) $grossAmount, 2, '.', '');
+        if ($expectedAmount !== $receivedAmount) {
+            Log::warning('Midtrans callback ditolak: nominal tidak cocok.', [
+                'payment_id' => $payment->id,
+                'expected' => $expectedAmount,
+                'received' => $receivedAmount,
+            ]);
+            return ['success' => false, 'message' => 'Nominal pembayaran tidak cocok.', 'status' => null, 'payment' => null];
         }
 
         $status = $this->mapStatus($data);

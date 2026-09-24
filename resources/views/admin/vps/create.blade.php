@@ -18,13 +18,24 @@
       <i class="fa-solid fa-cloud text-muted mb-3" style="font-size:1.75rem"></i>
       <p class="fw-medium text-dark mb-1">Belum ada server cloud terhubung</p>
       <p class="text-muted mb-3" style="font-size:14px">
-        Tambahkan dulu server bertipe IDCloudHost, lengkap dengan API Token dan kartu harganya.
+        Tambahkan dulu server bertipe VM / VPS (pilih VPS Provider-nya), lengkap dengan API Token.
       </p>
       <a href="{{ route('admin.servers.create') }}" class="btn btn-primary btn-sm mx-auto" style="width:fit-content">Tambah Server Cloud</a>
     </div>
   @else
     <form method="POST" action="{{ route('admin.vps.store') }}" style="max-width:52rem">
       @csrf
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label small fw-medium">Provider Size (opsional)</label>
+          <input name="provider_size" value="{{ old('provider_size') }}" class="form-control form-control-sm" placeholder="DigitalOcean: s-2vcpu-4gb">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small fw-medium">Provider Image ID/Slug (opsional)</label>
+          <input name="provider_image_id" value="{{ old('provider_image_id') }}" class="form-control form-control-sm" placeholder="Ubuntu image ID/slug">
+        </div>
+      </div>
 
       <div class="row g-3">
         <div class="col-12 col-lg-8">

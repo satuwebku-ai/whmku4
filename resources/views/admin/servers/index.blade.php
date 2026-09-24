@@ -7,7 +7,7 @@
   <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div>
       <h1 class="h4 fw-bold text-dark mb-1">Server</h1>
-      <p class="small text-muted mb-0">Kelola server cPanel/WHM, DirectAdmin, atau Plesk yang terhubung.</p>
+      <p class="small text-muted mb-0">Kelola server cPanel/WHM, DirectAdmin, Plesk, dan provider VM/VPS yang terhubung.</p>
     </div>
     <a href="{{ route('admin.servers.create') }}" class="btn btn-primary">
       <i class="fa-solid fa-plus" style="font-size:12px"></i> Tambah Server
@@ -32,8 +32,20 @@
           @forelse ($servers as $server)
             <tr>
               <td class="px-4 py-3 fw-medium text-dark">{{ $server->name }}</td>
-              <td class="text-muted py-3">{{ $server->panel === 'idcloudhost' ? ($server->hostname ?: 'Lokasi default') : $server->hostname . ':' . $server->port }}</td>
-              <td class="text-muted text-capitalize py-3">{{ $server->panel === 'cpanel' ? 'cPanel / WHM' : $server->panel }}</td>
+              <td class="text-muted py-3">
+                @if ($server->isCloud())
+                  {{ $server->hostname ?: ($server->vpsDriver() === 'idcloudhost' ? 'Lokasi default' : 'API provider') }}
+                @else
+                  {{ $server->hostname . ':' . $server->port }}
+                @endif
+              </td>
+              <td class="text-muted text-capitalize py-3">
+                @if ($server->isCloud())
+                  VM / VPS · {{ $server->vpsLabel() }}
+                @else
+                  {{ $server->panel === 'cpanel' ? 'cPanel / WHM' : $server->panel }}
+                @endif
+              </td>
               <td class="text-center text-muted py-3">{{ $server->hosting_accounts_count }}</td>
               <td class="text-muted py-3" style="font-size:12px">
                 @if ($server->last_checked_at)
@@ -65,9 +77,11 @@
                       <i class="fa-solid fa-plug" style="font-size:12px"></i>
                     </button>
                   </form>
-                  <a href="{{ route('admin.servers.diagnostics', $server) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Diagnosa (cocokkan paket cPanel)">
-                    <i class="fa-solid fa-stethoscope" style="font-size:12px"></i>
-                  </a>
+                  @if (! $server->isCloud() || $server->vpsDriver() === 'idcloudhost')
+                    <a href="{{ route('admin.servers.diagnostics', $server) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Diagnosa">
+                      <i class="fa-solid fa-stethoscope" style="font-size:12px"></i>
+                    </a>
+                  @endif
                   <a href="{{ route('admin.servers.edit', $server) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Edit">
                     <i class="fa-regular fa-pen-to-square" style="font-size:12px"></i>
                   </a>

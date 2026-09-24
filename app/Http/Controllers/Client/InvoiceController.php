@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Exceptions\Billing\BillingException;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\PaymentGateway;
+use App\Services\Billing\InvoiceService;
 use App\Services\Notification\NotificationService;
 use App\Services\Payment\PaymentGatewayFactory;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -14,6 +16,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class InvoiceController extends Controller
@@ -69,9 +73,6 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Klien memilih gateway dan memulai pembayaran.
-     */
-    /**
      * Cari domain di invoice ini yang berkas persyaratannya BELUM
      * lengkap/disetujui. Mengembalikan domain pertama yang menghalangi,
      * atau null kalau semuanya beres.
@@ -121,16 +122,17 @@ class InvoiceController extends Controller
         return null;
     }
 
-    public function pay(Request $request, Invoice $invoice): RedirectResponse
+    /**
+     * Klien memilih gateway dan memulai pembayaran.
+     */
+    public function pay(Request $request, Invoice $invoice, InvoiceService $invoices): RedirectResponse
     {
         $this->authorizeOwner($invoice);
 
-        if ($invoice->status === 'paid') {
-            return back()->with('error', 'Invoice ini sudah lunas.');
-        }
-
-        if ($invoice->status === 'cancelled') {
-            return back()->with('error', 'Invoice ini sudah dibatalkan dan tidak bisa dibayar.');
+        try {
+            $invoices->assertPayable($invoice);
+        } catch (BillingException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
         // Gerbang berkas persyaratan: invoice yang memuat domain
@@ -167,7 +169,7 @@ class InvoiceController extends Controller
             return $payment;
         }
 
-        $result = PaymentGatewayFactory::make($gateway)->createTransaction($payment);
+        $result = $this->createGatewayTransactionOnce($payment, $gateway);
 
         return $this->finalizePaymentAttempt($payment, $gateway, $result);
     }
@@ -191,6 +193,12 @@ class InvoiceController extends Controller
     private function duitkuMethodsView(Request $request, Invoice $invoice, string $view, string $backRoute): View|RedirectResponse
     {
         $this->authorizeOwner($invoice);
+
+        try {
+            app(InvoiceService::class)->assertPayable($invoice);
+        } catch (BillingException $e) {
+            return redirect()->route($backRoute, $invoice)->with('error', $e->getMessage());
+        }
 
         $data = $request->validate(['payment_gateway_id' => ['required', 'exists:payment_gateways,id']]);
         $gateway = PaymentGateway::where('is_active', true)->where('driver', 'duitku')->findOrFail($data['payment_gateway_id']);
@@ -219,6 +227,12 @@ class InvoiceController extends Controller
     {
         $this->authorizeOwner($invoice);
 
+        try {
+            app(InvoiceService::class)->assertPayable($invoice);
+        } catch (BillingException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
         $data = $request->validate([
             'payment_gateway_id' => ['required', 'exists:payment_gateways,id'],
             'method_code' => ['required', 'string', 'max:2'],
@@ -232,13 +246,11 @@ class InvoiceController extends Controller
             return $payment;
         }
 
-        // Kode metode yang dipilih klien disimpan di sini SEBELUM
-        // createTransaction() dipanggil — DuitkuService membacanya dari
-        // sini karena interface createTransaction(Payment $payment) tidak
-        // punya parameter tambahan untuk ini (dipakai bersama gateway lain).
-        $payment->update(['payment_method' => $data['method_code']]);
-
-        $result = PaymentGatewayFactory::make($gateway)->createTransaction($payment);
+        // Kode metode disimpan di dalam lock yang sama dengan pemanggilan
+        // provider. Kalau dua tab mengirim metode berbeda bersamaan, metode
+        // yang benar-benar dipakai provider tidak boleh berubah di tengah
+        // proses request.
+        $result = $this->createGatewayTransactionOnce($payment, $gateway, $data['method_code']);
 
         return $this->finalizePaymentAttempt($payment, $gateway, $result);
     }
@@ -254,49 +266,113 @@ class InvoiceController extends Controller
      */
     private function getOrCreatePendingPayment(Invoice $invoice, PaymentGateway $gateway): Payment|RedirectResponse
     {
-        $amount = (float) $invoice->total;
-        $fee = $gateway->calculateFee($amount);
+        return DB::transaction(function () use ($invoice, $gateway) {
+            $invoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+            $amount = (float) $invoice->total;
+            $fee = $gateway->calculateFee($amount);
 
-        $payment = Payment::where('invoice_id', $invoice->id)
-            ->where('payment_gateway_id', $gateway->id)
-            ->whereIn('status', ['initiated', 'pending'])
-            ->latest('id')
-            ->first();
+            $payment = Payment::where('invoice_id', $invoice->id)
+                ->where('payment_gateway_id', $gateway->id)
+                ->whereIn('status', ['initiated', 'pending'])
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
 
-        if ($payment) {
-            $payment->update([
-                'amount' => $amount,
-                'fee'    => $fee,
-                'total'  => $amount + $fee,
+            if ($payment) {
+                $payment->update([
+                    'amount' => $amount,
+                    'fee'    => $fee,
+                    'total'  => $amount + $fee,
+                ]);
+
+                if ($payment->payment_url && (! $payment->expires_at || $payment->expires_at->isFuture())) {
+                    return redirect()->away($payment->payment_url);
+                }
+
+                if ($gateway->isManual()) {
+                    return redirect()->route('client.invoices.show', $invoice)
+                        ->with('success', 'Silakan lakukan transfer sesuai instruksi di bawah, lalu konfirmasi ke tim kami.');
+                }
+
+                return $payment;
+            }
+
+            return Payment::create([
+                'invoice_id'         => $invoice->id,
+                'client_id'          => $invoice->client_id,
+                'payment_gateway_id' => $gateway->id,
+                'amount'             => $amount,
+                'fee'                => $fee,
+                'total'              => $amount + $fee,
+                'currency'           => $gateway->currency,
+                'status'             => 'initiated',
             ]);
+        });
+    }
 
-            if ($payment->payment_url && (! $payment->expires_at || $payment->expires_at->isFuture())) {
-                return redirect()->away($payment->payment_url);
+    /**
+     * Satu pembayaran hanya boleh mempunyai satu inisialisasi provider yang
+     * sedang berjalan. lockForUpdate() di getOrCreatePendingPayment() hanya
+     * melindungi pembuatan baris database; lock tersebut sudah dilepas ketika
+     * HTTP call ke gateway dimulai. Tanpa lock kedua, dua request paralel bisa
+     * sama-sama melihat payment yang belum punya external_id lalu membuat dua
+     * transaksi gateway.
+     *
+     * Kunci dibuat berdasarkan invoice + gateway, bukan hanya payment id,
+     * supaya alur QRIS dan alur pembayaran biasa juga saling menunggu.
+     */
+    private function createGatewayTransactionOnce(
+        Payment $payment,
+        PaymentGateway $gateway,
+        ?string $paymentMethod = null,
+    ): array {
+        $result = Cache::lock(
+            "payment-gateway-init:{$payment->invoice_id}:{$gateway->id}",
+            120
+        )->get(function () use ($payment, $gateway, $paymentMethod) {
+            $payment->refresh();
+
+            // Request lain mungkin sudah selesai saat request ini menunggu
+            // lock. Gunakan hasil yang sudah tersimpan, jangan memanggil
+            // provider untuk kedua kalinya.
+            if ($payment->external_id || $payment->payment_url) {
+                return [
+                    'success' => true,
+                    'message' => 'Pembayaran sudah berhasil diinisialisasi.',
+                    'payment_url' => $payment->payment_url,
+                    'external_id' => $payment->external_id,
+                    'raw' => $payment->gateway_response,
+                ];
             }
 
-            if ($gateway->isManual()) {
-                return redirect()->route('client.invoices.show', $invoice)
-                    ->with('success', 'Silakan lakukan transfer sesuai instruksi di bawah, lalu konfirmasi ke tim kami.');
+            if ($paymentMethod !== null) {
+                $payment->update(['payment_method' => $paymentMethod]);
             }
 
-            return $payment;
+            return PaymentGatewayFactory::make($gateway)->createTransaction($payment);
+        });
+
+        if (is_array($result)) {
+            return $result;
         }
 
-        return Payment::create([
-            'invoice_id'         => $invoice->id,
-            'client_id'          => $invoice->client_id,
-            'payment_gateway_id' => $gateway->id,
-            'amount'             => $amount,
-            'fee'                => $fee,
-            'total'              => $amount + $fee,
-            'currency'           => $gateway->currency,
-            'status'             => 'initiated',
-        ]);
+        return [
+            'success' => false,
+            'busy' => true,
+            'message' => 'Pembayaran sedang diproses. Silakan coba lagi sebentar.',
+            'payment_url' => null,
+            'external_id' => null,
+            'raw' => null,
+        ];
     }
 
     private function finalizePaymentAttempt(Payment $payment, PaymentGateway $gateway, array $result): RedirectResponse
     {
         if (! $result['success']) {
+            if ($result['busy'] ?? false) {
+                return back()->with('error', $result['message']);
+            }
+
             $payment->update(['status' => 'failed', 'gateway_response' => ['error' => $result['message']]]);
 
             return back()->with('error', 'Gagal memulai pembayaran: ' . $result['message']);
@@ -334,64 +410,150 @@ class InvoiceController extends Controller
     {
         $this->authorizeOwner($invoice);
 
+        try {
+            app(InvoiceService::class)->assertPayable($invoice);
+        } catch (BillingException $e) {
+            return redirect()->route($backRoute, $invoice)->with('error', $e->getMessage());
+        }
+
         if (! $gateway->supportsEmbeddedQris()) {
             return redirect()->route($backRoute, $invoice)
                 ->with('error', 'QRIS tertanam belum diatur untuk gateway ini.');
         }
 
-        if ($invoice->status === 'paid') {
+        $qris = $this->createQrisPaymentOnce($invoice, $gateway);
+
+        if (! $qris['success']) {
             return redirect()->route($backRoute, $invoice)
-                ->with('success', 'Invoice ini sudah lunas.');
+                ->with('error', $qris['message']);
         }
 
-        $payment = Payment::where('invoice_id', $invoice->id)
-            ->where('payment_gateway_id', $gateway->id)
-            ->where('status', 'initiated')
-            ->where('expires_at', '>', now())
-            ->whereNotNull('external_id')
-            ->latest('id')
-            ->first();
-
-        $qrString = $payment?->gateway_response['qrString'] ?? $payment?->gateway_response['qrCode'] ?? null;
-
-        if (! $payment || ! $qrString) {
-            $amount = (float) $invoice->total;
-            $fee = $gateway->calculateFee($amount);
-
-            $payment = Payment::create([
-                'invoice_id'         => $invoice->id,
-                'client_id'          => $invoice->client_id,
-                'payment_gateway_id' => $gateway->id,
-                'amount'             => $amount,
-                'fee'                => $fee,
-                'total'              => $amount + $fee,
-                'currency'           => $gateway->currency,
-                'status'             => 'initiated',
-            ]);
-
-            $result = PaymentGatewayFactory::make($gateway)->createQrisTransaction($payment);
-
-            if (! $result['success']) {
-                $payment->update(['status' => 'failed', 'gateway_response' => ['error' => $result['message']]]);
-
-                return redirect()->route($backRoute, $invoice)
-                    ->with('error', 'Gagal membuat kode QRIS: ' . $result['message']);
-            }
-
-            $payment->update([
-                'external_id'       => $result['external_id'],
-                'expires_at'        => $result['expires_at'],
-                'gateway_response'  => $result['raw'],
-            ]);
-
-            $qrString = $result['qr_string'];
-        }
+        $payment = Payment::findOrFail($qris['payment_id']);
+        $qrString = $qris['qr_string'];
 
         return view($view, [
             'invoice' => $invoice,
             'payment' => $payment,
             'qrString' => $qrString,
         ]);
+    }
+
+    /**
+     * QRIS juga membuat transaksi eksternal, walaupun dipanggil dari halaman
+     * GET. Seluruh pencarian/pembuatan payment dan HTTP call provider berada
+     * di bawah lock invoice+gateway yang sama dengan alur pembayaran biasa.
+     */
+    private function createQrisPaymentOnce(Invoice $invoice, PaymentGateway $gateway): array
+    {
+        $result = Cache::lock(
+            "payment-gateway-init:{$invoice->id}:{$gateway->id}",
+            120
+        )->get(function () use ($invoice, $gateway) {
+            $state = DB::transaction(function () use ($invoice, $gateway) {
+                $payment = Payment::query()
+                    ->where('invoice_id', $invoice->id)
+                    ->where('payment_gateway_id', $gateway->id)
+                    ->whereIn('status', ['initiated', 'pending'])
+                    ->where(function ($query) {
+                        $query->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    })
+                    ->latest('id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $payment) {
+                    $amount = (float) $invoice->total;
+                    $fee = $gateway->calculateFee($amount);
+
+                    $payment = Payment::create([
+                        'invoice_id'         => $invoice->id,
+                        'client_id'          => $invoice->client_id,
+                        'payment_gateway_id' => $gateway->id,
+                        'amount'             => $amount,
+                        'fee'                => $fee,
+                        'total'              => $amount + $fee,
+                        'currency'           => $gateway->currency,
+                        'status'             => 'initiated',
+                    ]);
+                }
+
+                $qrString = $payment->gateway_response['qrString']
+                    ?? $payment->gateway_response['qrCode']
+                    ?? null;
+
+                if ($qrString && $payment->status === 'initiated') {
+                    return [
+                        'ready' => true,
+                        'payment_id' => $payment->id,
+                        'qr_string' => $qrString,
+                    ];
+                }
+
+                // Payment pending berarti sedang menunggu verifikasi manual;
+                // jangan mengubahnya menjadi transaksi QRIS baru.
+                if ($payment->status !== 'initiated' || $payment->external_id) {
+                    return [
+                        'blocked' => true,
+                        'message' => 'Sudah ada pembayaran berjalan untuk invoice ini. Selesaikan atau batalkan pembayaran tersebut terlebih dahulu.',
+                    ];
+                }
+
+                return [
+                    'payment_id' => $payment->id,
+                    'needs_provider' => true,
+                ];
+            });
+
+            if ($state['ready'] ?? false) {
+                return [
+                    'success' => true,
+                    'payment_id' => $state['payment_id'],
+                    'qr_string' => $state['qr_string'],
+                ];
+            }
+
+            if ($state['blocked'] ?? false) {
+                return [
+                    'success' => false,
+                    'message' => $state['message'],
+                ];
+            }
+
+            $payment = Payment::findOrFail($state['payment_id']);
+            $providerResult = PaymentGatewayFactory::make($gateway)->createQrisTransaction($payment);
+
+            if (! $providerResult['success']) {
+                $payment->update([
+                    'status' => 'failed',
+                    'gateway_response' => ['error' => $providerResult['message']],
+                ]);
+
+                return [
+                    'success' => false,
+                    'message' => 'Gagal membuat kode QRIS: ' . $providerResult['message'],
+                ];
+            }
+
+            $payment->update([
+                'external_id'      => $providerResult['external_id'],
+                'expires_at'       => $providerResult['expires_at'],
+                'gateway_response' => $providerResult['raw'],
+            ]);
+
+            return [
+                'success' => true,
+                'payment_id' => $payment->id,
+                'qr_string' => $providerResult['qr_string'],
+            ];
+        });
+
+        return is_array($result)
+            ? $result
+            : [
+                'success' => false,
+                'message' => 'Pembayaran sedang diproses. Silakan muat ulang beberapa saat lagi.',
+            ];
     }
 
     /**
@@ -437,7 +599,9 @@ class InvoiceController extends Controller
             'proof.mimes' => 'Berkas harus berupa gambar (JPG/PNG/WEBP) atau PDF.',
         ]);
 
-        $path = $request->file('proof')->store('payment-proofs', 'public');
+        // Bukti transfer adalah data sensitif. Simpan di disk private supaya
+        // symlink public/storage tidak dapat membukanya tanpa otorisasi.
+        $path = $request->file('proof')->store('payment-proofs', 'local');
 
         $payment->update([
             'proof_path' => $path,
@@ -476,11 +640,11 @@ class InvoiceController extends Controller
     {
         $this->authorizeOwner($payment);
 
-        if (! $payment->proof_path || ! \Illuminate\Support\Facades\Storage::disk('public')->exists($payment->proof_path)) {
+        if (! $payment->proof_path || ! \Illuminate\Support\Facades\Storage::disk('local')->exists($payment->proof_path)) {
             abort(404, 'Bukti transfer tidak ditemukan.');
         }
 
-        return \Illuminate\Support\Facades\Storage::disk('public')->response($payment->proof_path);
+        return \Illuminate\Support\Facades\Storage::disk('local')->response($payment->proof_path);
     }
 
     /**

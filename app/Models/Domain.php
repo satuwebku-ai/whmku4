@@ -18,6 +18,7 @@ class Domain extends Model
         'renewal_invoice_id', 'is_transfer', 'transfer_auth_code',
         'eligibility_criteria', 'eligibility_extra', 'documents_verified_at',
         'privacy_invoice_id', 'privacy_expires_at',
+        'provisioning_started_at', 'provisioning_finished_at', 'provisioning_attempts', 'provisioning_key',
     ];
 
     protected function casts(): array
@@ -33,6 +34,9 @@ class Domain extends Model
             'transfer_auth_code' => 'encrypted',
             'documents_verified_at' => 'datetime',
             'privacy_expires_at' => 'date',
+            'provisioning_started_at' => 'datetime',
+            'provisioning_finished_at' => 'datetime',
+            'provisioning_attempts' => 'integer',
         ];
     }
 
@@ -72,6 +76,11 @@ class Domain extends Model
         return $this->hasMany(\App\Models\DomainDocument::class);
     }
 
+    public function contacts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DomainContact::class);
+    }
+
     public function privacyInvoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class, 'privacy_invoice_id');
@@ -96,6 +105,27 @@ class Domain extends Model
      * Nominal perpanjangan satu tahun, mengikuti harga renew TLD saat ini
      * (bukan harga registrasi awal — keduanya sering berbeda).
      */
+    public function markProvisioning(string $message = 'Provisioning domain sedang dijalankan.'): void
+    {
+        $this->increment('provisioning_attempts');
+        $this->forceFill([
+            'provisioning_started_at' => now(),
+            'provisioning_finished_at' => null,
+            'provisioning_key' => $this->provisioning_key ?: (string) \Illuminate\Support\Str::uuid(),
+            'provision_status' => 'provisioning',
+            'provision_message' => $message,
+        ])->save();
+    }
+
+    public function markProvisioningFinished(string $status, string $message): void
+    {
+        $this->forceFill([
+            'provision_status' => $status,
+            'provision_message' => $message,
+            'provisioning_finished_at' => now(),
+        ])->save();
+    }
+
     public function renewalAmount(): float
     {
         return $this->tld ? $this->tld->priceForYears(1, 'renew') : (float) $this->price;
@@ -121,28 +151,9 @@ class Domain extends Model
      */
     public function createRenewalInvoice(): \App\Models\Invoice
     {
-        $amount = $this->renewalAmount();
-
-        $invoice = \App\Models\Invoice::create([
-            'client_id' => $this->client_id,
-            'amount' => $amount,
-            'tax' => 0,
-            'discount' => 0,
-            'status' => 'unpaid',
-            'issue_date' => now(),
-            'due_date' => $this->expiry_date ?: now()->addDays(7),
-        ]);
-
-        \App\Models\InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => "Perpanjangan Domain — {$this->domain_name} (1 tahun)",
-            'amount' => $amount,
-        ]);
-
-        $this->update(['renewal_invoice_id' => $invoice->id]);
-
-        return $invoice;
+        return app(\App\Services\Billing\RenewalInvoiceService::class)->createDomainInvoice($this);
     }
+
 
     public function getIsExpiringSoonAttribute(): bool
     {

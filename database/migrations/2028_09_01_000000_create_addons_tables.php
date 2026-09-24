@@ -40,6 +40,10 @@ return new class extends Migration
             $table->string('status')->default('pending_payment');
             $table->foreignId('invoice_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamps();
+            $table->unique(
+                ['hosting_account_id', 'addon_id'],
+                'hosting_account_addons_hosting_addon_unique'
+            );
         });
     }
 

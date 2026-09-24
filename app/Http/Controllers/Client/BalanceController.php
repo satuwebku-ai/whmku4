@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Exceptions\Billing\BillingException;
 use App\Http\Controllers\Controller;
-use App\Models\Invoice;
-use App\Models\InvoiceItem;
-use App\Models\Payment;
+use App\Services\Billing\BillingService;
+use App\Services\Billing\TopupService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,7 +41,7 @@ class BalanceController extends Controller
      * Midtrans, Xendit, Duitku, transfer manual + upload bukti) langsung
      * bisa dipakai tanpa perlu membangun jalur pembayaran terpisah.
      */
-    public function topup(Request $request): RedirectResponse
+    public function topup(Request $request, TopupService $topups): RedirectResponse
     {
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:10000', 'max:50000000'],
@@ -51,23 +51,7 @@ class BalanceController extends Controller
         ]);
 
         $client = Auth::guard('client')->user();
-
-        $invoice = Invoice::create([
-            'client_id' => $client->id,
-            'amount' => $data['amount'],
-            'tax' => 0,
-            'discount' => 0,
-            'status' => 'unpaid',
-            'issue_date' => now(),
-            'due_date' => now()->addDays(3),
-            'is_topup' => true,
-        ]);
-
-        InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => 'Isi Ulang Saldo',
-            'amount' => $data['amount'],
-        ]);
+        $invoice = $topups->createInvoice($client, (float) $data['amount']);
 
         return redirect()->route('client.invoices.show', $invoice)
             ->with('success', 'Invoice isi ulang saldo dibuat. Saldo bertambah otomatis setelah dibayar.');
@@ -77,49 +61,17 @@ class BalanceController extends Controller
      * Bayar invoice mana pun pakai saldo — kalau cukup, langsung lunas
      * seketika tanpa lewat gateway pembayaran sama sekali.
      */
-    public function payWithBalance(Invoice $invoice): RedirectResponse
+    public function payWithBalance(Invoice $invoice, BillingService $billing): RedirectResponse
     {
         $client = Auth::guard('client')->user();
 
         $this->authorizeOwner($invoice);
 
-        if ($invoice->status === 'paid') {
-            return back()->with('error', 'Invoice ini sudah lunas.');
+        try {
+            $billing->payInvoiceWithBalance($invoice, $client);
+        } catch (BillingException $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        if ($invoice->is_topup) {
-            return back()->with('error', 'Invoice isi ulang saldo tidak bisa dibayar pakai saldo.');
-        }
-
-        if ((float) $client->balance < (float) $invoice->total) {
-            return back()->with('error', 'Saldo Anda tidak cukup untuk membayar invoice ini.');
-        }
-
-        $payment = Payment::create([
-            'invoice_id' => $invoice->id,
-            'client_id' => $client->id,
-            'payment_gateway_id' => null,
-            'amount' => $invoice->amount,
-            'fee' => 0,
-            'total' => $invoice->total,
-            'currency' => 'IDR',
-            'status' => 'initiated',
-            'payment_method' => 'Saldo',
-        ]);
-
-        $client->adjustBalance(
-            -1 * (float) $invoice->total,
-            'payment',
-            "Bayar invoice {$invoice->invoice_number}",
-            $invoice,
-        );
-
-        // markAsPaid() menangani update status invoice + memicu seluruh
-        // hook yang sama seperti pembayaran lewat gateway (provisioning,
-        // perpanjangan, upgrade) — supaya bayar pakai saldo diperlakukan
-        // identik dengan metode pembayaran lain, bukan jalur pintas
-        // terpisah yang bisa berbeda hasilnya.
-        $payment->markAsPaid('Saldo');
 
         return redirect()->route('client.invoices.show', $invoice)
             ->with('success', 'Invoice berhasil dibayar pakai saldo.');

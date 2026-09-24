@@ -249,6 +249,7 @@ class SettingController extends Controller
             ['label' => 'PDF Invoice', 'desc' => 'Kop, NPWP, info pembayaran & catatan kaki PDF.', 'icon' => 'fa-file-invoice', 'route' => 'admin.settings.pdf-invoice'],
             ['label' => 'SEO', 'desc' => 'Judul, deskripsi, dan meta tag halaman publik.', 'icon' => 'fa-magnifying-glass', 'route' => 'admin.settings.seo'],
             ['label' => 'Analytics', 'desc' => 'Google Analytics dan skrip pelacakan lain.', 'icon' => 'fa-chart-line', 'route' => 'admin.settings.analytics'],
+            ['label' => 'Affiliate', 'desc' => 'Komisi default, jenis komisi, dan minimal payout program affiliate.', 'icon' => 'fa-user-group', 'route' => 'admin.settings.affiliate'],
             ['label' => 'Notifikasi', 'desc' => 'Pengaturan pengiriman email & WhatsApp.', 'icon' => 'fa-bell', 'route' => 'admin.settings.notifications'],
             ['label' => 'Keamanan', 'desc' => 'Autentikasi dua faktor & pembatasan akses.', 'icon' => 'fa-lock', 'route' => 'admin.settings.security'],
             ['label' => 'Live Chat', 'desc' => 'Widget chat, pesan sambutan, bot AI.', 'icon' => 'fa-comments', 'route' => 'admin.settings.livechat'],
@@ -433,6 +434,52 @@ class SettingController extends Controller
         return back()->with('success', 'Pengaturan analytics berhasil disimpan.');
     }
 
+
+    public function affiliate(): View
+    {
+        return view('admin.settings.affiliate');
+    }
+
+    public function affiliateBootstrap(): View
+    {
+        return view('admin.settings.affiliate');
+    }
+
+    /**
+     * Ini hanya tarif DEFAULT (dipakai kalau affiliate/campaign tidak
+     * punya override sendiri -- lihat prioritas di
+     * AffiliateCommissionService::resolveRate()). affiliate_min_payout
+     * dibaca AffiliatePayoutService::MIN_AMOUNT -- perhatikan itu masih
+     * konstanta di kode, TIDAK otomatis ikut nilai dari sini; sengaja
+     * disimpan di sini juga supaya admin bisa melihat & merencanakan
+     * angkanya di satu tempat sebelum diminta ubah ke Setting::get()
+     * kalau nanti dibutuhkan.
+     */
+    public function updateAffiliate(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'affiliate_commission_type'  => ['required', 'in:percentage,fixed'],
+            'affiliate_commission_value' => ['required', 'numeric', 'min:0'],
+             'affiliate_commission_repeat' => ['nullable', 'boolean'],
+            'affiliate_min_payout' => ['required', 'numeric', 'min:0'],
+             'affiliate_cookie_days' => ['required', 'integer', 'min:1', 'max:730'],
+             'affiliate_attribution_model' => ['required', 'in:first_click,last_click'],
+             'affiliate_commission_mode' => ['required', 'in:first_order,first_payment,every_payment'],
+             'affiliate_tax_enabled' => ['nullable', 'boolean'],
+             'affiliate_tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        if ($data['affiliate_commission_type'] === 'percentage' && $data['affiliate_commission_value'] > 100) {
+            return back()->withErrors(['affiliate_commission_value' => 'Persentase komisi tidak boleh lebih dari 100.'])->withInput();
+        }
+
+        $data['affiliate_commission_repeat'] = $request->boolean('affiliate_commission_repeat') ? '1' : '0';
+        $data['affiliate_tax_enabled'] = $request->boolean('affiliate_tax_enabled') ? '1' : '0';
+
+        Setting::putMany($data, 'affiliate');
+
+        return back()->with('success', 'Pengaturan program affiliate berhasil disimpan.');
+    }
 
     public function notifications(): View
     {

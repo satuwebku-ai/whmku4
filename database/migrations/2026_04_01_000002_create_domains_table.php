@@ -36,6 +36,10 @@ return new class extends Migration
             // domain ini -- sama polanya seperti hosting_accounts.
             $table->foreignId('renewal_invoice_id')->nullable()->constrained('invoices')->nullOnDelete();
             $table->string('provision_status')->default('manual'); // manual, registered, failed
+            $table->timestamp('provisioning_started_at')->nullable();
+            $table->timestamp('provisioning_finished_at')->nullable();
+            $table->unsignedInteger('provisioning_attempts')->default(0);
+            $table->uuid('provisioning_key')->nullable()->unique();
             // Membedakan "domain baru didaftarkan" dari "domain dipindah
             // dari registrar lain" — ProvisioningService perlu tahu API
             // mana yang dipanggil (registerDomain vs transferDomain).

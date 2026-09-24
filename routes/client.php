@@ -1,12 +1,15 @@
 <?php
 
-use App\Http\Controllers\Client\Auth\ForgotPasswordController;
-use App\Http\Controllers\Client\Auth\LoginController;
-use App\Http\Controllers\Client\Auth\VerifyEmailController;
-use App\Http\Controllers\Client\Auth\RegisterController;
+use App\Http\Controllers\Auth\Client\ForgotPasswordController;
+use App\Http\Controllers\Auth\Client\LoginController;
+use App\Http\Controllers\Auth\Client\LogoutController;
+use App\Http\Controllers\Auth\Client\VerifyEmailController;
+use App\Http\Controllers\Auth\Client\RegisterController;
+use App\Http\Controllers\Client\AffiliateController;
 use App\Http\Controllers\Client\CheckoutController;
 use App\Http\Controllers\Client\DashboardController;
 use App\Http\Controllers\Client\InvoiceController;
+use App\Http\Controllers\Client\BillingController;
 use App\Http\Controllers\Client\ProfileController;
 use App\Http\Controllers\Client\ServiceController;
 use App\Http\Controllers\Client\TicketController;
@@ -30,7 +33,7 @@ Route::middleware('guest:client')->group(function () {
 
     // Tantangan OTP — pengguna belum login di titik ini, jadi tetap di
     // grup guest. Aksesnya dijaga oleh session "otp.client_id".
-    Route::controller(\App\Http\Controllers\Client\Auth\OtpController::class)->group(function () {
+    Route::controller(\App\Http\Controllers\Auth\Client\OtpController::class)->group(function () {
         Route::get('otp/challenge', 'challenge')->name('otp.challenge');
         Route::post('otp/verify', 'verify')->name('otp.verify');
         Route::post('otp/resend', 'resend')->name('otp.resend');
@@ -38,7 +41,7 @@ Route::middleware('guest:client')->group(function () {
     });
 
     // ── Login dengan Google ──
-    Route::controller(\App\Http\Controllers\Client\Auth\GoogleAuthController::class)
+    Route::controller(\App\Http\Controllers\Auth\Client\GoogleAuthController::class)
         ->prefix('auth/google')->name('google.')->group(function () {
             Route::get('redirect', 'redirect')->name('redirect');
             Route::get('callback', 'callback')->name('callback');
@@ -62,8 +65,8 @@ Route::middleware('guest:client')->group(function () {
     });
 });
 
-Route::middleware('auth:client')->group(function () {
-    Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
+Route::middleware('client')->group(function () {
+    Route::post('logout', LogoutController::class)->name('logout');
 
     // Hanya berfungsi kalau sesi ini memang berasal dari admin yang
     // mengimpersonasi (dicek di controller lewat session, bukan di sini),
@@ -73,6 +76,9 @@ Route::middleware('auth:client')->group(function () {
 
     Route::get('/', [DashboardController::class, 'indexBootstrap'])->name('dashboard');
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard.alt');
+
+    // ── Billing Portal ──
+    Route::get('billing', [BillingController::class, 'index'])->name('billing');
 
     // ── Layanan & Domain ──
     Route::controller(ServiceController::class)->group(function () {
@@ -130,7 +136,10 @@ Route::middleware('auth:client')->group(function () {
         Route::post('invoice/{invoice}/pay', 'pay')->name('invoices.pay');
         Route::get('invoice/{invoice}/pay/duitku-methods', 'duitkuMethods')->name('invoices.duitku-methods');
         Route::post('invoice/{invoice}/pay/duitku', 'payDuitkuMethod')->name('invoices.pay-duitku');
-        Route::get('invoice/{invoice}/qris/{gateway}', 'payQris')->name('invoices.qris');
+        // Inisialisasi QRIS membuat transaksi eksternal, jadi wajib POST
+        // dengan CSRF. Jangan memakai GET untuk operasi yang memanggil
+        // provider atau membuat payment baru.
+        Route::post('invoice/{invoice}/qris/{gateway}', 'payQris')->name('invoices.qris');
         Route::get('qris-status/{payment}', 'qrisStatus')->name('invoices.qris-status');
         Route::post('payment/{payment}/confirm', 'confirmPayment')->name('payment.confirm');
         Route::get('payment/{payment}/proof', 'proofFile')->name('payment.proof');
@@ -175,4 +184,13 @@ Route::middleware('auth:client')->group(function () {
             Route::post('subscribe', 'store')->name('subscribe');
             Route::post('unsubscribe', 'destroy')->name('unsubscribe');
         });
+
+    // ── Affiliate ──
+    Route::controller(AffiliateController::class)->prefix('affiliate')->name('affiliate.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('daftar', 'register')->name('register');
+        Route::post('bank', 'updateBank')->name('bank');
+        Route::post('payout', 'requestPayout')->name('payout');
+        Route::post('campaign', 'storeCampaign')->name('campaign');
+    });
 });

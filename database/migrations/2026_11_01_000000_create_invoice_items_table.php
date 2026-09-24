@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string('description');
             $table->decimal('amount', 12, 2)->default(0);
             $table->timestamps();
+            $table->index(['invoice_id', 'order_id'], 'invoice_items_invoice_order_index');
         });
     }
 

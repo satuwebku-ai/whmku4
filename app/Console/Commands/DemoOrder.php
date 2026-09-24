@@ -8,10 +8,11 @@ use App\Models\HostingAccount;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Order;
+use App\Enums\OrderStatus;
 use App\Models\Payment;
 use App\Models\PaymentGateway;
 use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Models\ProductGroup;
 use App\Models\Tld;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -82,7 +83,7 @@ class DemoOrder extends Command
                 'product_name' => $product->name . ' (Bulanan)',
                 'order_type' => 'hosting',
                 'amount' => $product->price_monthly ?: 50000,
-                'status' => 'active',
+                'status' => OrderStatus::Completed->value,
             ]);
 
             $domainOrder = Order::create([
@@ -90,7 +91,7 @@ class DemoOrder extends Command
                 'product_name' => 'Domain ' . self::DEMO_DOMAIN,
                 'order_type' => 'domain',
                 'amount' => 150000,
-                'status' => 'active',
+                'status' => OrderStatus::Completed->value,
             ]);
             $this->line('  Order       : #' . $hostingOrder->order_number . ', #' . $domainOrder->order_number);
 
@@ -210,7 +211,7 @@ class DemoOrder extends Command
             return $existing;
         }
 
-        $category = ProductCategory::firstOrCreate(
+        $category = ProductGroup::firstOrCreate(
             ['slug' => 'shared-hosting'],
             ['name' => 'Shared Hosting', 'description' => 'Paket hosting untuk website pribadi dan bisnis kecil.', 'is_active' => true, 'sort_order' => 1]
         );

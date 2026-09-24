@@ -6,10 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\HostingAccount;
 use App\Models\Server;
 use App\Services\Billing\HourlyRateCalculator;
-use App\Services\Hosting\IdCloudHostService;
+use App\Services\Vps\VpsProviderFactory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Throwable;
@@ -23,12 +24,14 @@ use Throwable;
  */
 class VpsController extends Controller
 {
+    use AuthorizesClientOwnership;
+
     public function index(): View
     {
         $client = Auth::guard('client')->user();
 
         $accounts = HostingAccount::where('client_id', $client->id)
-            ->whereIn('server_id', Server::whereIn('panel', ['idcloudhost'])->pluck('id'))
+            ->whereIn('server_id', Server::cloud()->pluck('id'))
             ->with('serverModel')
             ->latest()
             ->get();
@@ -44,6 +47,7 @@ class VpsController extends Controller
     public function show(HostingAccount $vps): View|RedirectResponse
     {
         $this->authorizeOwner($vps);
+        $this->ensureIsVps($vps);
 
         // Status VM diambil langsung dari provider (real-time), bukan
         // dari catatan database yang bisa ketinggalan -- klien perlu
@@ -54,13 +58,13 @@ class VpsController extends Controller
 
         if ($vps->serverModel && $vps->username) {
             try {
-                $service = new IdCloudHostService($vps->serverModel);
+                $service = VpsProviderFactory::make($vps->serverModel);
 
-                $result = $service->getVmInfo($vps->username);
+                $result = $service->get($vps->username);
                 $vmInfo = $result['success'] ? $result['raw'] : null;
                 $apiError = $result['success'] ? null : $result['message'];
 
-                $img = $service->listVmImages();
+                $img = $service->images();
                 $osImages = $img['success'] ? ($img['raw'] ?? []) : [];
             } catch (Throwable $e) {
                 $apiError = $e->getMessage();
@@ -69,57 +73,75 @@ class VpsController extends Controller
 
         $client = Auth::guard('client')->user();
         $rate = $this->rateFor($vps);
+        $breakdown = ($vps->serverModel && $vps->hasVmSpec())
+            ? HourlyRateCalculator::breakdown($vps->serverModel, $vps->vmSpec(), $vps->product)
+            : [];
         $hoursLeft = ($rate && $rate > 0) ? floor((float) $client->balance / $rate) : null;
 
-        return view('client.vps.show', compact('vps', 'vmInfo', 'apiError', 'rate', 'hoursLeft', 'client', 'osImages'));
+        return view('client.vps.show', compact('vps', 'vmInfo', 'apiError', 'rate', 'breakdown', 'hoursLeft', 'client', 'osImages'));
     }
 
     public function power(Request $request, HostingAccount $vps): RedirectResponse
     {
         $this->authorizeOwner($vps);
+        $this->ensureIsVps($vps);
 
         $action = $request->validate(['action' => ['required', 'in:start,stop,restart,force_stop']])['action'];
 
-        if (! $vps->serverModel || ! $vps->username) {
-            return back()->with('error', 'VM ini belum terhubung ke provider.');
-        }
+        $result = Cache::lock("vps-operation:{$vps->id}", 180)->get(function () use ($vps, $action) {
+            $current = $vps->fresh(['serverModel', 'product']);
 
-        // Menyalakan VM saat saldo sudah habis akan langsung dimatikan
-        // lagi oleh cron penagihan -- lebih jujur menolaknya di sini
-        // dengan penjelasan, daripada membiarkan klien bingung.
-        if ($action === 'start' && $vps->billing_mode === 'deposit') {
-            $rate = $this->rateFor($vps);
-
-            if ($rate > 0 && (float) Auth::guard('client')->user()->balance < $rate) {
-                return back()->with('error', 'Saldo Anda tidak cukup untuk menjalankan VPS ini. Silakan isi ulang saldo dulu.');
+            if (! $current || ! $current->serverModel || ! $current->username) {
+                return ['success' => false, 'message' => 'VM ini belum terhubung ke provider.'];
             }
-        }
 
-        try {
-            $service = new IdCloudHostService($vps->serverModel);
+            // Menyalakan VM saat saldo sudah habis akan langsung dimatikan
+            // lagi oleh cron penagihan -- cek ini di dalam lock agar dua
+            // request paralel tidak sama-sama lolos dari pemeriksaan.
+            if ($action === 'start' && $current->billing_mode === 'deposit') {
+                $rate = $this->rateFor($current);
 
-            $result = match ($action) {
-                'start'      => $service->unsuspendAccount($vps->username),
-                'stop'       => $service->suspendAccount($vps->username),
-                'force_stop' => $service->forceStop($vps->username),
-                'restart'    => $this->restart($service, $vps->username),
-            };
-        } catch (Throwable $e) {
-            Log::warning("Aksi VPS {$action} gagal untuk #{$vps->id}: " . $e->getMessage());
+                if ($rate > 0 && (float) Auth::guard('client')->user()->balance < $rate) {
+                    return ['success' => false, 'message' => 'Saldo Anda tidak cukup untuk menjalankan VPS ini. Silakan isi ulang saldo dulu.'];
+                }
+            }
 
-            return back()->with('error', 'Perintah gagal dikirim: ' . $e->getMessage());
+            try {
+                $service = VpsProviderFactory::make($current->serverModel);
+
+                $providerResult = match ($action) {
+                    'start'      => $service->start($current->username),
+                    'stop'       => $service->stop($current->username),
+                    'force_stop' => $service->stop($current->username, true),
+                    'restart'    => $service->restart($current->username),
+                };
+            } catch (Throwable $e) {
+                Log::warning("Aksi VPS {$action} gagal untuk #{$current->id}: " . $e->getMessage());
+
+                return ['success' => false, 'message' => 'Perintah gagal dikirim: ' . $e->getMessage()];
+            }
+
+            if (! $providerResult['success']) {
+                return ['success' => false, 'message' => 'Provider menolak perintah: ' . $providerResult['message']];
+            }
+
+            // Status lokal disesuaikan sebelum lock dilepas supaya request
+            // berikutnya tidak berangkat dari state yang sudah basi.
+            if (in_array($action, ['stop', 'force_stop'], true)) {
+                $current->update(['status' => 'suspended']);
+            } elseif ($action === 'start') {
+                $current->update(['status' => 'active', 'last_billed_at' => now()]);
+            }
+
+            return ['success' => true];
+        });
+
+        if (! is_array($result)) {
+            return back()->with('error', 'Aksi VPS lain sedang diproses. Silakan coba lagi sebentar.');
         }
 
         if (! $result['success']) {
-            return back()->with('error', 'Provider menolak perintah: ' . $result['message']);
-        }
-
-        // Status lokal disesuaikan supaya daftar layanan tidak
-        // menampilkan info basi sampai halaman dimuat ulang.
-        if (in_array($action, ['stop', 'force_stop'], true)) {
-            $vps->update(['status' => 'suspended']);
-        } elseif ($action === 'start') {
-            $vps->update(['status' => 'active', 'last_billed_at' => now()]);
+            return back()->with('error', $result['message']);
         }
 
         return back()->with('success', match ($action) {
@@ -133,26 +155,39 @@ class VpsController extends Controller
     public function changePassword(Request $request, HostingAccount $vps): RedirectResponse
     {
         $this->authorizeOwner($vps);
+        $this->ensureIsVps($vps);
 
         $data = $request->validate([
             'vm_username' => ['required', 'string', 'max:50'],
             'new_password' => ['required', 'string', 'min:8'],
         ]);
 
-        if (! $vps->serverModel || ! $vps->username) {
-            return back()->with('error', 'VM ini belum terhubung ke provider.');
-        }
+        $result = Cache::lock("vps-operation:{$vps->id}", 180)->get(function () use ($vps, $data) {
+            $current = $vps->fresh('serverModel');
 
-        try {
-            $result = (new IdCloudHostService($vps->serverModel))
-                ->changePassword($vps->username, $data['vm_username'], $data['new_password']);
-        } catch (Throwable $e) {
-            return back()->with('error', 'Gagal mengganti password: ' . $e->getMessage());
+            if (! $current || ! $current->serverModel || ! $current->username) {
+                return ['success' => false, 'message' => 'VM ini belum terhubung ke provider.'];
+            }
+
+            try {
+                $providerResult = VpsProviderFactory::make($current->serverModel)
+                    ->changePassword($current->username, $data['vm_username'], $data['new_password']);
+            } catch (Throwable $e) {
+                return ['success' => false, 'message' => 'Gagal mengganti password: ' . $e->getMessage()];
+            }
+
+            return $providerResult['success']
+                ? ['success' => true]
+                : ['success' => false, 'message' => 'Provider menolak: ' . $providerResult['message']
+                    . ' (password hanya bisa diganti saat VM menyala).'];
+        });
+
+        if (! is_array($result)) {
+            return back()->with('error', 'Aksi VPS lain sedang diproses. Silakan coba lagi sebentar.');
         }
 
         if (! $result['success']) {
-            return back()->with('error', 'Provider menolak: ' . $result['message']
-                . ' (password hanya bisa diganti saat VM menyala).');
+            return back()->with('error', $result['message']);
         }
 
         return back()->with('success', 'Password VPS berhasil diganti.');
@@ -166,6 +201,7 @@ class VpsController extends Controller
     public function reinstall(Request $request, HostingAccount $vps): RedirectResponse
     {
         $this->authorizeOwner($vps);
+        $this->ensureIsVps($vps);
 
         $data = $request->validate([
             'konfirmasi' => ['required', 'string'],
@@ -177,27 +213,39 @@ class VpsController extends Controller
             return back()->with('error', 'Konfirmasi tidak cocok — ketik nama VPS persis untuk melanjutkan.');
         }
 
-        if (! $vps->serverModel || ! $vps->username) {
-            return back()->with('error', 'VM ini belum terhubung ke provider.');
-        }
+        $result = Cache::lock("vps-operation:{$vps->id}", 180)->get(function () use ($vps, $data) {
+            $current = $vps->fresh('serverModel');
 
-        try {
-            $result = (new IdCloudHostService($vps->serverModel))
-                ->reinstall($vps->username, $data['os_name'], $data['os_version']);
-        } catch (Throwable $e) {
-            return back()->with('error', 'Gagal instal ulang: ' . $e->getMessage());
+            if (! $current || ! $current->serverModel || ! $current->username) {
+                return ['success' => false, 'message' => 'VM ini belum terhubung ke provider.'];
+            }
+
+            try {
+                $providerResult = VpsProviderFactory::make($current->serverModel)
+                    ->reinstall($current->username, $data['os_name'], $data['os_version']);
+            } catch (Throwable $e) {
+                return ['success' => false, 'message' => 'Gagal instal ulang: ' . $e->getMessage()];
+            }
+
+            if (! $providerResult['success']) {
+                return ['success' => false, 'message' => 'Provider menolak: ' . $providerResult['message']];
+            }
+
+            $spec = $current->hasVmSpec() ? $current->vmSpec() : [];
+            $spec['os_name'] = $data['os_name'];
+            $spec['os_version'] = $data['os_version'];
+            $current->update(['package' => json_encode($spec)]);
+
+            return ['success' => true];
+        });
+
+        if (! is_array($result)) {
+            return back()->with('error', 'Aksi VPS lain sedang diproses. Silakan coba lagi sebentar.');
         }
 
         if (! $result['success']) {
-            return back()->with('error', 'Provider menolak: ' . $result['message']);
+            return back()->with('error', $result['message']);
         }
-
-        // Spek OS di catatan ikut diperbarui supaya tagihan (yang
-        // memperhitungkan lisensi Windows) tetap sesuai kenyataan.
-        $spec = $vps->hasVmSpec() ? $vps->vmSpec() : [];
-        $spec['os_name'] = $data['os_name'];
-        $spec['os_version'] = $data['os_version'];
-        $vps->update(['package' => json_encode($spec)]);
 
         return back()->with('success', 'VPS sedang diinstal ulang. Proses ini bisa memakan beberapa menit.');
     }
@@ -210,6 +258,7 @@ class VpsController extends Controller
     public function resize(Request $request, HostingAccount $vps): RedirectResponse
     {
         $this->authorizeOwner($vps);
+        $this->ensureIsVps($vps);
 
         $data = $request->validate([
             'vcpu' => ['required', 'integer', 'min:1', 'max:32'],
@@ -232,7 +281,7 @@ class VpsController extends Controller
         // percuma menaikkan spek kalau saldonya tidak cukup untuk
         // sejam pun.
         $tarifBaru = $vps->serverModel
-            ? HourlyRateCalculator::calculate($vps->serverModel, $spec)
+            ? HourlyRateCalculator::calculate($vps->serverModel, $spec, $vps->product)
             : 0;
 
         $saldo = (float) Auth::guard('client')->user()->balance;
@@ -242,18 +291,40 @@ class VpsController extends Controller
                 . number_format($tarifBaru, 2, ',', '.') . '/jam). Isi saldo dulu.');
         }
 
-        try {
-            $result = (new IdCloudHostService($vps->serverModel))
-                ->changePackage($vps->username, json_encode($spec));
-        } catch (Throwable $e) {
-            return back()->with('error', 'Gagal mengubah spesifikasi: ' . $e->getMessage());
+        $result = Cache::lock("vps-operation:{$vps->id}", 180)->get(function () use ($vps, $spec) {
+            $current = $vps->fresh('serverModel');
+
+            if (! $current || ! $current->serverModel || ! $current->username) {
+                return ['success' => false, 'message' => 'VM ini belum terhubung ke provider.'];
+            }
+
+            if ($current->status === 'active') {
+                return ['success' => false, 'message' => 'Matikan VPS dulu sebelum mengubah spesifikasi — provider tidak mengizinkan perubahan saat VM menyala.'];
+            }
+
+            try {
+                $providerResult = VpsProviderFactory::make($current->serverModel)
+                    ->resize($current->username, $spec);
+            } catch (Throwable $e) {
+                return ['success' => false, 'message' => 'Gagal mengubah spesifikasi: ' . $e->getMessage()];
+            }
+
+            if (! $providerResult['success']) {
+                return ['success' => false, 'message' => 'Provider menolak: ' . $providerResult['message']];
+            }
+
+            $current->update(['package' => json_encode($spec)]);
+
+            return ['success' => true];
+        });
+
+        if (! is_array($result)) {
+            return back()->with('error', 'Aksi VPS lain sedang diproses. Silakan coba lagi sebentar.');
         }
 
         if (! $result['success']) {
-            return back()->with('error', 'Provider menolak: ' . $result['message']);
+            return back()->with('error', $result['message']);
         }
-
-        $vps->update(['package' => json_encode($spec)]);
 
         return back()->with('success', 'Spesifikasi berhasil diubah. Tarif baru: Rp '
             . number_format($tarifBaru, 2, ',', '.') . '/jam. Nyalakan VPS untuk memakainya.');
@@ -263,34 +334,19 @@ class VpsController extends Controller
      * Restart = stop lalu start. IDCloudHost tidak punya endpoint
      * restart tersendiri, jadi dilakukan berurutan.
      */
-    private function restart(IdCloudHostService $service, string $uuid): array
+        private function rateFor(HostingAccount $account): ?float
     {
-        $stop = $service->suspendAccount($uuid);
-
-        if (! $stop['success']) {
-            return $stop;
-        }
-
-        sleep(3);
-
-        return $service->unsuspendAccount($uuid);
+        return HourlyRateCalculator::forAccount($account);
     }
 
-    private function rateFor(HostingAccount $account): ?float
+    private function ensureIsVps(HostingAccount $vps): void
     {
-        if ($account->serverModel && $account->hasVmSpec()) {
-            $rate = HourlyRateCalculator::calculate($account->serverModel, $account->vmSpec());
-
-            if ($rate > 0) {
-                return $rate;
-            }
-        }
-
-        return $account->hourly_rate ? (float) $account->hourly_rate : null;
-    }
-
-    private function authorizeOwner(HostingAccount $vps): void
-    {
-        abort_unless($vps->client_id === Auth::guard('client')->id(), 403);
+        // HostingAccountPolicy (dipakai authorizeOwner() dari trait) cuma
+        // cek kepemilikan -- sama untuk hosting cPanel biasa maupun VPS.
+        // Cek tambahan ini KHUSUS memastikan akun ini benar VPS (server
+        // bertipe VM/VPS), supaya klien tidak bisa memicu aksi
+        // power/reinstall/resize di ID hosting_account miliknya sendiri
+        // yang sebetulnya akun hosting cPanel biasa.
+        abort_unless($vps->serverModel?->isCloud(), 404);
     }
 }

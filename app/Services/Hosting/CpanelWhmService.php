@@ -243,17 +243,6 @@ class CpanelWhmService implements HostingPanelInterface
     }
 
     /**
-     * Buat sesi login cPanel sekali klik (Single Sign-On).
-     *
-     * WHM API 1 `create_user_session` mengembalikan URL berisi token
-     * sekali pakai, sehingga klien bisa masuk ke cPanel tanpa perlu tahu
-     * password akunnya. Token kedaluwarsa otomatis dalam beberapa menit.
-     *
-     * Dokumentasi: https://api.docs.cpanel.net/openapi/whm/operation/create_user_session/
-     *
-     * @return array{success: bool, message: string, url: ?string, raw: mixed}
-     */
-    /**
      * Login sekali klik ke WHM ITU SENDIRI (bukan akun cPanel klien) --
      * pakai user reseller/root yang sudah tersimpan di server ini.
      * create_user_session ternyata juga mendukung service=whostmgrd,
@@ -265,6 +254,17 @@ class CpanelWhmService implements HostingPanelInterface
         return $this->createSsoSession($this->server->api_username, 'whostmgrd');
     }
 
+    /**
+     * Buat sesi login cPanel sekali klik (Single Sign-On).
+     *
+     * WHM API 1 `create_user_session` mengembalikan URL berisi token
+     * sekali pakai, sehingga klien bisa masuk ke cPanel tanpa perlu tahu
+     * password akunnya. Token kedaluwarsa otomatis dalam beberapa menit.
+     *
+     * Dokumentasi: https://api.docs.cpanel.net/openapi/whm/operation/create_user_session/
+     *
+     * @return array{success: bool, message: string, url: ?string, raw: mixed}
+     */
     public function createSsoSession(string $username, string $service = 'cpaneld', ?string $path = null): array
     {
         $result = $this->call('create_user_session', ['user' => $username, 'service' => $service]);

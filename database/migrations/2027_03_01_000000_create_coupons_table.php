@@ -49,18 +49,20 @@ return new class extends Migration
             $table->unique(['coupon_id', 'product_id']);
         });
 
-        Schema::create('coupon_product_category', function (Blueprint $table) {
+        Schema::create('coupon_product_group', function (Blueprint $table) {
             $table->id();
             $table->foreignId('coupon_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('product_category_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_category_id')->constrained('product_groups')->cascadeOnDelete();
             $table->timestamps();
             $table->unique(['coupon_id', 'product_category_id']);
+            $table->index(['coupon_id', 'product_category_id'], 'coupon_product_group_category_index');
         });
+
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('coupon_product_category');
+        Schema::dropIfExists('coupon_product_group');
         Schema::dropIfExists('coupon_product');
 
         Schema::table('invoices', function (Blueprint $table) {

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\CouponUsage;
 
 class Coupon extends Model
 {
@@ -40,6 +41,11 @@ class Coupon extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    public function usages(): HasMany
+    {
+        return $this->hasMany(CouponUsage::class);
+    }
+
     public function products(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'coupon_product');
@@ -47,7 +53,9 @@ class Coupon extends Model
 
     public function categories(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->belongsToMany(ProductCategory::class, 'coupon_product_category');
+        // Tabel kategori sudah di-rename menjadi product_groups; FK pivot
+        // tetap product_category_id demi kompatibilitas schema lama.
+        return $this->belongsToMany(ProductGroup::class, 'coupon_product_group', 'coupon_id', 'product_category_id');
     }
 
     /**
@@ -67,7 +75,7 @@ class Coupon extends Model
         }
 
         $productIds = $this->products()->pluck('products.id')->all();
-        $categoryIds = $this->categories()->pluck('product_categories.id')->all();
+        $categoryIds = $this->categories()->pluck('product_groups.id')->all();
 
         $eligible = 0.0;
 
@@ -116,10 +124,6 @@ class Coupon extends Model
             return 'Kupon ini sudah kedaluwarsa.';
         }
 
-        if ($this->usage_limit !== null && $this->usage_count >= $this->usage_limit) {
-            return 'Kupon ini sudah mencapai batas pemakaian.';
-        }
-
         if ($this->applies_to === 'specific' && $subtotal <= 0) {
             return 'Kupon ini tidak berlaku untuk produk yang ada di keranjang Anda.';
         }
@@ -128,9 +132,16 @@ class Coupon extends Model
             return 'Minimal transaksi untuk kupon ini adalah Rp ' . number_format((float) $this->min_order, 0, ',', '.') . '.';
         }
 
-        $usedByClient = $this->invoices()
+        $reservedTotal = $this->usages()->where('status', 'reserved')->count();
+        $effectiveUsage = (int) $this->usage_count + $reservedTotal;
+
+        if ($this->usage_limit !== null && $effectiveUsage >= $this->usage_limit) {
+            return 'Kupon ini sudah mencapai batas pemakaian.';
+        }
+
+        $usedByClient = $this->usages()
             ->where('client_id', $client->id)
-            ->whereIn('status', ['paid', 'unpaid', 'overdue'])
+            ->whereIn('status', ['reserved', 'consumed'])
             ->count();
 
         if ($usedByClient >= $this->usage_limit_per_client) {
@@ -138,6 +149,11 @@ class Coupon extends Model
         }
 
         return null;
+    }
+
+    public function reservedUsageForInvoice(int $invoiceId): ?CouponUsage
+    {
+        return $this->usages()->where('invoice_id', $invoiceId)->where('status', 'reserved')->first();
     }
 
     /**

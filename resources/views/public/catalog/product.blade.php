@@ -64,6 +64,21 @@
           @csrf
           <input type="hidden" name="product_id" value="{{ $product->id }}">
 
+          @if ($product->isDepositBilled())
+            <div class="rounded-3 px-3 py-2 mb-3 d-flex align-items-start gap-2" style="background:#eef2ff;border:1px solid #e0e7ff">
+              <i class="fa-solid fa-bolt text-primary mt-1" style="font-size:11px"></i>
+              <p class="mb-0" style="font-size:12.5px;color:#3730a3;line-height:1.5">
+                <b>Bayar per jam sesuai pemakaian.</b> Harga di bawah untuk memilih paket saja —
+                tagihan sebenarnya dipotong otomatis dari saldo Anda tiap jam setelah layanan aktif,
+                bukan lewat invoice per siklus. Pastikan saldo cukup sebelum aktivasi.
+                @if ($hourly = $product->estimatedHourlyRate())
+                  <br>Tarif paket ini <b>Rp {{ number_format($hourly, 2, ',', '.') }} / jam</b>
+                  (± Rp {{ number_format($hourly * 730, 0, ',', '.') }} / bulan bila menyala terus).
+                @endif
+              </p>
+            </div>
+          @endif
+
           <p class="fw-bold text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.03em">Pilih Siklus Tagihan</p>
           <div class="mb-4">
             @foreach ($cycles as $cycleKey => $price)

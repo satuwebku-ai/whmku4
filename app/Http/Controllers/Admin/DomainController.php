@@ -537,12 +537,6 @@ class DomainController extends Controller
     }
 
     /**
-     * Transfer domain butuh persetujuan pemilik lama di registrar
-     * sebelumnya — tidak ada webhook dari Liqu.id yang memberi tahu kita
-     * kapan itu selesai, jadi admin yang memastikan manual (login ke
-     * Liqu.id, cek status domainnya "Live"), baru menandai selesai di sini.
-     */
-    /**
      * Domain yang baru kedaluwarsa biasanya masih bisa dipulihkan lewat
      * "masa tenggang" registri (redemption period) sebelum benar-benar
      * dilepas ke publik — dengan biaya tambahan dari registrar. Jendela
@@ -585,6 +579,12 @@ class DomainController extends Controller
         return back()->with('success', 'Domain berhasil dipulihkan dan diaktifkan kembali.');
     }
 
+    /**
+     * Transfer domain butuh persetujuan pemilik lama di registrar
+     * sebelumnya — tidak ada webhook dari Liqu.id yang memberi tahu kita
+     * kapan itu selesai, jadi admin yang memastikan manual (login ke
+     * Liqu.id, cek status domainnya "Live"), baru menandai selesai di sini.
+     */
     public function markTransferComplete(Domain $domain): RedirectResponse
     {
         if (! $domain->is_transfer || $domain->provision_status !== 'transfer_pending') {

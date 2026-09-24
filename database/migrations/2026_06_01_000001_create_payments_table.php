@@ -38,6 +38,12 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['status', 'created_at']);
+            $table->unique(
+                ['payment_gateway_id', 'external_id'],
+                'payments_gateway_external_unique'
+            );
+            $table->index(['invoice_id', 'status'], 'payments_invoice_status_index');
+            $table->index(['client_id', 'status'], 'payments_client_status_index');
         });
     }
 

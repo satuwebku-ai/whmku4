@@ -156,12 +156,6 @@ class RegistrarController extends Controller
     }
 
     /**
-     * Bukan fitur untuk pengguna akhir — cuma alat bantu sementara untuk
-     * melihat persis apa yang dikembalikan Liqu.id untuk saldo akun,
-     * supaya kalau pemetaan field-nya meleset, bisa diperbaiki berdasarkan
-     * data sungguhan, bukan tebakan.
-     */
-    /**
      * Halaman diagnosa — memanggil beberapa endpoint GET (cuma baca,
      * TIDAK mengubah apa pun) untuk memastikan hal-hal yang tidak bisa
      * disimpulkan dari satu endpoint saja: mata uang akun, saldo, dan
@@ -315,6 +309,12 @@ class RegistrarController extends Controller
         );
     }
 
+    /**
+     * Bukan fitur untuk pengguna akhir — cuma alat bantu sementara untuk
+     * melihat persis apa yang dikembalikan Liqu.id untuk saldo akun,
+     * supaya kalau pemetaan field-nya meleset, bisa diperbaiki berdasarkan
+     * data sungguhan, bukan tebakan.
+     */
     public function debugBalance(Registrar $registrar)
     {
         $service = DomainRegistrarFactory::make($registrar);

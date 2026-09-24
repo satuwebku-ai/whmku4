@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Site;
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\Product;
-use App\Models\ProductCategory;
+use App\Models\ProductGroup;
 use App\Models\Tld;
 use Illuminate\View\View;
 
@@ -32,7 +32,7 @@ class CatalogController extends Controller
         $announcementsLimit = max(1, (int) \App\Models\Setting::get('home_announcements_limit', 3));
         $vpsLimit = max(1, (int) \App\Models\Setting::get('home_vps_limit', 3));
 
-        $categories = ProductCategory::active()
+        $categories = ProductGroup::active()
             ->withCount(['products' => fn ($q) => $q->active()])
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -44,15 +44,17 @@ class CatalogController extends Controller
             $categories = $categories->take($categoriesLimit);
         }
 
-        // Produk VPS dipisah dari hosting biasa -- dibedakan lewat server
-        // yang dipakai (panel 'idcloudhost' = cloud/VPS), pola yang sama
-        // dengan ProductController.
-        $cloudServerIds = \App\Models\Server::whereIn('panel', ['idcloudhost'])->pluck('id');
-
+        // Produk VPS dipisah dari hosting biasa lewat Product::scopeVpsType()/
+        // scopeHostingType() -- SATU sumber kebenaran (kategori type='vps',
+        // dengan server cloud sebagai jaring pengaman), dipakai sama persis
+        // oleh ProductController::indexData(). Sebelumnya section ini
+        // memfilter dari server_id saja, jadi produk VPS yang kategorinya
+        // sudah type='vps' tapi belum/salah pasang server cloud (mis. server
+        // belum dipilih) ikut nyasar ke "Paket Hosting Pilihan".
         $featured = Product::active()
+            ->hostingType()
             ->with('category')
             ->where('is_featured', true)
-            ->where(fn ($q) => $q->whereNotIn('server_id', $cloudServerIds)->orWhereNull('server_id'))
             ->orderBy('sort_order')
             ->take($featuredLimit)
             ->get();
@@ -61,23 +63,21 @@ class CatalogController extends Controller
         // supaya halaman depan tidak kosong.
         if ($featured->isEmpty()) {
             $featured = Product::active()
+                ->hostingType()
                 ->with('category')
-                ->where(fn ($q) => $q->whereNotIn('server_id', $cloudServerIds)->orWhereNull('server_id'))
                 ->orderByRaw('COALESCE(price_monthly, price_quarterly, price_semi_annually, price_annually) ASC')
                 ->take($featuredLimit)
                 ->get();
         }
 
         // Paket VPS -- section terpisah dari hosting biasa.
-        $vpsProducts = $cloudServerIds->isNotEmpty()
-            ? Product::active()
-                ->with('category')
-                ->whereIn('server_id', $cloudServerIds)
-                ->orderByDesc('is_featured')
-                ->orderBy('sort_order')
-                ->take($vpsLimit)
-                ->get()
-            : collect();
+        $vpsProducts = Product::active()
+            ->vpsType()
+            ->with('category')
+            ->orderByDesc('is_featured')
+            ->orderBy('sort_order')
+            ->take($vpsLimit)
+            ->get();
 
         // TLD populer untuk ditampilkan di bawah kotak pencarian domain.
         $popularTlds = Tld::where('is_active', true)
@@ -154,7 +154,7 @@ class CatalogController extends Controller
 
     private function indexData(): array
     {
-        $categories = ProductCategory::active()
+        $categories = ProductGroup::active()
             ->withCount(['products' => fn ($q) => $q->active()])
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -185,7 +185,7 @@ class CatalogController extends Controller
 
     private function categoryData(string $slug): array
     {
-        $category = ProductCategory::active()->where('slug', $slug)->firstOrFail();
+        $category = ProductGroup::active()->where('slug', $slug)->firstOrFail();
 
         $products = $category->products()
             ->active()
@@ -209,7 +209,7 @@ class CatalogController extends Controller
 
     private function productData(string $categorySlug, string $productSlug): array
     {
-        $category = ProductCategory::active()->where('slug', $categorySlug)->firstOrFail();
+        $category = ProductGroup::active()->where('slug', $categorySlug)->firstOrFail();
 
         $product = Product::active()
             ->where('product_category_id', $category->id)

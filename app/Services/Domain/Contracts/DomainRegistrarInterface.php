@@ -26,6 +26,18 @@ interface DomainRegistrarInterface
      * @return array{success: bool, message: string, raw: mixed}
      */
     public function renewDomain(string $domain, int $years): array;
+    /**
+     * Ajukan transfer domain dari registrar lain.
+     *
+     * Provider yang tidak mendukung transfer otomatis harus mengembalikan
+     * kegagalan terstruktur; pemanggil tidak boleh menganggap transfer selesai
+     * hanya karena request API berhasil dikirim.
+     *
+     * @param  array{domain: string, years: int, auth_code?: string, contact?: array, whois_privacy?: bool}  $params
+     * @return array{success: bool, message: string, raw: mixed}
+     */
+    public function transferDomain(array $params): array;
+
 
     /**
      * Ubah nameserver domain.

@@ -4,29 +4,72 @@
 
 @section('content')
 
-  @php $selectStyle = 'padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem'; @endphp
+  @php
+    $selectStyle = 'padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem';
+    $currentPanel = old('panel', $server->panel ?: 'cpanel');
+    $currentVps   = old('vps_provider', $server->vps_provider);
+
+    // Profil tampilan per JENIS PANEL hosting biasa. Hanya field yang ada
+    // di 'fields' yang tampil (Port & Nameserver lewat 'port' / 'ns').
+    $panelProfiles = [
+      'cpanel' => [
+        'tone' => 'primary', 'icon' => 'fa-circle-info', 'port' => 2087, 'ns' => true, 'rateCard' => false,
+        'hint' => 'Untuk cPanel/WHM, buat API Token dari <b>WHM » Development » Manage API Tokens</b> — jangan pakai password root langsung. Port default WHM adalah <b>2087</b>.',
+        'fields' => [
+          'hostname' => ['label' => 'Hostname / IP', 'placeholder' => 'server1.contoh.com', 'required' => true],
+          'api_username' => ['label' => 'API Username', 'placeholder' => 'root', 'required' => true],
+          'api_token' => ['label' => 'API Token'],
+        ],
+      ],
+      'directadmin' => [
+        'tone' => 'warning', 'icon' => 'fa-triangle-exclamation', 'port' => 2222, 'ns' => true, 'rateCard' => false,
+        'hint' => '<b>DirectAdmin belum tersedia</b> — form ini bisa disimpan untuk didata lebih dulu, tapi provisioning otomatis belum jalan untuk panel ini. Kalau nanti diaktifkan, autentikasi memakai <b>Login Key</b> (dibuat dari DirectAdmin » Login Keys), bukan password akun admin — tempel di kolom <b>Login Key (Token)</b>. Port default DirectAdmin adalah <b>2222</b>.',
+        'fields' => [
+          'hostname' => ['label' => 'Hostname / IP', 'placeholder' => 'server1.contoh.com', 'required' => true],
+          'api_username' => ['label' => 'Admin Username', 'placeholder' => 'admin', 'required' => true],
+          'api_token' => ['label' => 'Login Key (Token)'],
+        ],
+      ],
+      'plesk' => [
+        'tone' => 'warning', 'icon' => 'fa-triangle-exclamation', 'port' => 8443, 'ns' => true, 'rateCard' => false,
+        'hint' => '<b>Plesk belum tersedia</b> — form ini bisa disimpan untuk didata lebih dulu, tapi provisioning otomatis belum jalan untuk panel ini. Kalau nanti diaktifkan, autentikasi memakai <b>API Key</b> (dibuat dari Plesk » Tools &amp; Settings » API Keys) — tempel di kolom <b>API Key</b>. Port default Plesk adalah <b>8443</b>.',
+        'fields' => [
+          'hostname' => ['label' => 'Hostname / IP', 'placeholder' => 'server1.contoh.com', 'required' => true],
+          'api_username' => ['label' => 'Admin Username', 'placeholder' => 'admin', 'required' => true],
+          'api_token' => ['label' => 'API Key'],
+        ],
+      ],
+    ];
+
+    // Profil tampilan per VPS PROVIDER -- dibaca dari config/vps_providers.php,
+    // jadi provider baru muncul di form ini tanpa mengubah file ini.
+    $vpsProfiles = collect(config('vps_providers', []))->map(fn ($cfg) => [
+      'tone' => $cfg['tone'] ?? 'info', 'icon' => 'fa-cloud', 'port' => null, 'ns' => false,
+      'rateCard' => (bool) ($cfg['cost_sync'] ?? false),
+      'currency' => strtoupper($cfg['currency'] ?? 'IDR'),
+      'hint' => $cfg['hint'] ?? '',
+      'fields' => $cfg['fields'] ?? [],
+    ])->all();
+  @endphp
+
+  <style>
+    .srv-hint { border: 1px solid; }
+    .srv-hint.tone-primary   { background:#eef2ff; border-color:#c7d2fe; color:#4338ca; }
+    .srv-hint.tone-warning   { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+    .srv-hint.tone-info      { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
+    .srv-hint.tone-success   { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
+    .srv-hint.tone-secondary { background:#f8fafc; border-color:#e2e8f0; color:#475569; }
+  </style>
 
   <div class="mb-3">
     <h1 class="h4 fw-bold text-dark mb-1">{{ $server->exists ? 'Edit Server' : 'Tambah Server' }}</h1>
     <p class="small text-muted mb-0">Kredensial API dienkripsi otomatis di database (pakai APP_KEY).</p>
   </div>
 
-  <div id="hintCpanel" class="provider-hint-server rounded-3 mb-3 px-3 py-2 small" style="max-width:42rem;background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca">
-    <i class="fa-solid fa-circle-info"></i>
-    Untuk cPanel/WHM, buat API Token dari <b>WHM » Development » Manage API Tokens</b> —
-    jangan pakai password root langsung. Port default WHM adalah <b>2087</b>.
-  </div>
+  {{-- Isi & warna kotak ini diganti JS sesuai Jenis Panel / VPS Provider yang dipilih. --}}
+  <div id="serverHint" class="srv-hint tone-primary rounded-3 mb-3 px-3 py-2 small" style="max-width:42rem"></div>
 
-  <div id="hintIdcloudhost" class="provider-hint-server d-none rounded-3 mb-3 px-3 py-2 small" style="max-width:42rem;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534">
-    <i class="fa-solid fa-cloud"></i>
-    <b>IDCloudHost</b> menyediakan VM/VPS baru langsung lewat API, bukan panel di server yang sudah ada.
-    Ambil API Key dari <a href="https://app.idcloudhost.com" target="_blank" class="text-decoration-underline" style="color:inherit">app.idcloudhost.com</a> » API Token,
-    tempel di kolom <b>API Token</b> di bawah. Kolom <b>Hostname</b> diisi <b>slug lokasi</b> (opsional — mis. <code>jkt01</code>, <code>jkt02</code>, <code>jkt03</code>, <code>sgp01</code>;
-    kosongkan untuk lokasi default akun). Kolom <b>API Username</b> diisi <b>Billing Account ID</b> berupa <b>ANGKA</b>
-    (mis. <code>1200206137</code> — lihat di halaman Diagnosa); kosongkan untuk memakai akun billing default. Isian selain angka diabaikan.
-  </div>
-
-  <form method="POST" action="{{ $server->exists ? route('admin.servers.update', $server) : route('admin.servers.store') }}" class="card border rounded-4 p-4" style="max-width:42rem">
+  <form method="POST" action="{{ $server->exists ? route('admin.servers.update', $server) : route('admin.servers.store') }}" class="card border rounded-4 p-4" style="max-width:42rem" autocomplete="off">
     @csrf
     @if ($server->exists) @method('PUT') @endif
 
@@ -39,35 +82,50 @@
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Jenis Panel</label>
         <select name="panel" id="panelSelect" class="form-select" style="{{ $selectStyle }}">
-          <option value="cpanel" @selected(old('panel', $server->panel ?? 'cpanel') === 'cpanel')>cPanel / WHM</option>
-          <option value="directadmin" @selected(old('panel', $server->panel) === 'directadmin')>DirectAdmin (segera)</option>
-          <option value="plesk" @selected(old('panel', $server->panel) === 'plesk')>Plesk (segera)</option>
-          <option value="idcloudhost" @selected(old('panel', $server->panel) === 'idcloudhost')>IDCloudHost (Jual VM/VPS)</option>
+          <option value="cpanel" @selected($currentPanel === 'cpanel')>cPanel / WHM</option>
+          <option value="directadmin" @selected($currentPanel === 'directadmin')>DirectAdmin (segera)</option>
+          <option value="plesk" @selected($currentPanel === 'plesk')>Plesk (segera)</option>
+          <option value="vps" @selected($currentPanel === 'vps')>VM / VPS (Cloud)</option>
         </select>
+        @error('panel') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
 
-    <div class="row g-3 mb-3">
-      <div class="col-sm-8">
+    {{-- Hanya tampil kalau Jenis Panel = VM / VPS. --}}
+    <div id="vpsProviderWrap" class="mb-3 d-none">
+      <label class="form-label small fw-medium text-dark">VPS Provider</label>
+      <select name="vps_provider" id="vpsProviderSelect" class="form-select" style="{{ $selectStyle }}" disabled>
+        <option value="">— Pilih provider —</option>
+        @foreach (\App\Services\Vps\VpsProviderFactory::supported() as $key => $label)
+          <option value="{{ $key }}" @selected($currentVps === $key)>{{ $label }}</option>
+        @endforeach
+      </select>
+      <p class="text-muted mb-0 mt-1" style="font-size:11px">Provider tempat VM/VPS dibuat lewat API. Kolom di bawah menyesuaikan provider yang dipilih.</p>
+      @error('vps_provider') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+    </div>
+
+    <div class="row g-3 mb-3" id="rowHost">
+      <div class="col-sm-8" id="wrapHostname">
         <label class="form-label small fw-medium text-dark" id="labelHostname">Hostname / IP</label>
-        <input type="text" name="hostname" id="fieldHostname" value="{{ old('hostname', $server->hostname) }}" placeholder="server1.contoh.com" class="form-control form-control-sm">
+        <input type="text" name="hostname" id="fieldHostname" value="{{ old('hostname', $server->hostname) }}" class="form-control form-control-sm" autocomplete="off">
         @error('hostname') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
-      <div class="col-sm-4" id="fieldPortWrap">
+      <div class="col-sm-4" id="wrapPort">
         <label class="form-label small fw-medium text-dark">Port</label>
-        <input type="number" name="port" value="{{ old('port', $server->port ?? 2087) }}" class="form-control form-control-sm" required>
+        <input type="number" name="port" id="fieldPort" value="{{ old('port', $server->port ?? 2087) }}" class="form-control form-control-sm">
+        @error('port') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
 
-    <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3" id="nameserverRow">
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Nameserver 1</label>
-        <input type="text" name="ns1" value="{{ old('ns1', $server->ns1) }}" placeholder="ns1.satucloudhosting.com" class="form-control form-control-sm">
+        <input type="text" name="ns1" value="{{ old('ns1', $server->ns1) }}" placeholder="ns1.satucloudhosting.com" class="form-control form-control-sm" autocomplete="off">
         @error('ns1') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Nameserver 2</label>
-        <input type="text" name="ns2" value="{{ old('ns2', $server->ns2) }}" placeholder="ns2.satucloudhosting.com" class="form-control form-control-sm">
+        <input type="text" name="ns2" value="{{ old('ns2', $server->ns2) }}" placeholder="ns2.satucloudhosting.com" class="form-control form-control-sm" autocomplete="off">
         @error('ns2') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
       <p class="text-muted mb-0" style="font-size:11px">
@@ -75,20 +133,20 @@
       </p>
     </div>
 
-    <div class="row g-3 mb-3">
-      <div class="col-sm-6">
+    <div class="row g-3 mb-3" id="rowCredentials">
+      <div class="col-sm-6" id="wrapApiUser">
         <label class="form-label small fw-medium text-dark" id="labelApiUsername">API Username</label>
-        <input type="text" name="api_username" id="fieldApiUsername" value="{{ old('api_username', $server->api_username) }}" placeholder="root" class="form-control form-control-sm">
+        <input type="text" name="api_username" id="fieldApiUsername" value="{{ old('api_username', $server->api_username) }}" class="form-control form-control-sm" autocomplete="off">
         @error('api_username') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
-      <div class="col-sm-6">
-        <label class="form-label small fw-medium text-dark">API Token {{ $server->exists ? '(kosongkan jika tidak diganti)' : '' }}</label>
-        <input type="password" name="api_token" placeholder="{{ $server->exists ? '••••••••••••' : '' }}" class="form-control form-control-sm" {{ $server->exists ? '' : 'required' }}>
+      <div class="col-sm-6" id="wrapApiToken">
+        <label class="form-label small fw-medium text-dark" id="labelApiToken">API Token</label>
+        <input type="password" name="api_token" id="fieldApiToken" class="form-control form-control-sm" autocomplete="new-password">
         @error('api_token') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
 
-    <div class="row g-3 mb-3 align-items-center">
+    <div class="row g-3 mb-3 align-items-center" id="rowGeneral">
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Kapasitas Maks. Akun (opsional)</label>
         <input type="number" name="max_accounts" value="{{ old('max_accounts', $server->max_accounts) }}" class="form-control form-control-sm">
@@ -107,187 +165,51 @@
 
     <div id="rateCardSection" class="d-none pt-3 mt-3 border-top">
       <p class="fw-bold text-muted mb-1" style="font-size:11px;text-transform:uppercase;letter-spacing:.03em">
-        <i class="fa-solid fa-tags"></i> Kartu Harga (per jam)
+        <i class="fa-solid fa-coins"></i> Harga Modal (dari Provider)
       </p>
       <p class="text-muted mb-3" style="font-size:11px">
-        Dipakai otomatis menghitung tagihan per jam untuk semua VM di server ini (lihat cron
-        <code>lumora:charge-hourly-usage</code>) — kosongkan komponen yang tidak berlaku.
+        <b>Harga jual per jam diatur di halaman Produk</b> (Penjualan → Produk → pilih kategori VPS → "Potong Saldo
+        per Jam") — bukan di sini lagi, supaya produk yang beda boleh punya harga beda walau jalan di server yang
+        sama. Yang tersisa di sini cuma <b>harga modal</b> dari provider — dipakai sebagai basis hitungan kalau ada
+        produk yang pakai mode "Markup % dari Harga Modal".
       </p>
 
-      <div class="row g-2 mb-3">
-        @foreach (['manual' => 'Isi Manual', 'markup' => 'Markup % dari Harga Modal'] as $mKey => $mLabel)
-          @php $activeMode = old('pricing_mode', $server->pricing_mode ?? 'manual') === $mKey; @endphp
-          <div class="col-6">
-            <label class="d-flex align-items-center justify-content-center rounded-3 border px-2 py-2 text-center small fw-medium w-100"
-                   style="cursor:pointer;{{ $activeMode ? 'border-color:#4f46e5!important;background:rgba(79,70,229,.06);color:#4338ca' : '' }}">
-              <input type="radio" name="pricing_mode" value="{{ $mKey }}" @checked($activeMode) class="d-none" data-pricing-mode>
-              {{ $mLabel }}
-            </label>
-          </div>
-        @endforeach
+      {{-- Kurs ke Rupiah: hanya untuk provider yang harga modalnya bukan IDR (mis. DigitalOcean = USD). --}}
+      <div id="wrapFx" class="mb-3 d-none" style="max-width:20rem">
+        <label class="form-label small fw-medium text-dark">Kurs: 1 <span id="fxCurrency">USD</span> = Rp</label>
+        <input type="number" step="0.01" min="0" name="cost_fx_rate" id="fieldFx" value="{{ old('cost_fx_rate', $server->cost_fx_rate ? (float) $server->cost_fx_rate : '') }}" placeholder="mis. 16500" class="form-control form-control-sm" disabled>
+        @error('cost_fx_rate') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+        <p class="text-muted mt-1 mb-0" style="font-size:11px">Diisi manual — sistem tidak menebak kurs. Tanpa kurs, harga modal provider ini belum bisa dipakai menghitung tarif.</p>
       </div>
 
-      <div id="markupFields" class="{{ old('pricing_mode', $server->pricing_mode ?? 'manual') === 'markup' ? '' : 'd-none' }} rounded-3 border p-3 mb-3" style="background:#f8fafc">
-        <div class="row g-3 align-items-end">
-          <div class="col-sm-5">
-            <label class="form-label small fw-medium text-dark">Markup (%)</label>
-            <input type="number" step="0.01" min="0" name="markup_percent" value="{{ old('markup_percent', $server->markup_percent ?? 50) }}" class="form-control form-control-sm">
-            <p class="text-muted mt-1 mb-0" style="font-size:10px">Mis. 50 = jual 1,5× harga modal</p>
-          </div>
-          <div class="col-sm-7">
-            @if ($server->exists && $server->cost_cached_at)
-              <p class="text-muted mb-1" style="font-size:11px">
-                Harga modal tersimpan {{ $server->cost_cached_at->diffForHumans() }}:
-                vCPU {{ number_format((float) ($server->cost_cache['vcpu'] ?? 0), 3) }} ·
-                RAM {{ number_format((float) ($server->cost_cache['ram'] ?? 0), 3) }} ·
-                Disk {{ number_format((float) ($server->cost_cache['storage'] ?? 0), 3) }}
-              </p>
-            @else
-              <p class="mb-1" style="font-size:11px;color:#b45309">
-                <i class="fa-solid fa-triangle-exclamation"></i> Harga modal belum pernah ditarik — mode markup belum bisa menghitung.
-              </p>
+      @if ($server->exists && $server->cost_cached_at)
+        <p class="text-muted mb-2" style="font-size:11px">
+          Harga modal tersimpan {{ $server->cost_cached_at->diffForHumans() }}:
+          @if ($server->costModel() === 'size')
+            {{ count($server->cost_cache['sizes'] ?? []) }} size · {{ $server->costCurrency() }}
+            @if ($server->costFxRate() <= 0)
+              <span style="color:#b45309">· kurs ke Rupiah belum diisi</span>
             @endif
-            @if ($server->exists)
-              <button type="button" onclick="document.getElementById('syncCostForm').submit()" class="btn btn-outline-secondary btn-sm">
-                <i class="fa-solid fa-cloud-arrow-down" style="font-size:11px"></i> Tarik Harga Modal Sekarang
-              </button>
-            @else
-              <p class="text-muted mb-0" style="font-size:11px">Simpan server dulu, baru harga modal bisa ditarik.</p>
-            @endif
-          </div>
-        </div>
+          @else
+            vCPU {{ number_format((float) ($server->cost_cache['vcpu'] ?? 0), 3) }} ·
+            RAM {{ number_format((float) ($server->cost_cache['ram'] ?? 0), 3) }} ·
+            Disk {{ number_format((float) ($server->cost_cache['storage'] ?? 0), 3) }}
+          @endif
+        </p>
+      @else
+        <p class="mb-2" style="font-size:11px;color:#b45309">
+          <i class="fa-solid fa-triangle-exclamation"></i> Harga modal belum pernah ditarik — mode markup di
+          halaman Produk belum bisa menghitung sampai ini ditarik.
+        </p>
+      @endif
 
-        {{-- Pratinjau: berapa harga modal, jadi berapa setelah markup,
-             dan berapa totalnya per bulan untuk contoh VPS. Angka ini
-             cuma pemberitahuan -- tidak disimpan ke mana pun. --}}
-        @if ($server->exists && $server->cost_cached_at && is_array($server->cost_cache))
-          <div class="mt-3 pt-3 border-top">
-            <p class="fw-bold text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.03em">
-              Pratinjau Harga Jual
-            </p>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-2" style="font-size:12px">
-                <thead>
-                  <tr class="text-uppercase text-muted" style="background:#fff;font-size:10px">
-                    <th class="py-1">Komponen</th>
-                    <th class="text-end py-1">Modal / jam</th>
-                    <th class="text-end py-1">Jual / jam</th>
-                    <th class="text-end py-1">Untung / jam</th>
-                  </tr>
-                </thead>
-                <tbody id="previewRows"></tbody>
-              </table>
-            </div>
-
-            <div class="rounded-3 p-3" style="background:#fff;border:1px solid #e2e8f0">
-              <p class="text-muted mb-2" style="font-size:11px">
-                Contoh VPS <b id="sampleLabel">2 vCPU / 2 GB / 40 GB</b> — ubah untuk melihat perbandingan lain:
-              </p>
-              <div class="row g-2 mb-3">
-                <div class="col-4">
-                  <input type="number" id="pvCpu" value="2" min="1" class="form-control form-control-sm" placeholder="vCPU">
-                </div>
-                <div class="col-4">
-                  <input type="number" id="pvRam" value="2048" step="512" min="512" class="form-control form-control-sm" placeholder="RAM MB">
-                </div>
-                <div class="col-4">
-                  <input type="number" id="pvDisk" value="40" min="20" class="form-control form-control-sm" placeholder="Disk GB">
-                </div>
-              </div>
-              <div class="row g-2 text-center">
-                <div class="col-4">
-                  <p class="text-muted mb-0" style="font-size:10px">Modal / bulan</p>
-                  <p class="fw-semibold text-dark mb-0" id="sumCost">—</p>
-                </div>
-                <div class="col-4">
-                  <p class="text-muted mb-0" style="font-size:10px">Jual / bulan</p>
-                  <p class="fw-bold mb-0" id="sumSell" style="color:#4338ca">—</p>
-                </div>
-                <div class="col-4">
-                  <p class="text-muted mb-0" style="font-size:10px">Untung / bulan</p>
-                  <p class="fw-semibold mb-0" id="sumProfit" style="color:#047857">—</p>
-                </div>
-              </div>
-              <p class="text-muted mt-2 mb-0" style="font-size:10px">Hitungan 730 jam/bulan. Angka ini hanya pemberitahuan, tidak disimpan.</p>
-            </div>
-          </div>
-
-          <script>
-            (function () {
-              const cost = @json($server->cost_cache);
-              const labels = { vcpu: 'vCPU (per unit)', ram: 'RAM (per GB)', storage: 'Storage (per GB)', backup: 'Backup (per GB)', snapshot: 'Snapshot (per GB)', windows: 'Lisensi Windows' };
-              const rupiah = (n) => 'Rp ' + n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
-
-              function markup() {
-                return 1 + ((parseFloat(document.querySelector('[name="markup_percent"]')?.value) || 0) / 100);
-              }
-
-              function render() {
-                const f = markup();
-                const rows = Object.keys(labels).map(function (k) {
-                  const c = parseFloat(cost[k] || 0);
-                  if (c <= 0) return '';
-                  const jual = c * f;
-                  return '<tr><td class="py-1 text-dark">' + labels[k] + '</td>'
-                    + '<td class="text-end py-1 text-muted">' + rupiah(c) + '</td>'
-                    + '<td class="text-end py-1 fw-medium text-dark">' + rupiah(jual) + '</td>'
-                    + '<td class="text-end py-1" style="color:#047857">+' + rupiah(jual - c) + '</td></tr>';
-                }).join('');
-
-                document.getElementById('previewRows').innerHTML = rows || '<tr><td colspan="4" class="text-center text-muted py-2">Harga modal kosong.</td></tr>';
-
-                const vcpu = parseFloat(document.getElementById('pvCpu').value) || 0;
-                const ramGb = (parseFloat(document.getElementById('pvRam').value) || 0) / 1024;
-                const disk = parseFloat(document.getElementById('pvDisk').value) || 0;
-
-                const modalJam = vcpu * (cost.vcpu || 0) + ramGb * (cost.ram || 0) + disk * (cost.storage || 0);
-                const jualJam = modalJam * f;
-
-                document.getElementById('sampleLabel').textContent =
-                  vcpu + ' vCPU / ' + (ramGb % 1 === 0 ? ramGb : ramGb.toFixed(1)) + ' GB / ' + disk + ' GB';
-                document.getElementById('sumCost').textContent = rupiah(modalJam * 730);
-                document.getElementById('sumSell').textContent = rupiah(jualJam * 730);
-                document.getElementById('sumProfit').textContent = '+' + rupiah((jualJam - modalJam) * 730);
-              }
-
-              ['pvCpu', 'pvRam', 'pvDisk'].forEach(id => document.getElementById(id).addEventListener('input', render));
-              document.querySelector('[name="markup_percent"]')?.addEventListener('input', render);
-              render();
-            })();
-          </script>
-        @endif
-      </div>
-
-      <div id="manualRateFields" class="{{ old('pricing_mode', $server->pricing_mode ?? 'manual') === 'markup' ? 'd-none' : '' }}">
-      <div class="row g-3">
-        <div class="col-sm-6 col-lg-4">
-          <label class="form-label small fw-medium text-dark">Harga per vCPU</label>
-          <input type="number" step="0.000001" min="0" name="price_per_vcpu_hour" value="{{ old('price_per_vcpu_hour', $server->price_per_vcpu_hour) }}" class="form-control form-control-sm">
-        </div>
-        <div class="col-sm-6 col-lg-4">
-          <label class="form-label small fw-medium text-dark">Harga per GB RAM</label>
-          <input type="number" step="0.000001" min="0" name="price_per_ram_gb_hour" value="{{ old('price_per_ram_gb_hour', $server->price_per_ram_gb_hour) }}" class="form-control form-control-sm">
-        </div>
-        <div class="col-sm-6 col-lg-4">
-          <label class="form-label small fw-medium text-dark">Harga per GB Storage</label>
-          <input type="number" step="0.000001" min="0" name="price_per_storage_gb_hour" value="{{ old('price_per_storage_gb_hour', $server->price_per_storage_gb_hour) }}" class="form-control form-control-sm">
-        </div>
-        <div class="col-sm-6 col-lg-4">
-          <label class="form-label small fw-medium text-dark">Harga per GB Backup</label>
-          <input type="number" step="0.000001" min="0" name="price_per_backup_gb_hour" value="{{ old('price_per_backup_gb_hour', $server->price_per_backup_gb_hour) }}" class="form-control form-control-sm">
-          <p class="text-muted mt-1 mb-0" style="font-size:10px">Berlaku dikali ukuran disk, hanya kalau backup diaktifkan di VM.</p>
-        </div>
-        <div class="col-sm-6 col-lg-4">
-          <label class="form-label small fw-medium text-dark">Harga per GB Snapshot</label>
-          <input type="number" step="0.000001" min="0" name="price_per_snapshot_gb_hour" value="{{ old('price_per_snapshot_gb_hour', $server->price_per_snapshot_gb_hour) }}" class="form-control form-control-sm">
-        </div>
-        <div class="col-sm-6 col-lg-4">
-          <label class="form-label small fw-medium text-dark">Lisensi Windows per vCPU</label>
-          <input type="number" step="0.000001" min="0" name="price_windows_license_per_vcpu_hour" value="{{ old('price_windows_license_per_vcpu_hour', $server->price_windows_license_per_vcpu_hour) }}" class="form-control form-control-sm">
-          <p class="text-muted mt-1 mb-0" style="font-size:10px">Hanya berlaku kalau OS mengandung kata "windows".</p>
-        </div>
-      </div>
-      </div>{{-- /#manualRateFields --}}
+      @if ($server->exists)
+        <button type="button" onclick="document.getElementById('syncCostForm').submit()" class="btn btn-outline-secondary btn-sm">
+          <i class="fa-solid fa-cloud-arrow-down" style="font-size:11px"></i> Tarik Harga Modal Sekarang
+        </button>
+      @else
+        <p class="text-muted mb-0" style="font-size:11px">Simpan server dulu, baru harga modal bisa ditarik.</p>
+      @endif
     </div>
 
     <div class="d-flex align-items-center gap-2 pt-2">
@@ -305,59 +227,109 @@
 
   <script>
     (function () {
-      const radios = document.querySelectorAll('[data-pricing-mode]');
-      const markupBox = document.getElementById('markupFields');
-      const manualBox = document.getElementById('manualRateFields');
+      const $ = (id) => document.getElementById(id);
+      const panelSelect = $('panelSelect');
+      const vpsSelect   = $('vpsProviderSelect');
+      const isEdit      = @json($server->exists);
+      const panels      = @json($panelProfiles);
+      const providers   = @json($vpsProfiles);
 
-      if (! radios.length) return;
+      const hint = $('serverHint');
+      const el = {
+        hostname: $('fieldHostname'), apiUser: $('fieldApiUsername'), apiToken: $('fieldApiToken'), port: $('fieldPort'),
+        ns: $('nameserverRow').querySelectorAll('input'),
+        labelHost: $('labelHostname'), labelUser: $('labelApiUsername'), labelToken: $('labelApiToken'),
+        wrapHost: $('wrapHostname'), wrapPort: $('wrapPort'), wrapUser: $('wrapApiUser'), wrapToken: $('wrapApiToken'),
+        rowHost: $('rowHost'), rowNs: $('nameserverRow'), rowCred: $('rowCredentials'),
+        rateCard: $('rateCardSection'), vpsWrap: $('vpsProviderWrap'),
+        wrapFx: $('wrapFx'), fxCurrency: $('fxCurrency'),
+      };
 
-      function sync() {
-        const mode = document.querySelector('[data-pricing-mode]:checked')?.value;
-        markupBox.classList.toggle('d-none', mode !== 'markup');
-        manualBox.classList.toggle('d-none', mode === 'markup');
+      // Port bawaan tiap panel hosting: hanya menimpa kalau kosong / masih
+      // berisi port bawaan panel lain, supaya port kustom admin tidak hilang.
+      const knownDefaultPorts = ['2087', '2222', '8443'];
 
-        radios.forEach(function (r) {
-          const label = r.closest('label');
-          const on = r.checked;
-          label.style.borderColor = on ? '#4f46e5' : '';
-          label.style.background = on ? 'rgba(79,70,229,.06)' : '';
-          label.style.color = on ? '#4338ca' : '';
-        });
+      // Elemen yang disembunyikan ikut di-disable supaya tidak terkirim
+      // saat submit (dan tidak memblokir submit lewat atribut required).
+      function show(node, on, inputs) {
+        node.classList.toggle('d-none', !on);
+        (inputs || node.querySelectorAll('input,select')).forEach((i) => { i.disabled = !on; });
       }
 
-      radios.forEach(r => r.addEventListener('change', sync));
-      sync();
-    })();
-  </script>
-
-  <script>
-    (function () {
-      const select   = document.getElementById('panelSelect');
-      const hostname = document.getElementById('fieldHostname');
-      const apiUser  = document.getElementById('fieldApiUsername');
-      const labelHost = document.getElementById('labelHostname');
-      const labelUser = document.getElementById('labelApiUsername');
-      const portWrap  = document.getElementById('fieldPortWrap');
-
-      function sync() {
-        const isIdch = select.value === 'idcloudhost';
-
-        document.querySelectorAll('.provider-hint-server').forEach(el => el.classList.add('d-none'));
-        document.getElementById(isIdch ? 'hintIdcloudhost' : 'hintCpanel').classList.remove('d-none');
-
-        hostname.required = !isIdch;
-        apiUser.required = !isIdch;
-        portWrap.classList.toggle('d-none', isIdch);
-        document.getElementById('rateCardSection').classList.toggle('d-none', !isIdch);
-
-        labelHost.textContent = isIdch ? 'Slug Lokasi (opsional)' : 'Hostname / IP';
-        hostname.placeholder = isIdch ? 'jkt01 (kosongkan utk default)' : 'server1.contoh.com';
-
-        labelUser.textContent = isIdch ? 'Billing Account ID — angka saja (opsional)' : 'API Username';
-        apiUser.placeholder = isIdch ? 'mis. 1200206137 — kosongkan utk default' : 'root';
+      // null = Jenis Panel "VM / VPS" tapi provider belum dipilih.
+      function currentProfile() {
+        if (panelSelect.value === 'vps') {
+          return providers[vpsSelect.value] || null;
+        }
+        return panels[panelSelect.value] || panels.cpanel;
       }
 
-      select.addEventListener('change', sync);
+      function setHint(cfg) {
+        if (cfg) {
+          hint.className = 'srv-hint tone-' + cfg.tone + ' rounded-3 mb-3 px-3 py-2 small';
+          hint.innerHTML = '<i class="fa-solid ' + cfg.icon + '"></i> ' + cfg.hint;
+        } else {
+          hint.className = 'srv-hint tone-secondary rounded-3 mb-3 px-3 py-2 small';
+          hint.innerHTML = '<i class="fa-solid fa-cloud"></i> <b>VM / VPS</b> — server cloud yang menjual VM/VPS lewat API provider. Pilih <b>VPS Provider</b> di bawah untuk menampilkan pengaturan dan panduan pengisiannya.';
+        }
+      }
+
+      function sync() {
+        const isVps = panelSelect.value === 'vps';
+        const cfg = currentProfile();
+        const f = cfg ? cfg.fields : {};
+
+        show(el.vpsWrap, isVps);
+        vpsSelect.required = isVps;
+        setHint(cfg);
+
+        // Hostname & Port
+        show(el.wrapHost, !!f.hostname);
+        show(el.wrapPort, !!(cfg && cfg.port));
+        el.wrapHost.classList.toggle('col-sm-8', !!(cfg && cfg.port));
+        el.wrapHost.classList.toggle('col-12', !(cfg && cfg.port));
+        el.rowHost.classList.toggle('d-none', !(f.hostname || (cfg && cfg.port)));
+        if (f.hostname) {
+          el.labelHost.textContent = f.hostname.label;
+          el.hostname.placeholder = f.hostname.placeholder || '';
+          el.hostname.required = !!f.hostname.required;
+        }
+        el.port.required = !!(cfg && cfg.port);
+        if (cfg && cfg.port && (!el.port.value || knownDefaultPorts.includes(el.port.value))) {
+          el.port.value = cfg.port;
+        }
+
+        // Nameserver (hanya panel hosting biasa)
+        show(el.rowNs, !!(cfg && cfg.ns), el.ns);
+
+        // API Username & Token
+        show(el.wrapUser, !!f.api_username);
+        show(el.wrapToken, !!f.api_token);
+        el.wrapToken.classList.toggle('col-sm-6', !!f.api_username);
+        el.wrapToken.classList.toggle('col-12', !f.api_username);
+        el.rowCred.classList.toggle('d-none', !(f.api_username || f.api_token));
+        if (f.api_username) {
+          el.labelUser.textContent = f.api_username.label;
+          el.apiUser.placeholder = f.api_username.placeholder || '';
+          el.apiUser.required = !!f.api_username.required;
+        }
+        if (f.api_token) {
+          el.labelToken.textContent = f.api_token.label + (isEdit ? ' (kosongkan jika tidak diganti)' : '');
+          el.apiToken.placeholder = isEdit ? '••••••••••••' : '';
+          el.apiToken.required = !isEdit;
+        }
+
+        // Harga modal (hanya provider yang mendukung tarik harga)
+        show(el.rateCard, !!(cfg && cfg.rateCard), []);
+
+        // Kurs hanya untuk provider yang harga modalnya bukan Rupiah
+        const needsFx = !!(cfg && cfg.rateCard && cfg.currency && cfg.currency !== 'IDR');
+        show(el.wrapFx, needsFx);
+        if (needsFx) el.fxCurrency.textContent = cfg.currency;
+      }
+
+      panelSelect.addEventListener('change', sync);
+      vpsSelect.addEventListener('change', sync);
       sync();
     })();
   </script>

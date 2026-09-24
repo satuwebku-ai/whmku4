@@ -17,6 +17,9 @@
     <span class="badge {{ $badgeMap[$displayStatus] ?? 'badge-soft-secondary' }}" style="font-size:13px;padding:.4rem .8rem">
       {{ $displayStatus === 'overdue' ? 'Overdue' : ucfirst($displayStatus) }}
     </span>
+    <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-outline-secondary btn-sm">
+      <i class="fa-solid fa-file-pdf"></i> Unduh PDF
+    </a>
   </div>
 
   <div class="row g-3">

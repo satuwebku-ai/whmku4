@@ -49,7 +49,11 @@ class NavMenu extends Model
 
     public function page(): BelongsTo
     {
-        return $this->belongsTo(Page::class);
+        // FK disebut eksplisit -- kolomnya TETAP page_id (tidak ikut
+        // di-rename saat model Page jadi CmsPage), jadi tidak boleh
+        // mengandalkan tebakan otomatis Eloquent (yang sekarang akan
+        // menebak cms_page_id dan salah).
+        return $this->belongsTo(CmsPage::class, 'page_id');
     }
 
     public function scopeActive(Builder $query): Builder

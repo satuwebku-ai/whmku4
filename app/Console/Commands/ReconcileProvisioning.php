@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\HostingAccount;
 use App\Models\Invoice;
+use App\Enums\OrderStatus;
 use App\Services\Hosting\HostingPanelFactory;
 use App\Services\Provisioning\ProvisioningService;
 use Illuminate\Console\Command;
@@ -50,7 +51,15 @@ class ReconcileProvisioning extends Command
         // seiring waktu, mahal diperiksa satu-satu tiap kali cron jalan).
         $stuckInvoices = Invoice::where('status', 'paid')
             ->whereHas('items.order', function ($q) {
-                $q->where('status', 'pending');
+                $q->where(function ($q) {
+                    $q->whereIn('status', [
+                        OrderStatus::Paid->value,
+                        OrderStatus::Provisioning->value,
+                        OrderStatus::Failed->value,
+                    ])
+                      ->orWhereHas('hostingAccount', fn ($h) => $h->whereIn('provision_status', ['failed', 'manual']))
+                      ->orWhereHas('domain', fn ($d) => $d->whereIn('provision_status', ['failed', 'needs_documents', 'needs_eligibility']));
+                });
             })
             ->with(['items.order.hostingAccount.serverModel', 'items.order.domain.registrar'])
             ->get();
@@ -61,15 +70,16 @@ class ReconcileProvisioning extends Command
             return self::SUCCESS;
         }
 
-        $this->info("Ditemukan {$stuckInvoices->count()} invoice lunas dengan order pending:");
+        $this->info("Ditemukan {$stuckInvoices->count()} invoice lunas dengan provisioning yang belum selesai:");
 
         foreach ($stuckInvoices as $invoice) {
             foreach ($invoice->items as $item) {
                 $order = $item->order;
 
-                if (! $order || $order->status !== 'pending') {
-                    continue;
-                }
+                if (! $order) { continue; }
+                $needs = ($order->order_type === 'hosting' && $order->hostingAccount && $order->hostingAccount->provision_status !== 'provisioned')
+                    || ($order->order_type === 'domain' && $order->domain && ! in_array($order->domain->provision_status, ['registered', 'manual'], true));
+                if (! $needs) continue;
 
                 $this->line("  - {$invoice->invoice_number}: Order #{$order->id} ({$order->order_type})");
 
@@ -82,7 +92,7 @@ class ReconcileProvisioning extends Command
                 } elseif ($order->order_type === 'domain' && $order->domain) {
                     $provisioning->provisionInvoice($invoice);
                     $order->refresh();
-                    $fixed = $order->status === 'active';
+                    $fixed = $order->status === \App\Enums\OrderStatus::Completed;
                 } else {
                     $fixed = false;
                 }
@@ -133,8 +143,18 @@ class ReconcileProvisioning extends Command
 
                     $account->orders()
                         ->where('order_type', 'hosting')
-                        ->where('status', 'pending')
-                        ->update(['status' => 'active']);
+                        ->whereIn('status', [
+                            OrderStatus::Paid->value,
+                            OrderStatus::Provisioning->value,
+                            OrderStatus::Failed->value,
+                        ])
+                        ->get()
+                        ->each(function ($order) {
+                            if ($order->status === OrderStatus::Failed) {
+                                $order->markProvisioning('Provider sudah memiliki akun; status direkonsiliasi.');
+                            }
+                            $order->markCompleted('Provider sudah memiliki akun; status direkonsiliasi.');
+                        });
 
                     Log::info('reconcile-provisioning: hosting disinkronkan', ['hosting_account_id' => $account->id]);
 
@@ -154,7 +174,7 @@ class ReconcileProvisioning extends Command
 
                 Log::info('reconcile-provisioning: hosting dicoba provisikan ulang', ['hosting_account_id' => $account->id]);
 
-                return $account->provision_status === 'provisioned' && $order->status === 'active';
+                return $account->provision_status === 'provisioned' && $order->status === \App\Enums\OrderStatus::Completed;
             }
         }
 

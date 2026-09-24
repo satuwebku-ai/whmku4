@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Page;
+use App\Models\CmsPage;
 use App\Models\Setting;
 use Illuminate\Console\Command;
 
@@ -45,7 +45,7 @@ class SeedLegalDrafts extends Command
 
     private function seedPage(string $slug, string $title, string $content, bool $force): void
     {
-        $page = Page::where('slug', $slug)->first();
+        $page = CmsPage::where('slug', $slug)->first();
 
         $looksLikePlaceholder = $page && (
             str_contains($page->content, 'Tuliskan syarat layanan') ||
@@ -58,7 +58,7 @@ class SeedLegalDrafts extends Command
             return;
         }
 
-        Page::updateOrCreate(['slug' => $slug], [
+        CmsPage::updateOrCreate(['slug' => $slug], [
             'title' => $title,
             'content' => $content,
             'meta_title' => $title,

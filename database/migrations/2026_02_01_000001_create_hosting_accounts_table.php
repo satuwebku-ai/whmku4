@@ -61,6 +61,10 @@ return new class extends Migration
 
             $table->string('provision_status')->default('manual'); // manual, provisioned, failed
             $table->text('provision_message')->nullable(); // pesan sukses/error terakhir dari API panel
+            $table->timestamp('provisioning_started_at')->nullable();
+            $table->timestamp('provisioning_finished_at')->nullable();
+            $table->unsignedInteger('provisioning_attempts')->default(0);
+            $table->uuid('provisioning_key')->nullable()->unique();
             // Untuk layanan yang provisioning-nya manual (VPS, dedicated
             // server, lisensi software, dst), tidak ada cara klien melihat
             // info aksesnya sama sekali. Kolom bebas ini diisi admin sendiri

@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Models\CronJob;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -36,15 +38,32 @@ class RunCron extends Command
             return self::SUCCESS;
         }
 
+        $failed = 0;
+
         foreach ($jobs as $job) {
-            $this->runJob($job);
+            if (! $this->runJob($job)) {
+                $failed++;
+            }
         }
 
-        return self::SUCCESS;
+        // Tetap jalankan seluruh job meski satu gagal, tetapi kembalikan
+        // exit code gagal agar cron/monitoring server dapat mendeteksi masalah.
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    private function runJob(CronJob $job): void
+    private function runJob(CronJob $job): bool
     {
+        // Cron server bisa memanggil lumora:cron lebih dari sekali secara
+        // bersamaan (mis. overlap, retry, atau dua entry cPanel). Lock per
+        // tugas memastikan satu job tidak diproses paralel. TTL mencegah lock
+        // tertinggal selamanya bila PHP mati mendadak.
+        $lock = Cache::lock("lumora:cron:{$job->key}", 21600);
+
+        if (! $lock->get()) {
+            $this->warn("  dilewati: {$job->name} sedang berjalan di proses lain.");
+            return true;
+        }
+
         $this->line("Menjalankan: {$job->name} ({$job->command})");
 
         $job->update(['last_status' => 'running']);
@@ -53,8 +72,14 @@ class RunCron extends Command
         try {
             // Output ditangkap supaya bisa ditampilkan di panel admin —
             // tanpa ini, kegagalan tugas hanya terlihat di log server.
-            Artisan::call($job->command);
+            $exitCode = Artisan::call($job->command);
             $output = trim(Artisan::output());
+
+            if ($exitCode !== self::SUCCESS) {
+                throw new RuntimeException(
+                    $output !== '' ? $output : "Command {$job->command} berhenti dengan exit code {$exitCode}."
+                );
+            }
 
             $job->update([
                 'last_status' => 'success',
@@ -66,6 +91,7 @@ class RunCron extends Command
             ]);
 
             $this->info('  selesai');
+            return true;
         } catch (Throwable $e) {
             // Kegagalan satu tugas tidak boleh menghentikan tugas lain,
             // jadi errornya dicatat lalu proses lanjut.
@@ -81,6 +107,9 @@ class RunCron extends Command
             ]);
 
             $this->error('  gagal: ' . $e->getMessage());
+            return false;
+        } finally {
+            optional($lock)->release();
         }
     }
 }

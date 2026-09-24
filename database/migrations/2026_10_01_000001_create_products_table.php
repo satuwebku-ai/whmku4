@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_category_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_category_id')->constrained('product_groups')->cascadeOnDelete();
             $table->string('name');
             $table->string('slug')->unique();
             $table->string('tagline')->nullable(); // ringkasan 1 baris untuk kartu produk
@@ -44,10 +44,19 @@ return new class extends Migration
             // Khusus produk VPS: ditagih dari saldo per jam, atau invoice
             // berkala seperti hosting biasa.
             $table->enum('billing_mode', ['invoice', 'deposit'])->default('invoice');
+            $table->enum('pricing_mode', ['manual', 'markup'])->nullable();
+            $table->decimal('markup_percent', 6, 2)->nullable();
+            $table->decimal('price_per_vcpu_hour', 12, 6)->nullable();
+            $table->decimal('price_per_ram_gb_hour', 12, 6)->nullable();
+            $table->decimal('price_per_storage_gb_hour', 12, 6)->nullable();
+            $table->decimal('price_per_backup_gb_hour', 12, 6)->nullable();
+            $table->decimal('price_per_snapshot_gb_hour', 12, 6)->nullable();
+            $table->decimal('price_windows_license_per_vcpu_hour', 12, 6)->nullable();
 
             $table->boolean('is_active')->default(true);
             $table->boolean('is_featured')->default(false);
             $table->unsignedInteger('stock')->nullable(); // null = tidak dibatasi
+            $table->unsignedInteger('reserved_stock')->default(0);
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
         });

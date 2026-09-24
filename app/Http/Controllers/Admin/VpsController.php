@@ -21,10 +21,8 @@ class VpsController extends Controller
 {
     public function index(): View
     {
-        // Server bertipe cloud -- untuk sekarang idcloudhost, tapi
-        // sengaja pakai whereIn supaya provider cloud lain nanti
-        // cukup ditambahkan ke daftar ini tanpa ubah query.
-        $cloudServerIds = Server::whereIn('panel', ['idcloudhost'])->pluck('id');
+        // Server bertipe cloud (semua VPS provider di config/vps_providers.php).
+        $cloudServerIds = Server::cloud()->pluck('id');
 
         $accounts = HostingAccount::whereIn('server_id', $cloudServerIds)
             ->with(['client', 'serverModel'])
@@ -52,8 +50,8 @@ class VpsController extends Controller
 
     public function create(Request $request): View
     {
-        $cloudServerIds = Server::whereIn('panel', ['idcloudhost'])->pluck('id');
-        $servers = Server::whereIn('panel', ['idcloudhost'])->where('is_active', true)->orderBy('name')->get();
+        $cloudServerIds = Server::cloud()->pluck('id');
+        $servers = Server::cloud()->where('is_active', true)->orderBy('name')->get();
 
         // Pilihan OS/lokasi/kelas server ditarik langsung dari provider
         // supaya admin memilih dari daftar SUNGGUHAN, bukan mengetik
@@ -68,21 +66,21 @@ class VpsController extends Controller
 
         if ($server) {
             try {
-                $service = new \App\Services\Hosting\IdCloudHostService($server);
+                $service = \App\Services\Vps\VpsProviderFactory::make($server);
 
-                $img = $service->listVmImages();
+                $img = $service->images();
                 $osImages = $img['success'] ? ($img['raw'] ?? []) : [];
 
-                $loc = $service->listLocations();
+                $loc = $service->locations();
                 $locations = $loc['success'] ? ($loc['raw'] ?? []) : [];
 
-                $pool = $service->listHostPools();
+                $pool = $service->pools();
                 $pools = $pool['success'] ? ($pool['raw'] ?? []) : [];
 
                 // Batasan spek SUNGGUHAN dari provider (mis. vCPU minimal
                 // 2, bukan 1) -- dipakai membatasi isian form supaya
                 // tidak mengirim spek yang pasti ditolak.
-                $par = $service->getVmParameters();
+                $par = $service->parameters();
                 foreach (($par['success'] ? ($par['raw'] ?? []) : []) as $p) {
                     $key = $p['parameter'] ?? '';
                     if (isset($limits[$key])) {
@@ -128,6 +126,8 @@ class VpsController extends Controller
             'billing_cycle' => ['nullable', 'in:monthly,quarterly,semi_annually,annually'],
             'location'      => ['nullable', 'string', 'max:20'],
             'pool_uuid'     => ['nullable', 'string', 'max:64'],
+            'provider_size' => ['nullable', 'string', 'max:100'],
+            'provider_image_id' => ['nullable', 'string', 'max:100'],
         ], [
             'domain.regex' => 'Nama VM hanya boleh huruf, angka, dan strip — tidak boleh diawali/diakhiri strip.',
         ]);
@@ -146,6 +146,8 @@ class VpsController extends Controller
             'backup_enabled' => $request->boolean('backup_enabled'),
             'location'       => $data['location'] ?? null,
             'pool_uuid'      => $data['pool_uuid'] ?? null,
+            'provider_size' => $data['provider_size'] ?? null,
+            'provider_image_id' => $data['provider_image_id'] ?? null,
         ]);
 
         $account = HostingAccount::create([
@@ -159,7 +161,10 @@ class VpsController extends Controller
             'billing_mode'     => $data['billing_mode'],
             'status'           => 'pending',
             'provision_status' => 'manual',
-            'next_due_date'    => now()->addMonth(),
+            // Sama seperti jalur checkout publik: layanan deposit tidak
+            // punya jatuh tempo siklus, jadi tidak boleh masuk ke
+            // GenerateRenewalInvoices (yang jalan berdasar next_due_date).
+            'next_due_date'    => $data['billing_mode'] === 'invoice' ? now()->addMonth() : null,
         ]);
 
         if (! $request->boolean('provision_now')) {
@@ -207,11 +212,6 @@ class VpsController extends Controller
         );
     }
 
-    /**
-     * Sama logikanya dengan ChargeHourlyUsage::effectiveRate() --
-     * hitung dari kartu harga server kalau ada spek VM, kalau tidak
-     * pakai tarif flat manual.
-     */
     /**
      * Coba buat ulang VM untuk layanan yang provisioning-nya gagal.
      * Berguna setelah memperbaiki penyebabnya (mis. Billing Account ID
@@ -412,14 +412,6 @@ class VpsController extends Controller
 
     private function rateFor(HostingAccount $account): ?float
     {
-        if ($account->serverModel && $account->hasVmSpec()) {
-            $rate = HourlyRateCalculator::calculate($account->serverModel, $account->vmSpec());
-
-            if ($rate > 0) {
-                return $rate;
-            }
-        }
-
-        return $account->hourly_rate ? (float) $account->hourly_rate : null;
+        return HourlyRateCalculator::forAccount($account);
     }
 }

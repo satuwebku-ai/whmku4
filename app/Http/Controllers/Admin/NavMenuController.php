@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\NavMenu;
-use App\Models\Page;
+use App\Models\CmsPage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -39,7 +39,7 @@ class NavMenuController extends Controller
     {
         return view('admin.nav-menus.form', [
             'menu' => new NavMenu(['type' => 'page', 'parent_id' => request('parent_id')]),
-            'pages' => Page::published()->orderBy('title')->get(),
+            'pages' => CmsPage::published()->orderBy('title')->get(),
             'parentOptions' => NavMenu::whereNull('parent_id')->orderBy('sort_order')->get(),
         ]);
     }
@@ -48,7 +48,7 @@ class NavMenuController extends Controller
     {
         return view('admin.nav-menus.form', [
             'menu' => new NavMenu(['type' => 'page', 'parent_id' => request('parent_id')]),
-            'pages' => Page::published()->orderBy('title')->get(),
+            'pages' => CmsPage::published()->orderBy('title')->get(),
             'parentOptions' => NavMenu::whereNull('parent_id')->orderBy('sort_order')->get(),
         ]);
     }
@@ -68,7 +68,7 @@ class NavMenuController extends Controller
     {
         return view('admin.nav-menus.form', [
             'menu' => $navMenu,
-            'pages' => Page::published()->orderBy('title')->get(),
+            'pages' => CmsPage::published()->orderBy('title')->get(),
             // Menu tidak boleh jadi anak dari dirinya sendiri.
             'parentOptions' => NavMenu::whereNull('parent_id')->where('id', '!=', $navMenu->id)->orderBy('sort_order')->get(),
         ]);
@@ -78,7 +78,7 @@ class NavMenuController extends Controller
     {
         return view('admin.nav-menus.form', [
             'menu' => $navMenu,
-            'pages' => Page::published()->orderBy('title')->get(),
+            'pages' => CmsPage::published()->orderBy('title')->get(),
             'parentOptions' => NavMenu::whereNull('parent_id')->where('id', '!=', $navMenu->id)->orderBy('sort_order')->get(),
         ]);
     }
@@ -137,7 +137,7 @@ class NavMenuController extends Controller
             'label' => ['required', 'string', 'max:50'],
             'type' => ['required', 'in:route,page,url'],
             'route_name' => ['required_if:type,route', 'nullable', 'string', 'in:' . implode(',', array_keys(NavMenu::BUILTIN_ROUTES))],
-            'page_id' => ['required_if:type,page', 'nullable', 'exists:pages,id'],
+            'page_id' => ['required_if:type,page', 'nullable', 'exists:cms_pages,id'],
             'url' => ['required_if:type,url', 'nullable', 'url', 'max:255'],
             'open_in_new_tab' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],

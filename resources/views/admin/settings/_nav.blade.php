@@ -6,6 +6,7 @@
     ['label' => 'PDF Invoice', 'route' => 'admin.settings.pdf-invoice'],
     ['label' => 'SEO', 'route' => 'admin.settings.seo'],
     ['label' => 'Analytics', 'route' => 'admin.settings.analytics'],
+    ['label' => 'Affiliate', 'route' => 'admin.settings.affiliate'],
     ['label' => 'Notifikasi', 'route' => 'admin.settings.notifications'],
     ['label' => 'Keamanan', 'route' => 'admin.settings.security'],
     ['label' => 'Live Chat', 'route' => 'admin.settings.livechat'],

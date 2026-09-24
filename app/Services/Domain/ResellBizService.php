@@ -24,6 +24,11 @@ class ResellBizService implements DomainRegistrarInterface
         return $this->notImplemented();
     }
 
+    public function transferDomain(array $params): array
+    {
+        return $this->notImplemented();
+    }
+
     public function renewDomain(string $domain, int $years): array
     {
         return $this->notImplemented();

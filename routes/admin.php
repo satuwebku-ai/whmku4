@@ -1,7 +1,9 @@
 <?php
 
-use App\Http\Controllers\Admin\Auth\LoginController;
-use App\Http\Controllers\Admin\Auth\OtpController;
+use App\Http\Controllers\Auth\Admin\ForgotPasswordController;
+use App\Http\Controllers\Auth\Admin\LoginController;
+use App\Http\Controllers\Auth\Admin\LogoutController;
+use App\Http\Controllers\Auth\Admin\OtpController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ActivityController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -10,6 +12,7 @@ use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\CronController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\BillingDashboardController;
 use App\Http\Controllers\Admin\DomainController;
 use App\Http\Controllers\Admin\HostingAccountController;
 use App\Http\Controllers\Admin\ImpersonateController;
@@ -47,6 +50,16 @@ Route::middleware('guest:admin')->group(function () {
     Route::get('login', [LoginController::class, 'create'])->name('login');
     Route::post('login', [LoginController::class, 'store'])->name('login.store');
 
+    // ── Lupa password: email → kode → password baru ──
+    Route::controller(ForgotPasswordController::class)->prefix('password')->name('password.')->group(function () {
+        Route::get('forgot', 'request')->name('request');
+        Route::post('email', 'sendCode')->name('email');
+        Route::get('verify', 'verifyForm')->name('verify');
+        Route::post('verify', 'verifyCode')->name('verify.code');
+        Route::get('reset', 'resetForm')->name('reset');
+        Route::post('reset', 'reset')->name('update');
+    });
+
     // Tantangan OTP — pengguna belum login di titik ini, jadi tetap di
     // grup guest. Aksesnya dijaga oleh session "otp.admin_id".
     Route::controller(OtpController::class)->group(function () {
@@ -57,8 +70,8 @@ Route::middleware('guest:admin')->group(function () {
     });
 });
 
-Route::middleware('auth:admin')->group(function () {
-    Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
+Route::middleware(['admin', 'check.status'])->group(function () {
+    Route::post('logout', LogoutController::class)->name('logout');
 
     Route::get('/', DashboardController::class . '@indexBootstrap')->name('dashboard');
     Route::get('dashboard', DashboardController::class . '@index')->name('dashboard.alt');
@@ -82,6 +95,11 @@ Route::middleware('auth:admin')->group(function () {
         Route::post('cancel/order', 'cancel')->name('order.cancel');
         Route::post('mark-as-pending/order', 'markPending')->name('order.mark.pending');
         Route::post('order/notes', 'orderNotes')->name('order.notes');
+    });
+
+    // ── Billing Dashboard ── (modul: billing)
+    Route::middleware('module:billing')->group(function () {
+        Route::get('billing/dashboard', [BillingDashboardController::class, 'index'])->name('billing.dashboard');
     });
 
     // ── Invoice ── (modul: billing)
@@ -255,6 +273,7 @@ Route::middleware('auth:admin')->group(function () {
         Route::resource('product-categories', ProductCategoryController::class)->except('show');
         Route::resource('addons', \App\Http\Controllers\Admin\AddonController::class)->except('show');
         Route::post('addon/status', [\App\Http\Controllers\Admin\AddonController::class, 'status'])->name('addon.status');
+        Route::post('products/vps-estimate', [ProductController::class, 'vpsEstimate'])->name('products.vps-estimate');
         Route::resource('products', ProductController::class)->except('show');
         Route::post('product/status', [ProductController::class, 'status'])->name('product.status');
 
@@ -319,6 +338,55 @@ Route::middleware('auth:admin')->group(function () {
         Route::post('update/coupon/{coupon}', 'update')->name('coupon.update');
         Route::delete('delete/coupon/{coupon}', 'destroy')->name('coupon.delete');
         Route::post('coupon/status', 'status')->name('coupon.status');
+    });
+
+    // ── Program Affiliate — modul: sales. ──
+    Route::middleware('module:sales')->prefix('affiliate')->name('affiliate.')->group(function () {
+        // Sub-resource dengan prefix tetap (commissions/payouts) HARUS
+        // didaftarkan SEBELUM route wildcard {affiliate} di bawah --
+        // kalau tidak, "admin/affiliate/commissions" akan dicocokkan ke
+        // "admin/affiliate/{affiliate}" duluan (dengan "commissions"
+        // dianggap kode affiliate), gagal resolve model, lalu 404 --
+        // tidak pernah sampai ke route yang benar.
+        Route::controller(\App\Http\Controllers\Admin\Affiliate\CommissionController::class)
+            ->prefix('commissions')->name('commissions.')->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('{commission}/approve', 'approve')->name('approve');
+                Route::post('{commission}/cancel', 'cancel')->name('cancel');
+                Route::post('{commission}/reverse', 'reverse')->name('reverse');
+            });
+
+        Route::controller(\App\Http\Controllers\Admin\Affiliate\PayoutController::class)
+            ->prefix('payouts')->name('payouts.')->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('{payout}/approve', 'approve')->name('approve');
+                Route::post('{payout}/process', 'process')->name('process');
+                Route::post('{payout}/paid', 'markPaid')->name('paid');
+                Route::post('{payout}/failed', 'fail')->name('failed');
+                Route::post('{payout}/reject', 'reject')->name('reject');
+            });
+
+        Route::controller(\App\Http\Controllers\Admin\Affiliate\FraudReviewController::class)
+            ->prefix('fraud')->name('fraud.')->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('{flag}/review', 'review')->name('review');
+            });
+
+        Route::controller(\App\Http\Controllers\Admin\Affiliate\RuleController::class)
+            ->prefix('rules')->name('rules.')->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::post('/', 'store')->name('store');
+                Route::post('{rule}/toggle', 'toggle')->name('toggle');
+                Route::delete('{rule}', 'destroy')->name('destroy');
+            });
+
+        Route::controller(\App\Http\Controllers\Admin\Affiliate\AffiliateController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('{affiliate}', 'show')->name('show');
+            Route::post('{affiliate}/approve', 'approve')->name('approve');
+            Route::post('{affiliate}/reject', 'reject')->name('reject');
+            Route::post('{affiliate}/suspend', 'suspend')->name('suspend');
+        });
     });
 
     // ── Support Ticket (Fase 6) ── (modul: support)
@@ -438,6 +506,8 @@ Route::middleware('auth:admin')->group(function () {
             Route::get('pdf-invoice/preview', 'pdfInvoicePreview')->name('pdf-invoice.preview');
             Route::get('analytics', 'analyticsBootstrap')->name('analytics');
             Route::post('analytics', 'updateAnalytics')->name('analytics.update');
+            Route::get('affiliate', 'affiliateBootstrap')->name('affiliate');
+            Route::post('affiliate', 'updateAffiliate')->name('affiliate.update');
             Route::get('notifications', 'notificationsBootstrap')->name('notifications');
             Route::post('notifications', 'updateNotifications')->name('notifications.update');
             Route::post('notifications/test-wa', 'testWhatsApp')->name('notifications.test-wa');
@@ -498,6 +568,15 @@ Route::middleware('auth:admin')->group(function () {
             Route::post('settings', 'updateSettings')->name('settings');
             Route::post('gdrive-settings', 'updateGoogleDrive')->name('gdrive-settings');
             Route::post('gdrive-test', 'testGoogleDrive')->name('gdrive-test');
+
+            // Restore MENIMPA SELURUH DATA -- digerbang lebih ketat
+            // (role:superadmin, bukan cuma module:infrastructure) karena
+            // dampaknya jauh lebih besar & sepihak dari aksi lain di
+            // grup ini.
+            Route::middleware('role:superadmin')->group(function () {
+                Route::post('{filename}/restore', 'restore')->name('restore');
+                Route::post('restore-upload', 'restoreUpload')->name('restore-upload');
+            });
         });
 
         // ── Konsol Web — jalankan perintah artisan tanpa Terminal/SSH ──

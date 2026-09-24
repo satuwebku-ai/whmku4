@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Models\ClientBalanceLog;
 use App\Models\HostingAccount;
 use App\Services\Billing\HourlyRateCalculator;
+use App\Services\Billing\CreditService;
 use App\Services\Hosting\HostingPanelFactory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +26,7 @@ use Throwable;
  */
 class ChargeHourlyUsage extends Command
 {
+    public function __construct(private readonly CreditService $credits) { parent::__construct(); }
     protected $signature = 'lumora:charge-hourly-usage {--dry : Tampilkan yang AKAN terjadi tanpa benar-benar memotong saldo}';
 
     protected $description = 'Potong saldo klien untuk layanan deposit (per jam) yang sedang aktif berjalan';
@@ -171,29 +172,14 @@ class ChargeHourlyUsage extends Command
      */
     private function effectiveRate(HostingAccount $account): float
     {
-        if ($account->serverModel && $account->hasVmSpec()) {
-            $rate = HourlyRateCalculator::calculate($account->serverModel, $account->vmSpec());
-
-            if ($rate > 0) {
-                return $rate;
-            }
-        }
-
-        return (float) ($account->hourly_rate ?? 0);
+        return HourlyRateCalculator::forAccount($account) ?? 0.0;
     }
 
     private function applyCharge($client, HostingAccount $account, float $amount, string $description): void
     {
-        $client->decrement('balance', $amount);
-        $client->refresh();
-
-        ClientBalanceLog::create([
-            'client_id'     => $client->id,
-            'amount'        => -$amount,
-            'type'          => 'usage_charge',
-            'description'   => $description,
-            'balance_after' => $client->balance,
-        ]);
+        // Semua mutasi saldo wajib lewat CreditService/Client::adjustBalance()
+        // agar balance dan ledger client_balance_logs tidak pernah berbeda.
+        $this->credits->debit($client, $amount, $description, 'usage_charge');
     }
 
     /**

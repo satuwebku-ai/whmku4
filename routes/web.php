@@ -53,6 +53,11 @@ Route::controller(DomainSearchController::class)->group(function () {
     Route::post('transfer-domain', 'submitTransfer')->name('domains.transfer.submit');
 });
 
+// Link referral affiliate. Dua segmen ({code} lalu opsional {campaign})
+// jadi TIDAK bentrok dengan catch-all {slug} satu-segmen di paling bawah
+// file ini, tapi tetap didaftarkan lebih awal supaya jelas urutannya.
+Route::get('ref/{code}/{campaign?}', [\App\Http\Controllers\Site\ReferralController::class, 'visit'])->name('affiliate.visit');
+
 Route::controller(CartController::class)->prefix('keranjang')->name('cart.')->group(function () {
     Route::get('/', 'indexBootstrap')->name('index');
     Route::post('produk', 'addProduct')->name('add-product');
@@ -72,7 +77,7 @@ Route::controller(CartController::class)->prefix('keranjang')->name('cart.')->gr
 | PALING BAWAH file ini untuk alasan urutan pendaftarannya.
 |
 | Slug yang bisa bentrok dengan route sistem (mis. "admin", "hosting")
-| ditolak sejak dibuat — lihat Page::RESERVED_SLUGS.
+| ditolak sejak dibuat — lihat CmsPage::RESERVED_SLUGS.
 */
 /*
 |--------------------------------------------------------------------------
@@ -115,6 +120,8 @@ Route::get('announcements/{slug}', [SitePageController::class, 'announcementBoot
 |   Duitku   -> https://domainmu.com/payment/webhook/duitku
 */
 Route::post('payment/webhook/{driver}', [WebhookController::class, 'handle'])
+    ->whereIn('driver', ['midtrans', 'xendit', 'duitku'])
+    ->middleware('throttle:120,1')
     ->name('payment.webhook');
 
 Route::get('payment/finish', [WebhookController::class, 'finish'])
@@ -136,7 +143,7 @@ Route::get('payment/finish', [WebhookController::class, 'finish'])
 | sudah lebih dulu terdaftar di atas (lewat admin.php/client.php), jadi
 | tetap diproses lebih dulu sebelum baris ini dicapai.
 |
-| Sebagai lapis pengaman kedua, Page::RESERVED_SLUGS mencegah slug baru
+| Sebagai lapis pengaman kedua, CmsPage::RESERVED_SLUGS mencegah slug baru
 | dibuat dengan nama yang bisa bentrok sejak awal — lihat app/Models/Page.php.
 */
 Route::get('{slug}', [SitePageController::class, 'showBootstrap'])

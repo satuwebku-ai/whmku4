@@ -38,6 +38,15 @@
                 <a href="{{ route('admin.backups.download', $backup['name']) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Unduh">
                   <i class="fa-solid fa-download" style="font-size:12px"></i>
                 </a>
+                @if (auth('admin')->user()?->role === 'superadmin')
+                  <form method="POST" action="{{ route('admin.backups.restore', $backup['name']) }}"
+                        data-confirm="PULIHKAN dari cadangan {{ $backup['name'] }}? SELURUH DATA SAAT INI akan DITIMPA dengan isi cadangan ini (yang dibuat {{ $backup['created_at']->format('d M Y H:i') }}). Cadangan pengaman dari keadaan sekarang akan dibuat otomatis dulu sebelum menimpa, tapi proses ini tetap butuh waktu dan TIDAK BOLEH diinterupsi." data-confirm-title="Pulihkan Database" data-confirm-style="danger" data-confirm-label="Ya, Timpa & Pulihkan">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-warning btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Pulihkan dari cadangan ini">
+                      <i class="fa-solid fa-clock-rotate-left" style="font-size:12px"></i>
+                    </button>
+                  </form>
+                @endif
                 <form method="POST" action="{{ route('admin.backups.destroy', $backup['name']) }}"
                       data-confirm="Hapus cadangan {{ $backup['name'] }}? Tidak bisa dibatalkan." data-confirm-title="Hapus Cadangan" data-confirm-style="danger" data-confirm-label="Ya, Hapus">
                   @csrf @method('DELETE')
@@ -52,6 +61,28 @@
           @endforelse
         </div>
       </div>
+
+      @if (auth('admin')->user()?->role === 'superadmin')
+        <div class="card border rounded-4 p-4 mt-3" style="background:#fef2f2;border-color:#fecaca!important">
+          <h2 class="small fw-bold mb-2" style="color:#991b1b">
+            <i class="fa-solid fa-clock-rotate-left"></i> Pulihkan dari File Unggahan
+          </h2>
+          <p class="mb-3" style="font-size:12px;color:#991b1b">
+            Untuk cadangan yang tidak ada di daftar server ini (mis. diunduh dari Google Drive, atau dari server lain).
+            <b>Seluruh data saat ini akan ditimpa.</b> Cadangan pengaman dari keadaan sekarang dibuat otomatis dulu
+            sebelum menimpa apa pun.
+          </p>
+          <form method="POST" action="{{ route('admin.backups.restore-upload') }}" enctype="multipart/form-data"
+                data-confirm="PULIHKAN dari file yang diunggah? SELURUH DATA SAAT INI akan DITIMPA. Cadangan pengaman dari keadaan sekarang akan dibuat otomatis dulu, tapi proses ini tetap butuh waktu dan TIDAK BOLEH diinterupsi." data-confirm-title="Pulihkan Database" data-confirm-style="danger" data-confirm-label="Ya, Timpa & Pulihkan">
+            @csrf
+            <input type="file" name="backup_file" accept=".zip" required class="form-control form-control-sm mb-2">
+            @error('backup_file') <p class="text-danger mb-2" style="font-size:12px">{{ $message }}</p> @enderror
+            <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+              <i class="fa-solid fa-upload" style="font-size:11px"></i> Unggah &amp; Pulihkan
+            </button>
+          </form>
+        </div>
+      @endif
     </div>
 
     <div class="col-12 col-lg-4">

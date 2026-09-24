@@ -19,12 +19,12 @@ return new class extends Migration
             $table->string('label');
 
             // route  = halaman bawaan sistem (Hosting, Domain, Pengumuman)
-            // page   = tautan ke Halaman (tabel pages)
+            // page   = tautan ke Halaman CMS (tabel cms_pages)
             // url    = tautan bebas ke mana saja, termasuk luar situs
             $table->enum('type', ['route', 'page', 'url'])->default('url');
 
             $table->string('route_name')->nullable();
-            $table->foreignId('page_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('page_id')->nullable()->constrained('cms_pages')->nullOnDelete();
             $table->string('url')->nullable();
 
             $table->boolean('open_in_new_tab')->default(false);

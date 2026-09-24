@@ -6,7 +6,7 @@
   $siteLogo   = Setting::get('site_logo');
   $favicon    = Setting::get('site_favicon');
   $themeColor = Setting::get('theme_color', '#6366F1');
-  $footerPages = \App\Models\Page::published()->where('show_in_footer', true)->orderBy('sort_order')->get();
+  $footerPages = \App\Models\CmsPage::published()->where('show_in_footer', true)->orderBy('sort_order')->get();
   $navMenus = \App\Models\NavMenu::active()->whereNull('parent_id')->with(['page', 'children.page'])->orderBy('sort_order')->get();
   $cartCount = app(CartService::class)->count();
   $isImpersonating = session('impersonator_admin_id') && auth('client')->check();

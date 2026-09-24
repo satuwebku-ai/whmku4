@@ -12,6 +12,12 @@ class ProductCategory extends Model
 {
     use HasFactory;
 
+    /**
+     * Kompatibilitas untuk pemanggil lama setelah tabel product_categories
+     * di-rename menjadi product_groups. Model utama adalah ProductGroup.
+     */
+    protected $table = 'product_groups';
+
     protected $fillable = ['name', 'slug', 'type', 'description', 'icon', 'is_active', 'sort_order'];
 
     /**

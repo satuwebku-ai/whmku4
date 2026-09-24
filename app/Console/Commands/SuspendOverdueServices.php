@@ -2,12 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\ActivityLog;
 use App\Models\Domain;
 use App\Models\HostingAccount;
 use App\Models\Setting;
-use App\Notifications\ServiceSuspended;
-use App\Services\Hosting\HostingPanelFactory;
+use App\Services\Billing\OverdueServiceLifecycle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -75,7 +73,7 @@ class SuspendOverdueServices extends Command
      */
     private function suspendHosting(int $graceDays, bool $dry): int
     {
-        $accounts = HostingAccount::with(['client', 'renewalInvoice', 'serverModel'])
+        $accounts = HostingAccount::with(['client', 'renewalInvoice'])
             ->where('status', 'active')
             ->whereNotNull('renewal_invoice_id')
             ->whereHas('renewalInvoice', function ($q) use ($graceDays) {
@@ -85,6 +83,7 @@ class SuspendOverdueServices extends Command
             ->get();
 
         $count = 0;
+        $lifecycle = app(OverdueServiceLifecycle::class);
 
         foreach ($accounts as $hosting) {
             if (! $hosting->client) {
@@ -100,8 +99,9 @@ class SuspendOverdueServices extends Command
             }
 
             try {
-                $this->suspendOne($hosting);
-                $count++;
+                if ($lifecycle->suspendHosting($hosting)) {
+                    $count++;
+                }
             } catch (Throwable $e) {
                 $this->error('        gagal: ' . $e->getMessage());
                 Log::error('Auto-suspend gagal: ' . $e->getMessage(), ['hosting_account_id' => $hosting->id]);
@@ -109,51 +109,6 @@ class SuspendOverdueServices extends Command
         }
 
         return $count;
-    }
-
-    private function suspendOne(HostingAccount $hosting): void
-    {
-        $message = 'Disuspend otomatis: invoice ' . $hosting->renewalInvoice->invoice_number . ' belum dibayar melewati batas toleransi.';
-
-        // Akun yang benar-benar terhubung server dikunci lewat API panel.
-        // Akun manual (tanpa server) hanya diubah statusnya di database —
-        // tidak ada apa pun di luar sistem ini yang perlu/bisa dikunci.
-        if ($hosting->serverModel && $hosting->username) {
-            $result = HostingPanelFactory::make($hosting->serverModel)->suspendAccount(
-                $hosting->username,
-                'Tagihan belum dibayar: ' . $hosting->renewalInvoice->invoice_number
-            );
-
-            if (! $result['success']) {
-                Log::warning('Suspend API gagal, status database tetap diperbarui: ' . $result['message'], [
-                    'hosting_account_id' => $hosting->id,
-                ]);
-            }
-
-            $message = $result['message'] ?? $message;
-        }
-
-        $hosting->update([
-            'status' => 'suspended',
-            'provision_message' => $message,
-        ]);
-
-        ActivityLog::record(
-            'service',
-            'Hosting disuspend otomatis: ' . $hosting->domain,
-            'Invoice ' . $hosting->renewalInvoice->invoice_number . ' belum dibayar.',
-            route('admin.hosting-accounts.details', $hosting),
-            'danger',
-            $hosting->client_id,
-        );
-
-        if (Setting::get('notify_suspend', '1') === '1') {
-            try {
-                $hosting->client->notify(new ServiceSuspended($hosting->domain, $hosting->renewalInvoice));
-            } catch (Throwable $e) {
-                Log::warning('Notifikasi suspend gagal: ' . $e->getMessage());
-            }
-        }
     }
 
     /**
@@ -174,6 +129,7 @@ class SuspendOverdueServices extends Command
             ->get();
 
         $count = 0;
+        $lifecycle = app(OverdueServiceLifecycle::class);
 
         foreach ($domains as $domain) {
             if (! $domain->client) {
@@ -187,23 +143,17 @@ class SuspendOverdueServices extends Command
                 continue;
             }
 
-            $domain->update([
-                'status' => 'expired',
-                'provision_message' => 'Kedaluwarsa otomatis: invoice perpanjangan belum dibayar sampai lewat tanggal expiry.',
-            ]);
-
-            ActivityLog::record(
-                'domain',
-                'Domain kedaluwarsa: ' . $domain->domain_name,
-                'Invoice perpanjangan belum dibayar.',
-                route('admin.domains.details', $domain),
-                'danger',
-                $domain->client_id,
-            );
-
-            $count++;
+            try {
+                if ($lifecycle->expireDomain($domain)) {
+                    $count++;
+                }
+            } catch (Throwable $e) {
+                $this->error('        gagal: ' . $e->getMessage());
+                Log::error('Auto-expire domain gagal: ' . $e->getMessage(), ['domain_id' => $domain->id]);
+            }
         }
 
         return $count;
     }
+
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\HostingAccount;
 use App\Models\Order;
+use App\Enums\OrderStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -24,32 +25,32 @@ class OrderController extends Controller
 
     public function pending(Request $request): View
     {
-        return $this->renderList($request, 'pending');
+        return $this->renderList($request, OrderStatus::PendingPayment->value);
     }
 
     public function pendingBootstrap(Request $request): View
     {
-        return view('admin.orders.index', $this->listData($request, 'pending'));
+        return view('admin.orders.index', $this->listData($request, OrderStatus::PendingPayment->value));
     }
 
     public function active(Request $request): View
     {
-        return $this->renderList($request, 'active');
+        return $this->renderList($request, OrderStatus::Completed->value);
     }
 
     public function activeBootstrap(Request $request): View
     {
-        return view('admin.orders.index', $this->listData($request, 'active'));
+        return view('admin.orders.index', $this->listData($request, OrderStatus::Completed->value));
     }
 
     public function suspended(Request $request): View
     {
-        return $this->renderList($request, 'suspended');
+        return $this->renderList($request, OrderStatus::Failed->value);
     }
 
     public function suspendedBootstrap(Request $request): View
     {
-        return view('admin.orders.index', $this->listData($request, 'suspended'));
+        return view('admin.orders.index', $this->listData($request, OrderStatus::Failed->value));
     }
 
     public function cancelled(Request $request): View
@@ -139,8 +140,13 @@ class OrderController extends Controller
     public function update(Request $request, Order $order): RedirectResponse
     {
         $data = $this->validated($request);
+        $targetStatus = $data['status'];
+        unset($data['status']);
 
         $order->update($data);
+        if ($targetStatus !== $order->status->value) {
+            $order->transitionTo(OrderStatus::from($targetStatus), 'Status order diubah melalui admin.', auth('admin')->id());
+        }
 
         return redirect()->route('admin.orders')->with('success', 'Order berhasil diperbarui.');
     }
@@ -158,7 +164,7 @@ class OrderController extends Controller
     public function accept(Request $request): RedirectResponse
     {
         $order = Order::findOrFail($request->input('order_id'));
-        $order->update(['status' => 'active']);
+        $order->transitionTo(OrderStatus::Completed, 'Order diterima secara manual oleh admin.', auth('admin')->id());
 
         return back()->with('success', "Order #{$order->order_number} diterima & diaktifkan.");
     }
@@ -169,7 +175,7 @@ class OrderController extends Controller
     public function cancel(Request $request): RedirectResponse
     {
         $order = Order::findOrFail($request->input('order_id'));
-        $order->update(['status' => 'cancelled']);
+        $order->cancel('Order dibatalkan oleh admin.', auth('admin')->id());
 
         return back()->with('success', "Order #{$order->order_number} dibatalkan.");
     }
@@ -180,7 +186,7 @@ class OrderController extends Controller
     public function markPending(Request $request): RedirectResponse
     {
         $order = Order::findOrFail($request->input('order_id'));
-        $order->update(['status' => 'pending']);
+        $order->transitionTo(OrderStatus::PendingPayment, 'Order dikembalikan ke pending payment oleh admin.', auth('admin')->id());
 
         return back()->with('success', "Order #{$order->order_number} dikembalikan ke pending.");
     }
@@ -209,7 +215,7 @@ class OrderController extends Controller
             'product_name'        => ['required', 'string', 'max:255'],
             'order_type'          => ['required', 'in:hosting,domain,vps,other'],
             'amount'              => ['required', 'numeric', 'min:0'],
-            'status'              => ['required', 'in:pending,active,suspended,cancelled'],
+            'status'              => ['required', 'in:draft,requirements_pending,requirements_review,requirements_rejected,requirements_approved,pending_payment,paid,provisioning,completed,failed,cancelled,expired'],
         ]);
     }
 }

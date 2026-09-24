@@ -5,6 +5,7 @@ namespace App\Services\Cart;
 use App\Models\Product;
 use App\Models\Tld;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 /**
@@ -42,20 +43,6 @@ class CartService
     }
 
     /**
-     * Sinkronkan ulang harga item domain di keranjang dengan harga
-     * TERKINI (TLD & add-on ID Protection) — dipanggil tiap kali halaman
-     * Keranjang dibuka.
-     *
-     * Tanpa ini, item yang sudah lebih dulu ada di keranjang akan tetap
-     * memakai harga lama selamanya (harga "dibekukan" saat ditambahkan,
-     * supaya tidak berubah tiba-tiba di tengah proses checkout) — kalau
-     * admin baru saja mengubah harga TLD atau harga add-on setelah klien
-     * menambah domain, klien akan bingung kenapa perubahan itu tidak
-     * pernah terlihat. Disegarkan di sini setiap kunjungan ke halaman
-     * Keranjang supaya harga yang ditampilkan selalu yang terbaru, tanpa
-     * klien perlu menghapus dan menambah ulang manual.
-     */
-    /**
      * Harga ID Protection yang berlaku untuk satu TLD -- dicek dari yang
      * paling spesifik dulu:
      *   1. Harga khusus TLD ini (kalau admin mengisinya)
@@ -75,6 +62,20 @@ class CartService
         return (float) \App\Models\Setting::get('whois_privacy_price', 0);
     }
 
+    /**
+     * Sinkronkan ulang harga item domain di keranjang dengan harga
+     * TERKINI (TLD & add-on ID Protection) — dipanggil tiap kali halaman
+     * Keranjang dibuka.
+     *
+     * Tanpa ini, item yang sudah lebih dulu ada di keranjang akan tetap
+     * memakai harga lama selamanya (harga "dibekukan" saat ditambahkan,
+     * supaya tidak berubah tiba-tiba di tengah proses checkout) — kalau
+     * admin baru saja mengubah harga TLD atau harga add-on setelah klien
+     * menambah domain, klien akan bingung kenapa perubahan itu tidak
+     * pernah terlihat. Disegarkan di sini setiap kunjungan ke halaman
+     * Keranjang supaya harga yang ditampilkan selalu yang terbaru, tanpa
+     * klien perlu menghapus dan menambah ulang manual.
+     */
     public function refreshPricing(): void
     {
         $items = $this->items();
@@ -152,7 +153,9 @@ class CartService
             return ['success' => false, 'message' => 'Stok produk ini sedang habis.'];
         }
 
-        $price = $product->priceForCycle($cycle);
+        $client = Auth::guard('client')->user();
+        $pricing = $product->pricingForClientCycle($client?->client_group_id, $cycle);
+        $price = $pricing['price'] ?? null;
 
         if ($price === null) {
             return ['success' => false, 'message' => 'Siklus tagihan yang dipilih tidak tersedia untuk produk ini.'];
@@ -195,7 +198,7 @@ class CartService
             'base_price'    => $price,
             'selected_options' => $optionLines,
             'price'         => $price + $optionsTotal,
-            'setup_fee'     => (float) $product->setup_fee,
+            'setup_fee'     => (float) ($pricing['setup_fee'] ?? $product->setup_fee),
             'domain_mode'   => $product->allowsDomain() ? $domainMode : null,
             'domain_name'   => $product->allowsDomain() ? $domainName : null,
             'transfer_auth_code' => $product->allowsDomain() && $domainMode === 'transfer' ? $transferAuthCode : null,
@@ -432,11 +435,14 @@ class CartService
         foreach ($items as &$item) {
             if ($item['key'] === $key && $item['type'] === 'product') {
                 $product = Product::find($item['product_id']);
-                $price = $product?->priceForCycle($cycle);
+                $client = Auth::guard('client')->user();
+                $pricing = $product?->pricingForClientCycle($client?->client_group_id, $cycle);
+                $price = $pricing['price'] ?? null;
 
                 if ($price !== null) {
                     $item['billing_cycle'] = $cycle;
                     $item['base_price'] = $price;
+                    $item['setup_fee'] = (float) ($pricing['setup_fee'] ?? $product->setup_fee);
 
                     $optionsTotal = 0.0;
                     $selected = [];

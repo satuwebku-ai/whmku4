@@ -318,10 +318,21 @@ class DuitkuService implements PaymentGatewayInterface
             return ['success' => false, 'message' => 'merchantOrderId tidak ada di payload.', 'status' => null, 'payment' => null];
         }
 
-        $payment = Payment::where('reference', $orderId)->first();
+        $payment = Payment::where('reference', $orderId)
+            ->where('payment_gateway_id', $this->gateway->id)
+            ->first();
 
         if (! $payment) {
             return ['success' => false, 'message' => "Pembayaran {$orderId} tidak ditemukan.", 'status' => null, 'payment' => null];
+        }
+
+        if (number_format((float) $amount, 2, '.', '') !== number_format((float) $payment->total, 2, '.', '')) {
+            Log::warning('Duitku callback ditolak: nominal tidak cocok.', [
+                'payment_id' => $payment->id,
+                'expected' => (string) $payment->total,
+                'received' => $amount,
+            ]);
+            return ['success' => false, 'message' => 'Nominal pembayaran tidak cocok.', 'status' => null, 'payment' => null];
         }
 
         $status = $this->mapResultCode((string) ($data['resultCode'] ?? ''));

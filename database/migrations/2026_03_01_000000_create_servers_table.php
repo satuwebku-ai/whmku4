@@ -18,13 +18,10 @@ return new class extends Migration
             $table->string('ns1')->nullable();
             $table->string('ns2')->nullable();
             $table->unsignedInteger('port')->default(2087); // 2087 = WHM, 2222 = DirectAdmin, 8443 = Plesk
-            // idcloudhost: beda dari cpanel/directadmin/plesk, provider ini
-            // bukan panel di server yang sudah ada, tapi menyediakan VM/VPS
-            // baru sepenuhnya lewat API on-demand. Tetap dipasangkan ke
-            // tabel servers & IdCloudHostService supaya alur provisioning
-            // otomatis (aktifkan/suspend/terminate) tetap konsisten dengan
-            // panel hosting lain -- lihat HostingPanelInterface.
-            $table->enum('panel', ['cpanel', 'directadmin', 'plesk', 'idcloudhost'])->default('cpanel');
+            // Panel type is independent from the VPS provider. "vps" is
+            // the panel type; provider identity is stored separately.
+            $table->string('panel', 20)->default('cpanel');
+            $table->string('vps_provider', 50)->nullable()->index();
             $table->string('api_username'); // root / reseller username (WHM), admin (DA/Plesk)
             $table->text('api_token'); // API token / password — sebaiknya dienkripsi (lihat cast di Model)
             $table->boolean('verify_ssl')->default(true);
@@ -40,6 +37,7 @@ return new class extends Migration
             $table->decimal('price_per_backup_gb_hour', 12, 6)->nullable();
             $table->decimal('price_per_snapshot_gb_hour', 12, 6)->nullable();
             $table->decimal('price_windows_license_per_vcpu_hour', 12, 6)->nullable();
+            $table->decimal('cost_fx_rate', 14, 4)->nullable();
 
             // Alternatif pengisian kartu harga: alih-alih mengetik harga
             // jual tiap komponen satu per satu, admin cukup menentukan

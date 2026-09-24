@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         //   php artisan lumora:clear-demo --all
         $this->call([
             AdminSeeder::class,
+            RoleSeeder::class,
         ]);
     }
 }

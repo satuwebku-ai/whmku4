@@ -107,7 +107,7 @@
             <input type="checkbox" name="remember" class="rounded border-slate-300 text-accent focus:ring-accent/40">
             Ingat saya
           </label>
-          <a href="#" class="text-accent font-medium hover:underline">Lupa password?</a>
+          <a href="{{ route('admin.password.request') }}" class="text-accent font-medium hover:underline">Lupa password?</a>
         </div>
 
         @include('partials.captcha')

@@ -16,14 +16,14 @@ return new class extends Migration
             $table->decimal('amount', 12, 2)->default(0);
             $table->decimal('tax', 12, 2)->default(0);
             $table->decimal('total', 12, 2)->default(0);
-            $table->enum('status', ['unpaid', 'paid', 'overdue', 'cancelled'])->default('unpaid');
+            $table->enum('status', ['unpaid', 'paid', 'overdue', 'cancelled', 'refunded'])->default('unpaid');
             // Menandai invoice ini murni "isi ulang saldo", bukan tagihan
             // layanan/domain — supaya hook pembayaran tahu harus menambah
             // saldo klien, bukan menjalankan provisioning seperti biasa.
             $table->boolean('is_topup')->default(false);
             $table->date('issue_date');
             $table->date('due_date');
-            $table->date('paid_at')->nullable();
+            $table->timestamp('paid_at')->nullable();
             $table->string('payment_method')->nullable(); // diisi manual di Fase 2, otomatis di Fase 5
             $table->text('notes')->nullable();
             $table->timestamps();

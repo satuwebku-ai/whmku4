@@ -72,6 +72,15 @@ class NamecheapService implements DomainRegistrarInterface
         ], $contactFields));
     }
 
+    public function transferDomain(array $params): array
+    {
+        return [
+            'success' => false,
+            'message' => 'Transfer otomatis belum diimplementasikan untuk provider Namecheap pada WHMKU4.',
+            'raw' => null,
+        ];
+    }
+
     public function renewDomain(string $domain, int $years): array
     {
         return $this->call('namecheap.domains.renew', [

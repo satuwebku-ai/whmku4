@@ -226,6 +226,20 @@
             <ul id="pwChecklist" class="text-muted mt-2 mb-0 ps-0" style="font-size:11px;list-style:none"></ul>
             <button type="submit" class="btn btn-primary btn-sm w-100 mt-2"><i class="fa-solid fa-key" style="font-size:11px"></i> Ganti Password</button>
           </form>
+
+          <hr class="my-3">
+
+          <h2 class="small fw-bold text-dark mb-1">Kirim Info Akun</h2>
+          <p class="text-muted mb-3" style="font-size:12px">
+            Untuk klien yang kehilangan email awal. Password lama TIDAK
+            tersimpan di sistem, jadi tombol ini akan membuat password
+            BARU lalu mengirimkannya ke email klien.
+          </p>
+          <form method="POST" action="{{ route('admin.hosting-accounts.send-info', $account) }}"
+                data-confirm="Buat password baru & kirim info akun ke email klien?" data-confirm-title="Kirim Info Akun" data-confirm-style="warn" data-confirm-label="Ya, Kirim">
+            @csrf
+            <button type="submit" class="btn btn-outline-secondary btn-sm w-100"><i class="fa-solid fa-paper-plane" style="font-size:11px"></i> Kirim Info Akun (Reset Password)</button>
+          </form>
         </div>
       @endif
     </div>

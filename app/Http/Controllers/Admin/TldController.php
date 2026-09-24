@@ -8,6 +8,7 @@ use App\Models\Tld;
 use App\Services\Domain\DomainRegistrarFactory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TldController extends Controller
@@ -276,9 +277,6 @@ class TldController extends Controller
     }
 
     /**
-     * Aktif/nonaktifkan satu TLD tanpa membuka form edit.
-     */
-    /**
      * Aktifkan/nonaktifkan satu TLD.
      *
      * EKSKLUSIF PER EKSTENSI: kalau ".com" milik DNAMA diaktifkan,
@@ -288,6 +286,34 @@ class TldController extends Controller
      * menentukan lewat registrar MANA order domain itu harus diproses,
      * dan harga yang tampil ke klien pun jadi ambigu.
      */
+    /**
+     * Nonaktifkan TLD lain (registrar berbeda) untuk ekstensi yang sama.
+     * Diekstrak dari status() supaya store()/update() (form tambah/edit
+     * manual) ikut menegakkan aturan yang sama -- sebelumnya cuma
+     * status() yang menjaga ini, jadi admin bisa tidak sengaja
+     * mengaktifkan 2 registrar sekaligus untuk ekstensi yang sama lewat
+     * form biasa.
+     *
+     * @return array<int, string> nama registrar yang ikut dinonaktifkan
+     */
+    private function deactivateSiblingTlds(Tld $tld): array
+    {
+        $siblings = Tld::where('extension', $tld->extension)
+            ->where('id', '!=', $tld->id ?? 0)
+            ->where('is_active', true)
+            ->with('registrar')
+            ->get();
+
+        $deactivated = [];
+
+        foreach ($siblings as $sibling) {
+            $sibling->update(['is_active' => false]);
+            $deactivated[] = $sibling->registrar->name ?? 'Manual';
+        }
+
+        return $deactivated;
+    }
+
     public function status(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $tld = Tld::with('registrar')->findOrFail($request->input('tld_id'));
@@ -305,17 +331,7 @@ class TldController extends Controller
         $deactivated = [];
 
         if ($turningOn) {
-            // Nonaktifkan saudara se-ekstensi dari registrar lain.
-            $siblings = Tld::where('extension', $tld->extension)
-                ->where('id', '!=', $tld->id)
-                ->where('is_active', true)
-                ->with('registrar')
-                ->get();
-
-            foreach ($siblings as $sibling) {
-                $sibling->update(['is_active' => false]);
-                $deactivated[] = $sibling->registrar->name ?? 'Manual';
-            }
+            $deactivated = $this->deactivateSiblingTlds($tld);
         }
 
         $tld->update(['is_active' => $turningOn]);
@@ -523,13 +539,6 @@ class TldController extends Controller
     }
 
     /**
-     * Bulatkan harga sesuai mode yang dipilih.
-     *
-     * - none     : biarkan apa adanya
-     * - multiple : bulatkan ke atas ke kelipatan tertentu (mis. 1.000)
-     * - ending   : paksa digit akhir tertentu (mis. selalu berakhir 9.000)
-     */
-    /**
      * Halaman terpisah khusus ID Protection -- dulu numpuk di TLD
      * Pricing, dipisah supaya tabel TLD Pricing tidak makin padat.
      * Tiga tingkat harga (dari yang paling spesifik):
@@ -670,6 +679,13 @@ class TldController extends Controller
         return $result;
     }
 
+    /**
+     * Bulatkan harga sesuai mode yang dipilih.
+     *
+     * - none     : biarkan apa adanya
+     * - multiple : bulatkan ke atas ke kelipatan tertentu (mis. 1.000)
+     * - ending   : paksa digit akhir tertentu (mis. selalu berakhir 9.000)
+     */
     private function roundPrice(float $price, string $mode, int $step, int $tail): float
     {
         if ($mode === 'multiple' && $step > 0) {
@@ -1112,9 +1128,16 @@ class TldController extends Controller
         $data = $this->validated($request);
         $data['is_active'] = $request->boolean('is_active', true);
 
-        Tld::create($data);
+        $tld = Tld::create($data);
 
-        return redirect()->route('admin.tlds.index')->with('success', 'TLD berhasil ditambahkan.');
+        $deactivated = $data['is_active'] ? $this->deactivateSiblingTlds($tld) : [];
+
+        $message = 'TLD berhasil ditambahkan.';
+        if ($deactivated) {
+            $message .= ' Otomatis dinonaktifkan dari: ' . implode(', ', $deactivated) . '.';
+        }
+
+        return redirect()->route('admin.tlds.index')->with('success', $message);
     }
 
     public function edit(Tld $tld): View
@@ -1138,7 +1161,14 @@ class TldController extends Controller
 
         $tld->update($data);
 
-        return redirect()->route('admin.tlds.index')->with('success', 'TLD berhasil diperbarui.');
+        $deactivated = $tld->is_active ? $this->deactivateSiblingTlds($tld) : [];
+
+        $message = 'TLD berhasil diperbarui.';
+        if ($deactivated) {
+            $message .= ' Otomatis dinonaktifkan dari: ' . implode(', ', $deactivated) . '.';
+        }
+
+        return redirect()->route('admin.tlds.index')->with('success', $message);
     }
 
     public function destroy(Tld $tld): RedirectResponse
@@ -1151,7 +1181,7 @@ class TldController extends Controller
     private function validated(Request $request): array
     {
         $data = $request->validate([
-            'extension'      => ['required', 'string', 'max:30', 'unique:tlds,extension,' . $request->route('tld')?->id],
+            'extension'      => ['required', 'string', 'max:30', Rule::unique('tlds', 'extension')->where(fn ($q) => $q->where('registrar_id', $request->input('registrar_id')))->ignore($request->route('tld')?->id)],
             'registrar_id'   => ['nullable', 'exists:registrars,id'],
             'register_price' => ['required', 'numeric', 'min:0'],
             'renew_price'    => ['required', 'numeric', 'min:0'],

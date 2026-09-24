@@ -14,7 +14,7 @@ class HostingAccount extends Model
     protected $fillable = [
         'client_id', 'product_id', 'server_id', 'domain', 'package', 'server', 'panel',
         'username', 'price', 'billing_cycle', 'billing_mode', 'hourly_rate', 'last_billed_at', 'status', 'next_due_date',
-        'provision_status', 'provision_message', 'client_details', 'internal_notes',
+        'provision_status', 'provision_message', 'provisioning_started_at', 'provisioning_finished_at', 'provisioning_attempts', 'provisioning_key', 'client_details', 'internal_notes',
         'cancellation_status', 'cancellation_reason', 'cancellation_requested_at',
         'cancellation_admin_note', 'renewal_invoice_id',
         'pending_upgrade_product_id', 'pending_upgrade_invoice_id',
@@ -26,6 +26,9 @@ class HostingAccount extends Model
             'price' => 'decimal:2',
             'hourly_rate' => 'decimal:4',
             'last_billed_at' => 'datetime',
+            'provisioning_started_at' => 'datetime',
+            'provisioning_finished_at' => 'datetime',
+            'provisioning_attempts' => 'integer',
             'next_due_date' => 'date',
             'cancellation_requested_at' => 'datetime',
             'client_details' => 'encrypted',
@@ -231,50 +234,9 @@ class HostingAccount extends Model
      */
     public function createRenewalInvoice(): \App\Models\Invoice
     {
-        $amount = $this->renewalAmount();
-
-        $invoice = \App\Models\Invoice::create([
-            'client_id' => $this->client_id,
-            'amount' => $amount,
-            'tax' => 0,
-            'discount' => 0,
-            'status' => 'unpaid',
-            'issue_date' => now(),
-            'due_date' => $this->next_due_date ?: now()->addDays(7),
-        ]);
-
-        \App\Models\InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => "Perpanjangan Hosting — {$this->domain} ({$this->package}, {$this->cycleLabel()})",
-            'amount' => (float) $this->price,
-        ]);
-
-        // Addon aktif ditulis baris terpisah — supaya klien lihat persis
-        // apa yang mereka bayar, bukan cuma satu angka gabungan yang
-        // tidak jelas asalnya dari mana.
-        foreach ($this->activeAddons as $addon) {
-            \App\Models\InvoiceItem::create([
-                'invoice_id' => $invoice->id,
-                'description' => "Addon — {$addon->name} ({$this->domain}, {$this->cycleLabel()})",
-                'amount' => (float) $addon->price,
-            ]);
-        }
-
-        // Opsi konfigurasi yang dipilih klien saat checkout (mis. "RAM
-        // Tambahan +1GB") juga ditagih ulang tiap perpanjangan, dengan
-        // alasan sama seperti addon di atas — transparansi baris per baris.
-        foreach ($this->options as $option) {
-            \App\Models\InvoiceItem::create([
-                'invoice_id' => $invoice->id,
-                'description' => "{$option->name} ({$this->domain}, {$this->cycleLabel()})",
-                'amount' => (float) $option->price,
-            ]);
-        }
-
-        $this->update(['renewal_invoice_id' => $invoice->id]);
-
-        return $invoice;
+        return app(\App\Services\Billing\RenewalInvoiceService::class)->createHostingInvoice($this);
     }
+
 
     /**
      * Layanan ini punya spesifikasi VM (JSON) tersimpan di kolom
@@ -307,6 +269,9 @@ class HostingAccount extends Model
             'os_name'        => $decoded['os_name'] ?? 'linux',
             'backup_enabled' => (bool) ($decoded['backup_enabled'] ?? false),
             'snapshot_gb'    => (float) ($decoded['snapshot_gb'] ?? 0),
+            // Provider berbasis size (mis. DigitalOcean): slug size dipakai
+            // menghitung harga modal & tarif markup per jam.
+            'provider_size'  => $decoded['provider_size'] ?? null,
         ];
     }
 
@@ -323,5 +288,20 @@ class HostingAccount extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function logs(): HasMany
+    {
+        return $this->hasMany(HostingAccountLog::class);
+    }
+
+    public function addonDomains(): HasMany
+    {
+        return $this->domains();
+    }
+
+    public function domains(): HasMany
+    {
+        return $this->hasMany(HostingDomain::class);
     }
 }
