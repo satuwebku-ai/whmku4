@@ -66,6 +66,7 @@ class RunCron extends Command
 
         $this->line("Menjalankan: {$job->name} ({$job->command})");
 
+        $runCountBefore = (int) $job->run_count;
         $job->update(['last_status' => 'running']);
         $mulai = microtime(true);
 
@@ -81,13 +82,19 @@ class RunCron extends Command
                 );
             }
 
+            // Sebagian command mencatat eksekusinya sendiri agar pemanggilan
+            // manual ikut terlihat di panel. Jangan menambah run_count kedua
+            // kali ketika command tersebut dipanggil dari lumora:cron.
+            $job->refresh();
             $job->update([
                 'last_status' => 'success',
                 'last_output' => mb_substr($output, 0, 2000),
                 'last_run_at' => now(),
                 'next_run_at' => now()->addMinutes($job->interval_minutes),
                 'last_duration_ms' => (int) ((microtime(true) - $mulai) * 1000),
-                'run_count' => $job->run_count + 1,
+                'run_count' => $job->run_count > $runCountBefore
+                    ? $job->run_count
+                    : $runCountBefore + 1,
             ]);
 
             $this->info('  selesai');
@@ -95,6 +102,7 @@ class RunCron extends Command
         } catch (Throwable $e) {
             // Kegagalan satu tugas tidak boleh menghentikan tugas lain,
             // jadi errornya dicatat lalu proses lanjut.
+            $job->refresh();
             $job->update([
                 'last_status' => 'failed',
                 'last_output' => mb_substr($e->getMessage(), 0, 2000),
@@ -103,7 +111,9 @@ class RunCron extends Command
                 // sendiri tanpa perlu diutak-atik manual.
                 'next_run_at' => now()->addMinutes($job->interval_minutes),
                 'last_duration_ms' => (int) ((microtime(true) - $mulai) * 1000),
-                'run_count' => $job->run_count + 1,
+                'run_count' => $job->run_count > $runCountBefore
+                    ? $job->run_count
+                    : $runCountBefore + 1,
             ]);
 
             $this->error('  gagal: ' . $e->getMessage());

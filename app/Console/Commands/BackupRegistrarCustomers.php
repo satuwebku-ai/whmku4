@@ -49,6 +49,22 @@ class BackupRegistrarCustomers extends Command
 
     public function handle(): int
     {
+        ob_start();
+        $result = $this->handleJob();
+        $output = ob_get_clean();
+        echo $output;
+
+        \App\Models\CronJob::recordExecution(
+            'registrar:backup-customers',
+            $result === self::SUCCESS,
+            $output
+        );
+
+        return $result;
+    }
+
+    private function handleJob(): int
+    {
         $registrars = Registrar::when($this->option('registrar'), fn ($q) => $q->where('id', $this->option('registrar')))
             ->when(! $this->option('registrar'), fn ($q) => $q->where('is_active', true))
             ->get();

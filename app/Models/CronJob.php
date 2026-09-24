@@ -181,13 +181,9 @@ class CronJob extends Model
     }
 
     /**
-     * Dipanggil LANGSUNG oleh tiap perintah artisan sendiri di akhir
-     * eksekusinya — bukan cuma lewat lumora:cron. Ini penting karena
-     * sebagian besar tugas terjadwal (lihat routes/console.php) dipicu
-     * LANGSUNG lewat Schedule::command(), bukan lewat mesin lumora:cron
-     * yang membaca tabel ini. Tanpa pemanggilan langsung ini, halaman
-     * Cron Jobs akan selalu menunjukkan "belum pernah jalan" untuk tugas
-     * yang sebenarnya SUDAH jalan setiap hari — status yang menyesatkan.
+     * Dipanggil langsung oleh perintah artisan di akhir eksekusinya, bukan
+     * hanya oleh lumora:cron. Ini membuat status panel tetap akurat saat
+     * command dijalankan manual dari Console admin atau SSH.
      *
      * Aman dipanggil untuk command yang tidak terdaftar di BUILT_IN
      * (tidak melakukan apa-apa kalau tidak ketemu), supaya tidak

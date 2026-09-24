@@ -52,24 +52,27 @@ class SettingController extends Controller
         // perbedaan struktur folder apa pun.
         foreach (['site_logo', 'site_favicon'] as $field) {
             unset($data[$field]);
+            $old = Setting::get($field);
+            $hasNewFile = $request->hasFile($field);
 
-            if ($request->hasFile($field)) {
-                $old = Setting::get($field);
+            if ($hasNewFile) {
+                $filename = $field . '_' . time() . '.' . $request->file($field)->getClientOriginalExtension();
+                $stored = $request->file($field)->storeAs('branding', $filename, 'local');
 
+                if (! $stored) {
+                    throw new \RuntimeException("Gagal menyimpan {$field}.");
+                }
+
+                // Hapus file lama hanya setelah upload baru berhasil.
                 if ($old && Storage::disk('local')->exists('branding/' . $old)) {
                     Storage::disk('local')->delete('branding/' . $old);
                 }
 
-                $filename = $field . '_' . time() . '.' . $request->file($field)->getClientOriginalExtension();
-                $request->file($field)->storeAs('branding', $filename, 'local');
-
                 $data[$field] = $filename;
             }
 
-            // Centang "hapus" mengosongkan pengaturannya.
-            if ($request->boolean('remove_' . $field)) {
-                $old = Setting::get($field);
-
+            // Jika admin sekaligus mengunggah file baru, upload baru menang.
+            if (! $hasNewFile && $request->boolean('remove_' . $field)) {
                 if ($old && Storage::disk('local')->exists('branding/' . $old)) {
                     Storage::disk('local')->delete('branding/' . $old);
                 }
@@ -371,16 +374,11 @@ class SettingController extends Controller
      */
     public function brandingDiagnostics(): \Illuminate\Http\JsonResponse
     {
-        $testContent = 'test-' . time();
-        Storage::disk('local')->put('branding/diagnostic-test.txt', $testContent);
-
         $logo = Setting::get('site_logo');
 
         return response()->json([
-            'metode' => 'Dilayani lewat rute Laravel (bukan file statis) — kebal terhadap folder repository vs folder yang benar-benar dilayani publik.',
-            'file_tersimpan_di' => Storage::disk('local')->path('branding/diagnostic-test.txt'),
-            'url_untuk_dicoba_manual' => route('branding.file', 'diagnostic-test.txt'),
-            'petunjuk' => 'Buka URL di atas langsung di browser. Harus muncul teks "test-....". Kalau masih 404, ada masalah lain (kabari saya, sertakan hasil JSON ini).',
+            'metode' => 'Logo dan favicon dilayani lewat rute Laravel dari disk local, bukan file statis.',
+            'folder_branding_ada' => Storage::disk('local')->exists('branding'),
             'logo_tersimpan' => $logo,
             'logo_file_ada' => $logo ? Storage::disk('local')->exists('branding/' . $logo) : null,
             'logo_url' => $logo ? route('branding.file', $logo) : null,

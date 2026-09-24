@@ -14,6 +14,8 @@ class ReconcileBilling extends Command
 
     public function handle(BillingReconciliationService $service): int
     {
+        ob_start();
+
         try {
             $scan = $service->scan();
 
@@ -26,21 +28,30 @@ class ReconcileBilling extends Command
 
             if (! $this->option('repair')) {
                 $this->comment('Audit saja. Gunakan --repair untuk recovery gap yang deterministik.');
-                return self::SUCCESS;
+                $result = self::SUCCESS;
+            } else {
+                $repaired = $service->repair();
+                $this->table(['Repair', 'Count'], [
+                    ['Invoice status', $repaired['invoice_status_repaired']],
+                    ['Charge transaction', $repaired['charge_repaired']],
+                    ['Top-up credit', $repaired['topup_repaired']],
+                ]);
+                $result = self::SUCCESS;
             }
-
-            $repaired = $service->repair();
-            $this->table(['Repair', 'Count'], [
-                ['Invoice status', $repaired['invoice_status_repaired']],
-                ['Charge transaction', $repaired['charge_repaired']],
-                ['Top-up credit', $repaired['topup_repaired']],
-            ]);
-
-            return self::SUCCESS;
         } catch (Throwable $e) {
             $this->error('Reconcile gagal: ' . $e->getMessage());
             report($e);
-            return self::FAILURE;
+            $result = self::FAILURE;
         }
+
+        $output = ob_get_clean();
+        echo $output;
+        \App\Models\CronJob::recordExecution(
+            'lumora:reconcile-billing --repair',
+            $result === self::SUCCESS,
+            $output
+        );
+
+        return $result;
     }
 }

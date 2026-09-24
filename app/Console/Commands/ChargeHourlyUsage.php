@@ -33,6 +33,22 @@ class ChargeHourlyUsage extends Command
 
     public function handle(): int
     {
+        ob_start();
+        $result = $this->handleJob();
+        $output = ob_get_clean();
+        echo $output;
+
+        \App\Models\CronJob::recordExecution(
+            'lumora:charge-hourly-usage',
+            $result === self::SUCCESS,
+            $output
+        );
+
+        return $result;
+    }
+
+    private function handleJob(): int
+    {
         $dry = $this->option('dry');
 
         $accounts = HostingAccount::where('billing_mode', 'deposit')
