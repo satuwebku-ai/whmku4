@@ -54,11 +54,33 @@ class SelectiveDatabaseRestorer
             $blockers = $this->mergeBlockers($table, $info, $exists);
 
             $structureDiffers = false;
+            $added = [];   // kolom ada di tabel sekarang, belum ada di cadangan
+            $removed = []; // kolom ada di cadangan, sudah tidak ada di tabel sekarang
+            $required = []; // sebagian $added yang NOT NULL tanpa default (INSERT dari cadangan akan gagal)
 
             if ($exists && $info['columns'] !== []) {
-                $current = array_map('strtolower', Schema::getColumnListing($table));
+                $currentCols = Schema::getColumns($table);
+                $current = array_map(fn ($c) => strtolower($c['name']), $currentCols);
                 $backup = array_map('strtolower', $info['columns']);
-                $structureDiffers = array_diff($current, $backup) !== [] || array_diff($backup, $current) !== [];
+
+                $removedKeys = array_diff($backup, $current);
+                $addedKeys = array_diff($current, $backup);
+
+                $removed = array_values(array_filter($info['columns'], fn ($c) => in_array(strtolower($c), $removedKeys, true)));
+
+                foreach ($currentCols as $col) {
+                    if (! in_array(strtolower($col['name']), $addedKeys, true)) {
+                        continue;
+                    }
+
+                    $added[] = $col['name'];
+
+                    if (! $col['nullable'] && $col['default'] === null && ! $col['auto_increment']) {
+                        $required[] = $col['name'];
+                    }
+                }
+
+                $structureDiffers = $added !== [] || $removed !== [];
             }
 
             $rows[] = [
@@ -67,6 +89,9 @@ class SelectiveDatabaseRestorer
                 'current_rows' => $exists ? DB::table($table)->count() : null,
                 'exists' => $exists,
                 'structure_differs' => $structureDiffers,
+                'columns_added' => $added,
+                'columns_removed' => $removed,
+                'columns_required' => $required,
                 'merge_blockers' => $blockers, // kosong = boleh dipakai mode missing/upsert
             ];
         }

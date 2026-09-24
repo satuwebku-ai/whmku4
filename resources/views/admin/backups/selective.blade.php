@@ -100,7 +100,16 @@
                   @if (! $t['exists'])
                     <span class="badge bg-warning-subtle text-warning">Tidak ada di database sekarang</span>
                   @elseif ($t['structure_differs'])
-                    <span class="badge bg-warning-subtle text-warning" title="Kolom tabel sekarang berbeda dari cadangan (ada perubahan struktur setelah cadangan dibuat).">Struktur berbeda</span>
+                    <span class="badge bg-warning-subtle text-warning">Struktur berbeda</span>
+                    @if (! empty($t['columns_added']))
+                      <div class="text-muted mt-1">Kolom baru di database sekarang: <code>{{ implode(', ', $t['columns_added']) }}</code> (akan berisi nilai default)</div>
+                    @endif
+                    @if (! empty($t['columns_removed']))
+                      <div class="text-muted mt-1">Kolom di cadangan yang sudah tidak ada: <code>{{ implode(', ', $t['columns_removed']) }}</code></div>
+                    @endif
+                    @if (! empty($t['columns_required']) && $t['backup_rows'] > 0)
+                      <div class="text-danger mt-1">Kolom baru wajib diisi tapi tanpa default: <code>{{ implode(', ', $t['columns_required']) }}</code> — pemulihan tabel ini kemungkinan gagal (semua dibatalkan).</div>
+                    @endif
                   @endif
                   @if ($t['backup_rows'] === 0)
                     <span class="badge bg-secondary-subtle text-secondary">Kosong di cadangan</span>
