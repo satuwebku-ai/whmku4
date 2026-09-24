@@ -50,4 +50,29 @@ class MigrationIntegrityTest extends TestCase
         $this->assertTrue($creditIndexes->contains('credits_idempotency_key_unique'));
         $this->assertTrue($transactionIndexes->contains('transactions_idempotency_key_unique'));
     }
+
+    public function test_admin_reset_password_columns_are_present_after_incremental_migration(): void
+    {
+        foreach ([
+            'reset_code_hash',
+            'reset_code_expires_at',
+            'reset_attempts',
+        ] as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('admins', $column),
+                "Missing admins reset-password column: {$column}"
+            );
+        }
+    }
+
+    public function test_affiliate_wallet_migration_uses_mysql_safe_identifiers(): void
+    {
+        $ruleIndexes = collect(Schema::getIndexes('affiliate_commission_rules'))->pluck('name');
+        $migration = file_get_contents(
+            database_path('migrations/2029_03_01_000008_create_affiliate_wallet_transactions_table.php')
+        );
+
+        $this->assertTrue($ruleIndexes->contains('aff_comm_rules_type_event_active_idx'));
+        $this->assertStringContainsString("'aff_wallet_tx_reversal_fk'", $migration);
+    }
 }

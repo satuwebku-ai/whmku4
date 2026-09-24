@@ -159,6 +159,7 @@ Route::middleware('client')->group(function () {
         Route::get('ticket/{ticket}', 'ticket')->name('tickets.show');
         Route::post('ticket/{ticket}/reply', 'reply')->name('tickets.reply');
         Route::post('ticket/{ticket}/close', 'close')->name('tickets.close');
+        Route::get('ticket-attachment/{attachment}/file', 'attachmentFile')->name('ticket-attachments.file');
     });
 
     // ── Checkout (Fase 7c) — mengubah keranjang jadi Order + Invoice ──

@@ -6,11 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Models\Client;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\TicketReply;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TicketController extends Controller
 {
@@ -261,12 +265,24 @@ class TicketController extends Controller
             }
 
             $reply->attachments()->create([
-                'path'          => $file->store('ticket-attachments', 'public'),
+                'path'          => $file->store('ticket-attachments', 'local'),
                 'original_name' => $file->getClientOriginalName(),
                 'mime_type'     => $file->getMimeType(),
                 'size'          => $file->getSize(),
             ]);
         }
+    }
+
+    /**
+     * Lampiran tiket tetap private; admin yang sudah melewati middleware
+     * admin + module:support boleh melihatnya.
+     */
+    public function attachmentFile(TicketAttachment $attachment): StreamedResponse|Response
+    {
+        abort_unless($attachment->reply?->ticket, 404);
+        abort_unless(Storage::disk('local')->exists($attachment->path), 404);
+
+        return Storage::disk('local')->response($attachment->path, $attachment->original_name);
     }
 
     /**

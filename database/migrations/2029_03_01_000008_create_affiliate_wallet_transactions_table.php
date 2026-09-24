@@ -25,9 +25,11 @@ return new class extends Migration
             $table->unsignedInteger('priority')->default(100);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            
-            // Perbaikan 1: Memperpendek nama index gabungan (64 karakter maks)
-            $table->index(['product_type', 'event_type', 'is_active'], 'aff_comm_rules_prod_event_active_idx');
+            // Nama default Laravel melebihi batas identifier MySQL (64).
+            $table->index(
+                ['product_type', 'event_type', 'is_active'],
+                'aff_comm_rules_type_event_active_idx'
+            );
         });
 
         Schema::create('affiliate_fraud_flags', function (Blueprint $table) {
@@ -63,12 +65,7 @@ return new class extends Migration
 
         Schema::create('affiliate_commission_reversals', function (Blueprint $table) {
             $table->id();
-            // Perbaikan 2: Memperpendek foreign key unik pada reversal
-            $table->foreignId('affiliate_commission_id')
-                  ->constrained()
-                  ->cascadeOnDelete()
-                  ->unique('aff_comm_rev_comm_id_unique');
-                  
+            $table->foreignId('affiliate_commission_id')->constrained()->cascadeOnDelete()->unique();
             $table->foreignId('affiliate_id')->constrained()->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
             $table->string('reason');
@@ -85,23 +82,13 @@ return new class extends Migration
             $table->decimal('amount', 12, 2);
             $table->decimal('balance_after', 12, 2);
             $table->string('description');
-            
-            // Perbaikan 3: Memperpendek semua foreign key yang menghasilkan nama otomatis > 64 karakter
-            $table->foreignId('affiliate_commission_id')
-                  ->nullable()
-                  ->constrained('affiliate_commissions', 'id', 'aff_wallet_tx_comm_fk')
-                  ->nullOnDelete();
-                  
-            $table->foreignId('affiliate_payout_id')
-                  ->nullable()
-                  ->constrained('affiliate_payouts', 'id', 'aff_wallet_tx_payout_fk')
-                  ->nullOnDelete();
-                  
+            $table->foreignId('affiliate_commission_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('affiliate_payout_id')->nullable()->constrained()->nullOnDelete();
+            // Nama default FK juga melebihi batas identifier MySQL.
             $table->foreignId('affiliate_commission_reversal_id')
-                  ->nullable()
-                  ->constrained('affiliate_commission_reversals', 'id', 'aff_wallet_tx_reversal_fk')
-                  ->nullOnDelete();
-                  
+                ->nullable()
+                ->constrained('affiliate_commission_reversals', 'id', 'aff_wallet_tx_reversal_fk')
+                ->nullOnDelete();
             $table->foreignId('admin_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamps();
         });

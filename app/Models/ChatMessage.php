@@ -34,7 +34,7 @@ class ChatMessage extends Model
 
     public function getAttachmentUrlAttribute(): ?string
     {
-        return $this->attachment_path ? asset('storage/' . $this->attachment_path) : null;
+        return $this->attachment_path ? route('chat.attachment', $this) : null;
     }
 
     /**

@@ -89,6 +89,7 @@ Route::controller(CartController::class)->prefix('keranjang')->name('cart.')->gr
 Route::controller(SiteChatController::class)->prefix('chat')->name('chat.')->group(function () {
     Route::get('fetch', 'fetch')->name('fetch');
     Route::post('send', 'send')->name('send');
+    Route::get('attachment/{message}/file', 'attachmentFile')->name('attachment');
 });
 
 // Webhook pesan WhatsApp MASUK dari gateway (Fonnte/Wablas) -- lihat

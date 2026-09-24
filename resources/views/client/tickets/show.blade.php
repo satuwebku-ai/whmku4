@@ -38,7 +38,7 @@
         @if ($reply->attachments->isNotEmpty())
           <div class="d-flex flex-wrap gap-2 mt-3">
             @foreach ($reply->attachments as $attachment)
-              <a href="{{ $attachment->url }}" target="_blank"
+              <a href="{{ route('client.ticket-attachments.file', $attachment) }}" target="_blank"
                  class="d-inline-flex align-items-center gap-2 text-decoration-none text-theme px-2 py-1 rounded-3"
                  style="font-size:12px;background:rgba(0,0,0,.04)">
                 <i class="fa-solid fa-paperclip"></i> {{ $attachment->original_name }}

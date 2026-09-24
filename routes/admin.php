@@ -397,6 +397,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::get('customer-reply/tickets', 'customerReplyBootstrap')->name('tickets.customer-reply');
         Route::get('closed/tickets', 'closedBootstrap')->name('tickets.closed');
         Route::get('ticket/details/{ticket}', 'detailsBootstrap')->name('tickets.details');
+        Route::get('ticket-attachment/{attachment}/file', 'attachmentFile')->name('ticket-attachments.file');
         Route::post('ticket/{ticket}/preview-transfer-code', 'previewTransferCode')->name('tickets.preview-transfer-code');
         Route::post('ticket/{ticket}/approve-transfer-code', 'approveTransferCode')->name('tickets.approve-transfer-code');
 

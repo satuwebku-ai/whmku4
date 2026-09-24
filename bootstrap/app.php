@@ -11,6 +11,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Honor X-Forwarded-Proto only from explicitly configured proxies.
+        // Never trust the header from arbitrary direct clients.
+        $trustedProxies = env('TRUSTED_PROXIES');
+        if (filled($trustedProxies)) {
+            $middleware->trustProxies(
+                at: array_values(array_filter(array_map('trim', explode(',', $trustedProxies))))
+            );
+        }
+
+        $middleware->append(\App\Http\Middleware\ForceHttps::class);
+
         // Tamu diarahkan ke halaman login yang sesuai areanya, supaya
         // klien tidak terlempar ke form login admin dan sebaliknya.
         $middleware->redirectGuestsTo(function ($request) {

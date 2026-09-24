@@ -16,11 +16,6 @@ class TicketAttachment extends Model
         return $this->belongsTo(TicketReply::class, 'ticket_reply_id');
     }
 
-    public function getUrlAttribute(): string
-    {
-        return asset('storage/' . $this->path);
-    }
-
     public function isImage(): bool
     {
         return $this->mime_type && str_starts_with($this->mime_type, 'image/');

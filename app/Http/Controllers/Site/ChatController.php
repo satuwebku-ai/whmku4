@@ -8,10 +8,13 @@ use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Endpoint untuk widget chat di halaman publik dan area klien.
@@ -127,7 +130,7 @@ class ChatController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $message->attachment_path = $file->store('chat', 'public');
+            $message->attachment_path = $file->store('chat', 'local');
             $message->attachment_name = $file->getClientOriginalName();
             $message->attachment_mime = $file->getMimeType();
         }
@@ -161,6 +164,28 @@ class ChatController extends Controller
             'message' => $message->load('admin')->toWidgetArray(),
             'bot_message' => $botMessage?->toWidgetArray(),
         ]);
+    }
+
+    /**
+     * Lampiran chat tidak boleh menjadi URL publik. Akses dibatasi ke admin,
+     * client pemilik percakapan, atau tamu yang masih memiliki token sesi
+     * percakapan tersebut.
+     */
+    public function attachmentFile(Request $request, ChatMessage $message): StreamedResponse|Response
+    {
+        $conversation = $message->conversation;
+
+        abort_unless($conversation, 404);
+
+        if (! Auth::guard('admin')->check()) {
+            $current = $this->findConversation($request);
+            abort_unless($current && $current->id === $conversation->id, 404);
+        }
+
+        abort_unless($message->attachment_path, 404);
+        abort_unless(Storage::disk('local')->exists($message->attachment_path), 404);
+
+        return Storage::disk('local')->response($message->attachment_path, $message->attachment_name);
     }
 
     /**
