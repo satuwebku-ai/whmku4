@@ -25,7 +25,7 @@ return new class extends Migration
             $table->unsignedInteger('priority')->default(100);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            $table->index(['product_type', 'event_type', 'is_active']);
+            $table->index(['product_type', 'event_type', 'is_active'], 'aff_comm_rules_prod_event_active_idx');
         });
 
         Schema::create('affiliate_fraud_flags', function (Blueprint $table) {
