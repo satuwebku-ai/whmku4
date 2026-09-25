@@ -4,12 +4,21 @@
 
 @section('content')
 
-  <div class="mb-4">
-    <h1 class="h4 fw-bold text-dark mb-1">Template Notifikasi</h1>
+  <div class="d-flex align-items-start gap-3 mb-4">
+    <span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;background:#eef2ff;color:#4f46e5"><i class="fa-solid fa-envelope-open-text"></i></span>
+    <div>
+      <h1 class="h4 fw-bold text-dark mb-1">Template Notifikasi</h1>
     <p class="small text-muted mb-0">
       Atur kata-kata di setiap email &amp; pesan WhatsApp otomatis. Klik salah satu untuk mengedit —
       selama belum pernah diedit, sistem memakai kata-kata bawaan.
     </p>
+    </div>
+  </div>
+
+  <div class="row g-2 mb-3" style="max-width:56rem">
+    <div class="col-sm-4"><div class="card border rounded-4 p-3"><p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Total template</p><p class="h5 fw-bold mb-0">{{ count($templates) }}</p></div></div>
+    <div class="col-sm-4"><div class="card border rounded-4 p-3"><p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Sudah dikustom</p><p class="h5 fw-bold text-success mb-0">{{ collect($templates)->where('is_customized', true)->count() }}</p></div></div>
+    <div class="col-sm-4"><div class="card border rounded-4 p-3"><p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Kanal aktif</p><p class="h5 fw-bold text-accent mb-0">Email · WA · SMS</p></div></div>
   </div>
 
   <div class="card border rounded-4 overflow-hidden">
@@ -17,8 +26,8 @@
       @foreach ($templates as $tpl)
         <a href="{{ route('admin.notification-templates.edit', $tpl['key']) }}"
            class="d-flex align-items-center justify-content-between px-4 py-3 border-bottom text-decoration-none notif-tpl-row">
-          <div class="d-flex align-items-center gap-3 min-w-0">
-            <span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;background:rgba(79,70,229,.1);color:#4f46e5">
+            <div class="d-flex align-items-center gap-3 min-w-0">
+             <span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);color:#4f46e5">
               <i class="fa-regular fa-envelope" style="font-size:14px"></i>
             </span>
             <div class="min-w-0">

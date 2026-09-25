@@ -29,6 +29,15 @@ class ChatController extends Controller
             ->with(['client', 'assignedAdmin'])
             ->when($request->status === 'closed', fn ($q) => $q->where('status', 'closed'))
             ->when($request->status !== 'closed', fn ($q) => $q->where('status', 'open'))
+            ->when($request->search, fn ($q) => $q->where(function ($w) use ($request) {
+                $term = '%' . $request->search . '%';
+                $w->where('name', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('phone', 'like', $term)
+                    ->orWhereHas('client', fn ($client) => $client
+                        ->where('name', 'like', $term)
+                        ->orWhere('email', 'like', $term));
+            }))
             ->orderByDesc('unread_for_admin')
             ->orderByDesc('last_message_at')
             ->paginate(20)
@@ -37,6 +46,7 @@ class ChatController extends Controller
         $counts = [
             'open' => ChatConversation::open()->count(),
             'unread' => ChatConversation::where('unread_for_admin', '>', 0)->count(),
+            'unassigned' => ChatConversation::waitingUnassigned()->count(),
             'closed' => ChatConversation::where('status', 'closed')->count(),
         ];
 

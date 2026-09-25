@@ -8,11 +8,11 @@
     $badgeMap = ['active' => 'badge-soft-success', 'pending' => 'badge-soft-warning', 'overdue' => 'badge-soft-danger', 'suspended' => 'badge-soft-danger', 'inactive' => 'badge-soft-secondary'];
   @endphp
 
-  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div class="ticket-hero d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2 rounded-4 px-4 py-3">
     <div>
       <a href="{{ route('admin.tickets') }}" class="text-decoration-none text-muted" style="font-size:12px"><i class="fa-solid fa-arrow-left"></i> Kembali ke Tiket</a>
-      <h1 class="h4 fw-bold text-dark mt-1 mb-0">{{ $ticket->subject }}</h1>
-      <p class="small text-muted mb-0">{{ $ticket->ticket_number }} · dibuat {{ $ticket->created_at->format('d M Y H:i') }}</p>
+       <h1 class="h4 fw-bold text-dark mt-1 mb-0">{{ $ticket->subject }}</h1>
+       <p class="small text-muted mb-0"><span class="font-monospace">{{ $ticket->ticket_number }}</span> · dibuat {{ $ticket->created_at->format('d M Y H:i') }}</p>
     </div>
     <div class="d-flex align-items-center gap-2">
       <span class="badge {{ $badgeMap[$ticket->priority_badge] ?? 'badge-soft-secondary' }}" style="font-size:13px;padding:.4rem .8rem">{{ ucfirst($ticket->priority) }}</span>
@@ -160,6 +160,18 @@
         </div>
       </div>
 
+      <div class="card border rounded-4 p-4 mb-3" style="background:linear-gradient(135deg,#eef2ff,#fff)">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:28px;height:28px;background:#fff;color:#4f46e5"><i class="fa-regular fa-envelope"></i></span>
+          <h2 class="small fw-bold text-dark mb-0">Email Klien</h2>
+        </div>
+        <p class="text-muted mb-2" style="font-size:11px">Setiap balasan publik dikirim otomatis ke alamat ini. Catatan internal tidak pernah dikirim.</p>
+        <div class="rounded-3 px-2 py-2 d-flex align-items-center gap-2" style="background:rgba(255,255,255,.75);font-size:11px">
+          <i class="fa-solid fa-circle-check text-success"></i>
+          <span class="text-dark text-truncate">{{ $ticket->client?->email ?: 'Email klien belum tersedia' }}</span>
+        </div>
+      </div>
+
       <div class="card border rounded-4 p-4">
         <h2 class="small fw-bold text-dark mb-3">Kelola</h2>
 
@@ -211,5 +223,10 @@
       </div>
     </div>
   </div>
+
+  <style>
+    .ticket-hero{ background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(238,242,255,.72)); border:1px solid rgba(99,102,241,.12); box-shadow:0 8px 24px rgba(15,23,42,.04); }
+    .ticket-hero .badge{ box-shadow:0 3px 10px rgba(15,23,42,.06); }
+  </style>
 
 @endsection

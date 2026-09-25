@@ -43,15 +43,18 @@
        Live Chat di admin panel. --}}
 
   <style>
+    #chatWidget{ font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     #chatPanel{
-      transform:translateY(12px) scale(.97); opacity:0; pointer-events:none;
-      transition:transform .18s ease, opacity .18s ease;
+      transform:translateY(16px) scale(.96); opacity:0; pointer-events:none;
+      transition:transform .22s cubic-bezier(.22,1,.36,1), opacity .22s ease;
+      border:1px solid rgba(99,102,241,.14);
+      box-shadow:0 24px 70px rgba(30,27,75,.22)!important;
     }
     #chatPanel.chat-open{
       transform:translateY(0) scale(1); opacity:1; pointer-events:auto;
     }
-    #chatToggle{ transition:transform .15s ease, box-shadow .15s ease; }
-    #chatToggle:hover{ transform:translateY(-2px); box-shadow:0 10px 22px -6px rgba(76,29,149,.5); }
+    #chatToggle{ transition:transform .15s ease, box-shadow .15s ease; box-shadow:0 12px 28px rgba(76,29,149,.3)!important; }
+    #chatToggle:hover{ transform:translateY(-3px) scale(1.03); box-shadow:0 16px 30px -6px rgba(76,29,149,.5)!important; }
     #chatToggle.has-unread::before{
       content:''; position:absolute; inset:-4px; border-radius:50%;
       border:2px solid {{ $themeColor }}; opacity:.55; animation:chatRing 1.8s ease-out infinite;
@@ -72,24 +75,41 @@
       background-image:radial-gradient(circle at 85% 20%, rgba(255,255,255,.1) 1px, transparent 1px);
       background-size:16px 16px;
     }
+    #chatHeader::after{
+      content:''; position:absolute; width:130px; height:130px; right:-48px; top:-64px;
+      border:1px solid rgba(255,255,255,.16); border-radius:50%;
+      box-shadow:0 0 0 18px rgba(255,255,255,.04),0 0 0 36px rgba(255,255,255,.03);
+      pointer-events:none;
+    }
+    .chat-online-dot{ width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.18); display:inline-block; }
+    .chat-quick-action{ transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease; border:1px solid #e8eaf8; }
+    .chat-quick-action:hover{ transform:translateY(-1px); background:#f5f3ff!important; box-shadow:0 5px 12px rgba(79,70,229,.08); }
+    .chat-identity{ background:linear-gradient(135deg,#f8faff,#f5f3ff); border:1px solid #e5e7ff; }
+    #chatBody::-webkit-scrollbar{ width:5px; }
+    #chatBody::-webkit-scrollbar-thumb{ background:#c7d2fe; border-radius:9px; }
+    #chatBody{ scrollbar-color:#c7d2fe transparent; scrollbar-width:thin; }
+    @media (max-width:480px){
+      #chatWidget{ right:12px!important; bottom:12px!important; }
+      #chatPanel{ width:calc(100vw - 24px)!important; max-width:none!important; height:min(600px,78vh)!important; }
+    }
     #chatInput{ transition:border-color .15s ease; }
     #chatInput:focus{ border-color:{{ $themeColor }}; box-shadow:0 0 0 3px {{ $themeColor }}22; outline:none; }
   </style>
 
-  <div id="chatWidget" class="position-fixed d-flex flex-column align-items-end gap-3" style="right:20px;bottom:20px;z-index:1080">
+  <div id="chatWidget" class="position-fixed d-flex flex-column align-items-end gap-3" style="right:24px;bottom:24px;z-index:1080">
 
-    <div id="chatPanel" class="d-none flex-column rounded-4 bg-white shadow overflow-hidden" style="width:340px;max-width:calc(100vw - 40px);height:min(520px,75vh)">
+    <div id="chatPanel" class="d-none flex-column rounded-4 bg-white shadow overflow-hidden" style="width:380px;max-width:calc(100vw - 40px);height:min(610px,78vh)">
 
       {{-- Kepala --}}
-      <div id="chatHeader" class="px-3 py-3 text-white flex-shrink-0" style="background:linear-gradient(135deg,{{ $themeColor }},#4c1d95)">
+      <div id="chatHeader" class="px-4 py-3 text-white flex-shrink-0" style="background:linear-gradient(135deg,{{ $themeColor }},#4c1d95)">
         <div class="d-flex align-items-center justify-content-between gap-3">
           <div class="d-flex align-items-center gap-2 min-w-0">
-            <span class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:36px;height:36px;background:rgba(255,255,255,.15)">
+            <span class="rounded-4 d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)">
               <i class="fa-solid fa-headset"></i>
             </span>
             <div class="min-w-0">
-              <p class="fw-bold text-truncate mb-0" style="font-size:14px">{{ $siteName }}</p>
-              <p class="mb-0" style="font-size:11px;color:rgba(255,255,255,.7)">{{ $jamOperasi ?: 'Kami siap membantu Anda' }}</p>
+              <p class="fw-bold text-truncate mb-1" style="font-size:14px">{{ $siteName }}</p>
+              <p class="mb-0 d-flex align-items-center gap-2" style="font-size:11px;color:rgba(255,255,255,.78)"><span class="chat-online-dot"></span> {{ $jamOperasi ?: 'Tim support siap membantu' }}</p>
             </div>
           </div>
           <button type="button" id="chatClose" class="btn btn-link p-0 text-white flex-shrink-0" style="opacity:.7" aria-label="Tutup">
@@ -99,27 +119,34 @@
       </div>
 
       {{-- Daftar pesan --}}
-      <div id="chatBody" class="flex-grow-1 overflow-y-auto px-3 py-3 d-flex flex-column gap-2" style="background:#f8fafc">
+      <div id="chatBody" class="flex-grow-1 overflow-y-auto px-3 py-3 d-flex flex-column gap-2" style="background:linear-gradient(180deg,#f8faff 0%,#f8fafc 100%)">
+        <div id="chatWelcome" class="rounded-4 p-3 mb-1" style="background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid #e0e7ff">
+          <p class="fw-bold mb-1" style="font-size:12px;color:#312e81">Halo, 👋</p>
+          <p class="mb-0" style="font-size:11px;line-height:1.6;color:#64748b">Ceritakan kebutuhan Anda. Tim kami akan membantu secepat mungkin.</p>
+        </div>
         <div id="chatLoading" class="text-center text-muted py-4" style="font-size:12px">Memuat percakapan…</div>
       </div>
 
       {{-- Tautan cepat --}}
-      <div class="px-2 py-2 border-top d-flex align-items-center gap-2 flex-shrink-0 bg-white" style="font-size:11px">
+      <div class="px-3 py-2 border-top d-flex align-items-center gap-2 flex-shrink-0 bg-white" style="font-size:11px">
         @if ($waNumber)
           <a href="https://wa.me/{{ preg_replace('/\D/', '', $waNumber) }}?text={{ urlencode($greeting) }}"
              target="_blank" rel="noopener noreferrer"
-             class="d-flex align-items-center gap-1 px-2 py-1 rounded-pill text-decoration-none" style="background:#d1fae5;color:#047857">
-            <i class="fa-brands fa-whatsapp"></i> WhatsApp
+             class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-decoration-none flex-grow-1" style="background:#fff;color:#047857">
+            <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#dcfce7"><i class="fa-brands fa-whatsapp"></i></span>
+            <span><b class="d-block" style="font-size:10px">WhatsApp</b><span class="text-muted" style="font-size:9px">Balasan cepat</span></span>
           </a>
         @endif
         @auth('client')
-          <a href="{{ route('client.tickets.create') }}" class="d-flex align-items-center gap-1 px-2 py-1 rounded-pill text-decoration-none" style="background:#f1f5f9;color:#475569">
-            <i class="fa-solid fa-ticket"></i> Tiket
+          <a href="{{ route('client.tickets.create') }}" class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-decoration-none flex-grow-1" style="background:#fff;color:#4338ca">
+            <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#eef2ff"><i class="fa-solid fa-ticket"></i></span>
+            <span><b class="d-block" style="font-size:10px">Tiket</b><span class="text-muted" style="font-size:9px">Lacak masalah</span></span>
           </a>
         @endauth
         @if ($supportMail)
-          <a href="mailto:{{ $supportMail }}" class="d-flex align-items-center gap-1 px-2 py-1 rounded-pill text-decoration-none" style="background:#f1f5f9;color:#475569">
-            <i class="fa-regular fa-envelope"></i> Email
+          <a href="mailto:{{ $supportMail }}" class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-decoration-none flex-grow-1" style="background:#fff;color:#475569">
+            <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#f1f5f9"><i class="fa-regular fa-envelope"></i></span>
+            <span><b class="d-block" style="font-size:10px">Email</b><span class="text-muted" style="font-size:9px">Kirim detail</span></span>
           </a>
         @endif
       </div>
@@ -127,7 +154,8 @@
       {{-- Kotak kirim --}}
       <form id="chatForm" class="p-3 border-top flex-shrink-0 bg-white">
         @guest('client')
-          <div id="chatIdentity" class="d-flex flex-column gap-2 mb-2">
+          <div id="chatIdentity" class="chat-identity rounded-3 p-2 d-flex flex-column gap-2 mb-2">
+            <p class="mb-0 text-muted" style="font-size:10px"><i class="fa-solid fa-lock me-1"></i>Data ini hanya dipakai agar tim bisa menghubungi Anda.</p>
             <input type="text" name="name" id="chatName" placeholder="Nama Anda" required class="form-control form-control-sm">
             <input type="email" name="email" id="chatEmail" placeholder="Email aktif" required class="form-control form-control-sm">
             <input type="tel" name="phone" id="chatPhone" placeholder="Nomor WhatsApp/Telepon" required class="form-control form-control-sm">

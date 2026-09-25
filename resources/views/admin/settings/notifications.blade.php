@@ -18,6 +18,29 @@
     </a>
   </div>
 
+  @php
+    $mailDriver = config('mail.default', 'log');
+    $mailReady = $mailDriver !== 'log' && filled(config('mail.from.address'));
+  @endphp
+  <div class="card border rounded-4 p-3 mb-3" style="max-width:56rem;background:linear-gradient(135deg,#eef2ff,#fff)">
+    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+      <div class="d-flex align-items-center gap-3">
+        <span class="rounded-3 d-flex align-items-center justify-content-center" style="width:40px;height:40px;background:{{ $mailReady ? '#dcfce7' : '#fef3c7' }};color:{{ $mailReady ? '#047857' : '#b45309' }}"><i class="fa-solid fa-envelope-circle-check"></i></span>
+        <div>
+          <p class="fw-bold text-dark mb-1" style="font-size:13px">Saluran Email</p>
+          <p class="text-muted mb-0" style="font-size:11px">Driver <b>{{ strtoupper($mailDriver) }}</b> · Pengirim <b>{{ config('mail.from.address', 'belum diatur') }}</b></p>
+        </div>
+      </div>
+      <span class="badge {{ $mailReady ? 'badge-soft-success' : 'badge-soft-warning' }}">{{ $mailReady ? 'Siap mengirim' : 'Perlu konfigurasi SMTP' }}</span>
+    </div>
+    @unless ($mailReady)
+      <div class="mt-3 rounded-3 px-3 py-2" style="font-size:11px;color:#92400e;background:rgba(255,255,255,.65)">
+        <i class="fa-solid fa-circle-info me-1"></i>
+        Email masih memakai mode log atau alamat pengirim belum diisi. Atur <code>MAIL_MAILER=smtp</code> dan kredensial SMTP di environment server, lalu uji dengan <code>php artisan lumora:test-mail alamat@anda.com</code>.
+      </div>
+    @endunless
+  </div>
+
   <form method="POST" action="{{ route('admin.settings.notifications.update') }}" style="max-width:56rem">
     @csrf
 

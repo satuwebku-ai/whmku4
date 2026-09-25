@@ -18,7 +18,10 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('password');
             $table->string('avatar')->nullable();
-            $table->string('role')->default('admin'); // admin, staff, superadmin
+            // Role operasional: superadmin, administrator, finance, billing,
+            // domain_manager, hosting_manager, support, marketing, developer,
+            // devops, auditor, viewer. admin/staff tetap diterima sebagai alias lama.
+            $table->string('role')->default('administrator');
             // Daftar modul (array JSON) yang boleh diakses admin ini, mis.
             // ["billing","support"]. NULL berarti belum diatur manual oleh
             // superadmin -> dipakai daftar bawaan sesuai peran (lihat

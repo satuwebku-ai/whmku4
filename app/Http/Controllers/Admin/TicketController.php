@@ -90,7 +90,15 @@ class TicketController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        return ['tickets' => $tickets, 'activeStatus' => $status];
+        $stats = [
+            'all' => Ticket::count(),
+            'open' => Ticket::where('status', 'open')->count(),
+            'customer_reply' => Ticket::where('status', 'customer_reply')->count(),
+            'urgent' => Ticket::whereIn('priority', ['urgent', 'high'])->where('status', '!=', 'closed')->count(),
+            'closed' => Ticket::where('status', 'closed')->count(),
+        ];
+
+        return ['tickets' => $tickets, 'activeStatus' => $status, 'stats' => $stats];
     }
 
     public function details(Ticket $ticket): View

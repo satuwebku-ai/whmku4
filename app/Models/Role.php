@@ -36,7 +36,8 @@ class Role extends Model
      * 12 role staf sesuai Master Blueprint. Dipakai RoleSeeder saat
      * migrasi awal dan oleh Admin::syncRoleFromLegacyColumn() untuk
      * memetakan nilai lama `admins.role` ('superadmin'/'admin'/'staff')
-     * ke slug role yang setara di tabel ini.
+     * ke slug role yang setara di tabel ini. Alias lama `admin` dan `staff`
+     * dipetakan ke `administrator` dan `support`.
      */
     public const ROLES = [
         'superadmin'      => 'Super Admin',
@@ -51,6 +52,21 @@ class Role extends Model
         'devops'          => 'DevOps',
         'auditor'         => 'Auditor',
         'viewer'          => 'Viewer',
+    ];
+
+    public const DESCRIPTIONS = [
+        'superadmin'      => 'Akses penuh ke seluruh modul dan manajemen admin.',
+        'administrator'   => 'Mengelola operasional harian tanpa mengubah akses admin.',
+        'finance'         => 'Fokus pada laporan keuangan, invoice, dan rekonsiliasi pembayaran.',
+        'billing'         => 'Mengelola invoice, pembayaran, dan payment gateway.',
+        'domain_manager'  => 'Mengelola domain, registrar, DNS, dan verifikasi dokumen.',
+        'hosting_manager' => 'Mengelola hosting account, VPS, server, dan provisioning.',
+        'support'         => 'Menangani live chat, tiket support, dan kebutuhan klien.',
+        'marketing'       => 'Mengelola produk, konten, promo, dan affiliate.',
+        'developer'       => 'Akses teknis untuk infrastruktur, konsol, dan konfigurasi.',
+        'devops'          => 'Menangani server, backup, cron job, dan aktivitas sistem.',
+        'auditor'         => 'Akses terbatas untuk meninjau aktivitas dan konfigurasi sistem.',
+        'viewer'          => 'Akses monitoring terbatas untuk kebutuhan laporan dan operasional.',
     ];
 
     public function permissions(): BelongsToMany

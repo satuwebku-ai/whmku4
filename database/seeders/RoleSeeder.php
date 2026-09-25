@@ -20,7 +20,11 @@ class RoleSeeder extends Seeder
         foreach (Role::ROLES as $slug => $name) {
             Role::updateOrCreate(
                 ['slug' => $slug],
-                ['name' => $name, 'is_system' => $slug === 'superadmin']
+                [
+                    'name' => $name,
+                    'description' => Role::DESCRIPTIONS[$slug] ?? null,
+                    'is_system' => $slug === 'superadmin',
+                ]
             );
         }
 

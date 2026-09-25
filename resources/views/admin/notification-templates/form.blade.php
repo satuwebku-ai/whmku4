@@ -10,7 +10,10 @@
 
   <div class="d-flex align-items-center justify-content-between mt-2 mb-4 flex-wrap gap-3">
     <div>
-      <h1 class="h4 fw-bold text-dark mb-0">{{ $meta['label'] }}</h1>
+      <div class="d-flex align-items-center gap-2">
+        <span class="rounded-3 d-flex align-items-center justify-content-center" style="width:34px;height:34px;background:#eef2ff;color:#4f46e5"><i class="fa-solid fa-pen-nib" style="font-size:13px"></i></span>
+        <h1 class="h4 fw-bold text-dark mb-0">{{ $meta['label'] }}</h1>
+      </div>
       @if (! empty($meta['note']))
         <p class="mt-2 mb-0 rounded-3 px-3 py-2" style="font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;max-width:36rem">
           <i class="fa-solid fa-circle-info"></i> {{ $meta['note'] }}
@@ -46,16 +49,19 @@
         @csrf
 
         @if (! is_null($meta['subject']))
-          <div class="card border rounded-4 p-4">
+          <div class="card border rounded-4 p-4 template-editor-card">
             <label class="form-label small fw-medium text-dark">Subjek Email</label>
             <input type="text" name="subject" value="{{ old('subject', $effective['subject']) }}" class="form-control form-control-sm">
             @error('subject') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
           </div>
         @endif
 
-        <div class="card border rounded-4 p-4">
-          <label class="form-label small fw-medium text-dark">Isi Email</label>
-          <textarea name="body_mail" rows="12" class="form-control form-control-sm" style="font-family:monospace;font-size:12px;line-height:1.6">{{ old('body_mail', $effective['body_mail']) }}</textarea>
+        <div class="card border rounded-4 p-4 template-editor-card">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <label class="form-label small fw-medium text-dark mb-0">Isi Email</label>
+            <span class="badge badge-soft-primary"><i class="fa-regular fa-envelope me-1"></i> HTML email</span>
+          </div>
+          <textarea name="body_mail" rows="12" class="form-control form-control-sm template-textarea" style="font-family:monospace;font-size:12px;line-height:1.6">{{ old('body_mail', $effective['body_mail']) }}</textarea>
           @error('body_mail') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
           <p class="text-muted mt-2 mb-0" style="font-size:11px">
             Satu baris = satu paragraf. Baris kosong dilewati (tidak jadi paragraf kosong).
@@ -64,7 +70,7 @@
         </div>
 
         @if (! is_null($meta['body_whatsapp']))
-          <div class="card border rounded-4 p-4">
+          <div class="card border rounded-4 p-4 template-editor-card">
             <label class="form-label small fw-medium text-dark">Isi Pesan WhatsApp</label>
             <textarea name="body_whatsapp" rows="6" class="form-control form-control-sm" style="font-family:monospace;font-size:12px;line-height:1.6">{{ old('body_whatsapp', $effective['body_whatsapp']) }}</textarea>
             @error('body_whatsapp') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
@@ -75,7 +81,7 @@
         @endif
 
         @if (array_key_exists('body_sms', $meta) && ! is_null($meta['body_sms']))
-          <div class="card border rounded-4 p-4">
+          <div class="card border rounded-4 p-4 template-editor-card">
             <label class="form-label small fw-medium text-dark">Isi Pesan SMS</label>
             <textarea name="body_sms" rows="3" class="form-control form-control-sm" style="font-family:monospace;font-size:12px;line-height:1.6" maxlength="1000">{{ old('body_sms', $effective['body_sms']) }}</textarea>
             @error('body_sms') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
@@ -93,7 +99,7 @@
     </div>
 
     <div class="col-12 col-lg-4">
-      <div class="card border rounded-4 p-4">
+      <div class="card border rounded-4 p-4 template-editor-card">
         <h2 class="small fw-bold text-dark mb-2">Variabel Tersedia</h2>
         <p class="text-muted mb-3" style="font-size:12px">Klik untuk menyalin, lalu tempel di isi email/WhatsApp.</p>
         <div class="d-flex flex-wrap gap-2">
@@ -128,5 +134,12 @@
       document.getElementById('previewBodySms').value = mainForm.querySelector('[name="body_sms"]')?.value || '';
     });
   </script>
+  <style>
+    .template-editor-card{ box-shadow:0 8px 24px rgba(15,23,42,.04); }
+    .template-textarea{ border-color:#c7d2fe; background:#fbfdff; }
+    .template-textarea:focus{ background:#fff; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+    .copy-var-btn{ transition:transform .15s ease,background-color .15s ease; }
+    .copy-var-btn:hover{ transform:translateY(-1px); background:#eef2ff; }
+  </style>
 
 @endsection

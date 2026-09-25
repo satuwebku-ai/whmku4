@@ -36,11 +36,29 @@
     <div class="mb-3">
       <label class="form-label small fw-medium text-dark">Peran</label>
       <select name="role" id="roleSelect" class="form-select" style="padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem">
-        @foreach (\App\Models\Admin::ROLES as $key => $desc)
-          <option value="{{ $key }}" @selected(old('role', $admin->role ?? 'admin') === $key)>{{ $desc }}</option>
-        @endforeach
+        <optgroup label="Akses penuh & operasional">
+          @foreach (['superadmin', 'administrator'] as $key)
+            <option value="{{ $key }}" @selected(old('role', $admin->role ?? 'administrator') === $key)>{{ \App\Models\Admin::ROLES[$key] }}</option>
+          @endforeach
+        </optgroup>
+        <optgroup label="Keuangan & layanan">
+          @foreach (['finance', 'billing', 'domain_manager', 'hosting_manager', 'support'] as $key)
+            <option value="{{ $key }}" @selected(old('role', $admin->role ?? 'administrator') === $key)>{{ \App\Models\Admin::ROLES[$key] }}</option>
+          @endforeach
+        </optgroup>
+        <optgroup label="Konten & teknis">
+          @foreach (['marketing', 'developer', 'devops', 'auditor', 'viewer'] as $key)
+            <option value="{{ $key }}" @selected(old('role', $admin->role ?? 'administrator') === $key)>{{ \App\Models\Admin::ROLES[$key] }}</option>
+          @endforeach
+        </optgroup>
+        @if ($admin->exists && in_array($admin->role, ['admin', 'staff'], true))
+          <optgroup label="Kompatibilitas akun lama">
+            <option value="{{ $admin->role }}" selected>{{ \App\Models\Admin::ROLES[$admin->role] }}</option>
+          </optgroup>
+        @endif
       </select>
       @error('role') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      <div id="roleHint" class="rounded-3 px-3 py-2 mt-2" style="font-size:11px;background:#f8fafc;color:#64748b"></div>
     </div>
 
     <div id="modulesSection" class="mb-3 pt-3 border-top">
@@ -53,14 +71,14 @@
       <input type="hidden" name="permissions_submitted" value="1">
       <div class="row g-2">
         @php
-          $currentModules = old('permissions', $admin->exists ? $admin->effectiveModules() : (\App\Models\Admin::ROLE_DEFAULT_MODULES['admin'] ?? []));
+          $currentModules = old('permissions', $admin->exists ? $admin->effectiveModules() : (\App\Models\Admin::ROLE_DEFAULT_MODULES['administrator'] ?? []));
         @endphp
         @foreach (\App\Models\Admin::MODULES as $key => $label)
-          <div class="col-sm-6">
-            <label class="d-flex align-items-start gap-2 small text-dark border rounded-3 px-2 py-2" style="cursor:pointer">
+           <div class="col-sm-6">
+             <label class="d-flex align-items-start gap-2 small text-dark border rounded-3 px-3 py-2 h-100" style="cursor:pointer">
               <input type="checkbox" name="permissions[]" value="{{ $key }}" class="form-check-input module-checkbox" style="margin-top:2px"
                      @checked(in_array($key, $currentModules, true))>
-              <span>{{ $label }}</span>
+               <span><strong class="d-block">{{ \Illuminate\Support\Str::before($label, ' — ') }}</strong><span class="text-muted" style="font-size:10px">{{ \Illuminate\Support\Str::after($label, ' — ') }}</span></span>
             </label>
           </div>
         @endforeach
@@ -167,9 +185,11 @@
       // ── Checklist modul: isi ulang centang bawaan saat peran diganti,
       // dan sembunyikan checklist untuk superadmin (selalu akses penuh).
       const roleDefaults = @json(\App\Models\Admin::ROLE_DEFAULT_MODULES);
+      const roleLabels = @json(\App\Models\Admin::ROLES);
       const roleSelect = document.getElementById('roleSelect');
       const modulesSection = document.getElementById('modulesSection');
       const superadminNote = document.getElementById('superadminNote');
+      const roleHint = document.getElementById('roleHint');
       const isEditingExisting = {{ $admin->exists ? 'true' : 'false' }};
 
       function applyRoleDefaults() {
@@ -178,11 +198,16 @@
         if (role === 'superadmin') {
           modulesSection.classList.add('d-none');
           superadminNote.classList.remove('d-none');
+          roleHint.innerHTML = '<i class="fa-solid fa-shield-halved text-success me-1"></i> Akses penuh. Modul di bawah tidak perlu diatur manual.';
           return;
         }
 
         modulesSection.classList.remove('d-none');
         superadminNote.classList.add('d-none');
+        const label = roleLabels[role] || '';
+        const desc = label.includes('—') ? label.split('—').slice(1).join('—').trim() : label;
+        const count = (roleDefaults[role] || []).length;
+        roleHint.innerHTML = '<i class="fa-solid fa-lock-open text-accent me-1"></i> Bawaan peran ini membuka <b>' + count + ' modul</b>. ' + desc + '. Hak akses tetap bisa disesuaikan per akun.';
       }
 
       if (roleSelect) {

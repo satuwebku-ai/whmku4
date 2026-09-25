@@ -35,9 +35,9 @@
           </tr>
         </thead>
         <tbody>
-          @php
-            $roleBadge = fn ($row) => $row->isSuperadmin() ? 'badge-soft-success' : ($row->isStaff() ? 'badge-soft-secondary' : 'badge-soft-warning');
-          @endphp
+           @php
+             $roleBadge = fn ($row) => $row->isSuperadmin() ? 'badge-soft-success' : (in_array($row->role, ['support', 'staff'], true) ? 'badge-soft-secondary' : 'badge-soft-primary');
+           @endphp
           @forelse ($admins as $row)
             <tr>
               <td class="px-4 py-3">
@@ -112,10 +112,10 @@
 
   <div class="card border rounded-4 p-4 mt-3">
     <h2 class="small fw-bold text-dark mb-3">Arti Peran</h2>
-    @foreach (\App\Models\Admin::ROLES as $key => $desc)
+     @foreach (\App\Models\Role::ROLES as $key => $name)
       <div class="d-flex gap-2 mb-2 small">
-        <span class="badge {{ $key === 'superadmin' ? 'badge-soft-success' : ($key === 'staff' ? 'badge-soft-secondary' : 'badge-soft-warning') }} flex-shrink-0">{{ ucfirst($key) }}</span>
-        <span class="text-muted">{{ \Illuminate\Support\Str::after($desc, '— ') }}</span>
+         <span class="badge {{ $key === 'superadmin' ? 'badge-soft-success' : ($key === 'support' ? 'badge-soft-secondary' : 'badge-soft-primary') }} flex-shrink-0">{{ $name }}</span>
+         <span class="text-muted">{{ \App\Models\Role::DESCRIPTIONS[$key] ?? 'Akses sesuai modul yang dipilih.' }}</span>
       </div>
     @endforeach
   </div>

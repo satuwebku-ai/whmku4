@@ -96,9 +96,23 @@ class Admin extends Authenticatable
      *     superadmin lewat Admin & Akses -- bukan cuma dua level tetap.
      */
     public const ROLES = [
-        'superadmin' => 'Superadmin — akses penuh, termasuk mengelola admin lain & mengatur izin modul',
-        'admin'      => 'Admin — kelola modul yang diizinkan superadmin (bawaan: semua kecuali Sistem)',
-        'staff'      => 'Staff — kelola modul yang diizinkan superadmin (bawaan: Layanan & Dukungan saja)',
+        'superadmin'      => 'Super Admin — akses penuh & kelola semua akun',
+        'administrator'   => 'Administrator — operasional penuh tanpa akses akun admin',
+        'finance'         => 'Finance — laporan keuangan, invoice & pembayaran',
+        'billing'         => 'Billing — invoice, pembayaran & payment gateway',
+        'domain_manager'  => 'Domain Manager — domain, registrar & dokumen domain',
+        'hosting_manager' => 'Hosting Manager — hosting account, VPS & infrastruktur',
+        'support'         => 'Support — live chat, tiket & data klien',
+        'marketing'       => 'Marketing — produk, konten, promo & affiliate',
+        'developer'       => 'Developer — infrastruktur, konsol & konfigurasi teknis',
+        'devops'          => 'DevOps — server, backup, cron & sistem',
+        'auditor'         => 'Auditor — akses baca untuk audit & aktivitas',
+        'viewer'          => 'Viewer — akses baca terbatas untuk monitoring',
+
+        // Alias lama tetap ditampilkan supaya akun existing tidak berubah
+        // arti saat migrasi dari versi sebelumnya.
+        'admin'           => 'Admin (legacy) — gunakan Administrator untuk akun baru',
+        'staff'           => 'Staff (legacy) — gunakan Support untuk akun baru',
     ];
 
     /**
@@ -126,8 +140,22 @@ class Admin extends Authenticatable
      * lihat hasModule().
      */
     public const ROLE_DEFAULT_MODULES = [
-        'admin' => ['sales', 'billing', 'services', 'infrastructure', 'support', 'content'],
-        'staff' => ['services', 'support'],
+        'superadmin'      => ['sales', 'billing', 'services', 'infrastructure', 'support', 'content', 'system'],
+        'administrator'   => ['sales', 'billing', 'services', 'infrastructure', 'support', 'content'],
+        'finance'         => ['billing'],
+        'billing'         => ['billing'],
+        'domain_manager'  => ['services', 'infrastructure'],
+        'hosting_manager' => ['services', 'infrastructure'],
+        'support'         => ['services', 'support'],
+        'marketing'       => ['sales', 'content'],
+        'developer'       => ['infrastructure', 'system'],
+        'devops'          => ['infrastructure', 'system'],
+        'auditor'         => ['system'],
+        'viewer'          => ['services', 'support'],
+
+        // Default lama.
+        'admin'           => ['sales', 'billing', 'services', 'infrastructure', 'support', 'content'],
+        'staff'           => ['services', 'support'],
     ];
 
     public function isSuperadmin(): bool
@@ -181,9 +209,11 @@ class Admin extends Authenticatable
     public function getRoleLabelAttribute(): string
     {
         return match ($this->role) {
-            'superadmin' => 'Superadmin',
-            'staff' => 'Staff',
-            default => 'Admin',
+            'superadmin' => 'Super Admin',
+            'administrator' => 'Administrator',
+            'domain_manager' => 'Domain Manager',
+            'hosting_manager' => 'Hosting Manager',
+            default => self::ROLES[$this->role] ?? ucfirst(str_replace('_', ' ', $this->role)),
         };
     }
 
@@ -304,7 +334,13 @@ class Admin extends Authenticatable
      */
     public function syncRoleFromLegacyColumn(): void
     {
-        $role = Role::where('slug', $this->role)->first();
+        $slug = match ($this->role) {
+            'admin' => 'administrator',
+            'staff' => 'support',
+            default => $this->role,
+        };
+
+        $role = Role::where('slug', $slug)->first();
 
         if (! $role) {
             return;

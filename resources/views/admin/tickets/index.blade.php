@@ -4,6 +4,37 @@
 
 @section('content')
 
+  <div class="d-flex align-items-start justify-content-between gap-3 mb-4 flex-wrap">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="rounded-3 d-flex align-items-center justify-content-center" style="width:34px;height:34px;background:#ecfdf5;color:#059669"><i class="fa-solid fa-ticket"></i></span>
+        <h1 class="h4 fw-bold text-dark mb-0">Support Ticket</h1>
+      </div>
+      <p class="small text-muted mb-0">Kelola pertanyaan klien dengan SLA, prioritas, penanggung jawab, dan riwayat email yang jelas.</p>
+    </div>
+    <a href="{{ route('admin.ticket.add.page') }}" class="btn btn-primary">
+      <i class="fa-solid fa-plus" style="font-size:12px"></i> Buat Tiket
+    </a>
+  </div>
+
+  <div class="row g-2 mb-3">
+    @foreach ([
+      ['label' => 'Total tiket', 'value' => $stats['all'], 'icon' => 'fa-layer-group', 'tone' => 'primary'],
+      ['label' => 'Perlu ditangani', 'value' => $stats['open'] + $stats['customer_reply'], 'icon' => 'fa-inbox', 'tone' => 'warning'],
+      ['label' => 'Prioritas tinggi', 'value' => $stats['urgent'], 'icon' => 'fa-bolt', 'tone' => 'danger'],
+      ['label' => 'Selesai', 'value' => $stats['closed'], 'icon' => 'fa-circle-check', 'tone' => 'success'],
+    ] as $stat)
+      <div class="col-6 col-xl-3">
+        <div class="card border rounded-4 px-3 py-3 h-100">
+          <div class="d-flex align-items-center justify-content-between">
+            <div><p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">{{ $stat['label'] }}</p><p class="h5 fw-bold text-dark mb-0">{{ $stat['value'] }}</p></div>
+            <span class="rounded-3 d-flex align-items-center justify-content-center text-{{ $stat['tone'] }}" style="width:34px;height:34px;background:rgba(var(--bs-{{ $stat['tone'] }}-rgb),.1)"><i class="fa-solid {{ $stat['icon'] }}" style="font-size:13px"></i></span>
+          </div>
+        </div>
+      </div>
+    @endforeach
+  </div>
+
   {{-- Tab status --}}
   <div class="d-flex align-items-center gap-1 mb-3 border-bottom flex-wrap">
     @php
@@ -21,16 +52,6 @@
         {{ $tab['label'] }}
       </a>
     @endforeach
-  </div>
-
-  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-    <div>
-      <h1 class="h4 fw-bold text-dark mb-1">Support Ticket</h1>
-      <p class="small text-muted mb-0">Tiket yang butuh perhatian otomatis muncul di urutan atas.</p>
-    </div>
-    <a href="{{ route('admin.ticket.add.page') }}" class="btn btn-primary">
-      <i class="fa-solid fa-plus" style="font-size:12px"></i> Buat Tiket
-    </a>
   </div>
 
   <div class="card border rounded-4 overflow-hidden">
@@ -68,12 +89,12 @@
             $badgeMap = ['active' => 'badge-soft-success', 'pending' => 'badge-soft-warning', 'overdue' => 'badge-soft-danger', 'suspended' => 'badge-soft-danger', 'inactive' => 'badge-soft-secondary'];
           @endphp
           @forelse ($tickets as $ticket)
-            <tr class="{{ $ticket->needsAttention() ? 'table-warning-subtle' : '' }}" style="{{ $ticket->needsAttention() ? 'background:#fffbeb' : '' }}">
+             <tr class="{{ $ticket->needsAttention() ? 'table-warning-subtle' : '' }}" style="{{ $ticket->needsAttention() ? 'background:#fffbeb' : '' }}">
               <td class="px-4 py-3">
                 <a href="{{ route('admin.tickets.details', $ticket) }}" class="text-decoration-none fw-medium text-dark">
                   {{ $ticket->subject }}
                 </a>
-                <p class="text-muted mb-0" style="font-size:12px">{{ $ticket->ticket_number }} · {{ $ticket->replies_count }} balasan</p>
+                 <p class="text-muted mb-0" style="font-size:11px"><span class="font-monospace">{{ $ticket->ticket_number }}</span> · {{ $ticket->replies_count }} balasan</p>
               </td>
               <td class="text-muted py-3">{{ $ticket->client->name ?? '—' }}</td>
               <td class="text-muted text-capitalize py-3">{{ $ticket->department }}</td>
