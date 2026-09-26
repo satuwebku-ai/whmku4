@@ -28,44 +28,53 @@
     @if ($menu->exists && $children->isNotEmpty())
       @php $currentLinkMode = old('link_mode', $menu->default_child_id ? 'child' : 'dropdown'); @endphp
 
-      <div class="mb-3 p-3 rounded-3 border" style="background:#f8fafc">
-        <label class="form-label small fw-medium text-dark mb-1">Menu ini punya Subnav</label>
-        <p class="text-muted mb-2" style="font-size:12px">
-          "{{ $menu->label }}" punya {{ $children->count() }} Subnav
-          (dikelola di <a href="{{ route('admin.nav-submenus', ['parent' => $menu->id]) }}">Submenu / Subnav</a>).
-          Tentukan yang terjadi saat menu ini diklik di navbar publik.
-        </p>
+      {{-- Sengaja dibuat beda gaya (kartu + radio biasa) dari blok
+           "Tautan Menuju" di bawah (yang pakai pill) supaya jelas ini
+           dua pengaturan yang beda, bukan satu grup pilihan yang sama. --}}
+      <div class="mb-3 rounded-4 border overflow-hidden">
+        <div class="px-3 py-2 border-bottom d-flex align-items-center gap-2" style="background:#eef2ff">
+          <i class="fa-solid fa-diagram-project text-primary" style="font-size:12px"></i>
+          <span class="small fw-bold text-dark">Menu ini punya Subnav</span>
+        </div>
+        <div class="p-3">
+          <p class="text-muted mb-3" style="font-size:12px">
+            "{{ $menu->label }}" punya {{ $children->count() }} Subnav
+            (dikelola di <a href="{{ route('admin.nav-submenus', ['parent' => $menu->id]) }}">Submenu / Subnav</a>).
+            Tentukan yang terjadi saat menu ini diklik di navbar publik:
+          </p>
 
-        <div class="row g-2 mb-2">
-          <div class="col-md-6">
-            <label class="d-flex align-items-center justify-content-center rounded-3 border px-2 py-2 text-center small fw-medium w-100" style="cursor:pointer;{{ $currentLinkMode === 'dropdown' ? 'border-color:#4f46e5!important;background:rgba(79,70,229,.06);color:#4338ca' : '' }}">
-              <input type="radio" name="link_mode" value="dropdown" @checked($currentLinkMode === 'dropdown') class="d-none" data-linkmode-radio>
-              Tampilkan dropdown Subnav
+          <div class="d-flex flex-column gap-2 mb-3">
+            <label class="d-flex align-items-start gap-2 rounded-3 border p-2 mb-0" data-linkmode-option style="cursor:pointer;{{ $currentLinkMode === 'dropdown' ? 'border-color:#4f46e5;background:rgba(79,70,229,.05)' : '' }}">
+              <input type="radio" name="link_mode" value="dropdown" @checked($currentLinkMode === 'dropdown') class="form-check-input mt-1 flex-shrink-0" data-linkmode-radio>
+              <span>
+                <span class="d-block small fw-medium text-dark">Tampilkan dropdown Subnav</span>
+                <span class="d-block text-muted" style="font-size:11px">Menu ini jadi tombol dropdown, membuka daftar semua Subnav-nya.</span>
+              </span>
+            </label>
+            <label class="d-flex align-items-start gap-2 rounded-3 border p-2 mb-0" data-linkmode-option style="cursor:pointer;{{ $currentLinkMode === 'child' ? 'border-color:#4f46e5;background:rgba(79,70,229,.05)' : '' }}">
+              <input type="radio" name="link_mode" value="child" @checked($currentLinkMode === 'child') class="form-check-input mt-1 flex-shrink-0" data-linkmode-radio>
+              <span>
+                <span class="d-block small fw-medium text-dark">Langsung ke salah satu Subnav</span>
+                <span class="d-block text-muted" style="font-size:11px">Klik menu langsung menuju satu Subnav pilihan, tanpa dropdown. Subnav lain tetap ada, hanya tidak tampil di navbar.</span>
+              </span>
             </label>
           </div>
-          <div class="col-md-6">
-            <label class="d-flex align-items-center justify-content-center rounded-3 border px-2 py-2 text-center small fw-medium w-100" style="cursor:pointer;{{ $currentLinkMode === 'child' ? 'border-color:#4f46e5!important;background:rgba(79,70,229,.06);color:#4338ca' : '' }}">
-              <input type="radio" name="link_mode" value="child" @checked($currentLinkMode === 'child') class="d-none" data-linkmode-radio>
-              Langsung ke salah satu Subnav
-            </label>
+
+          <div data-linkmode-field="child" class="{{ $currentLinkMode === 'child' ? '' : 'd-none' }}">
+            <label class="form-label small fw-medium text-dark">Pilih Subnav Tujuan</label>
+            <select name="default_child_id" class="form-select form-select-sm">
+              <option value="">— Pilih —</option>
+              @foreach ($children as $child)
+                <option value="{{ $child->id }}" @selected((int) old('default_child_id', $menu->default_child_id) === $child->id)>{{ $child->label }}</option>
+              @endforeach
+            </select>
+            @error('default_child_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
           </div>
-        </div>
 
-        <div data-linkmode-field="child" class="{{ $currentLinkMode === 'child' ? '' : 'd-none' }}">
-          <label class="form-label small fw-medium text-dark">Pilih Subnav Tujuan</label>
-          <select name="default_child_id" class="form-select form-select-sm">
-            <option value="">— Pilih —</option>
-            @foreach ($children as $child)
-              <option value="{{ $child->id }}" @selected((int) old('default_child_id', $menu->default_child_id) === $child->id)>{{ $child->label }}</option>
-            @endforeach
-          </select>
-          @error('default_child_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
-          <p class="text-muted mt-1 mb-0" style="font-size:11px">Subnav lain tetap ada dan bisa dikelola, tapi tidak tampil sebagai dropdown di navbar publik.</p>
+          <p data-linkmode-field="dropdown" class="text-muted mb-0 {{ $currentLinkMode === 'dropdown' ? '' : 'd-none' }}" style="font-size:11px">
+            <i class="fa-solid fa-circle-info"></i> Bagian "Tautan Menuju" di bawah ini dipakai sebagai tautan induk, muncul di baris paling atas dropdown sebelum daftar Subnav.
+          </p>
         </div>
-
-        <p data-linkmode-field="dropdown" class="text-muted mb-0 {{ $currentLinkMode === 'dropdown' ? '' : 'd-none' }}" style="font-size:11px">
-          "Tautan Menuju" di bawah dipakai sebagai tautan induk sebelum daftar Subnav pada dropdown.
-        </p>
       </div>
 
       <script>
@@ -77,17 +86,10 @@
         function sync() {
           const active = document.querySelector('[data-linkmode-radio]:checked')?.value;
           fields.forEach(el => el.classList.toggle('d-none', el.dataset.linkmodeField !== active));
-          radios.forEach(r => {
-            const label = r.closest('label');
-            if (r.checked) {
-              label.style.borderColor = '#4f46e5';
-              label.style.background = 'rgba(79,70,229,.06)';
-              label.style.color = '#4338ca';
-            } else {
-              label.style.borderColor = '';
-              label.style.background = '';
-              label.style.color = '';
-            }
+          document.querySelectorAll('[data-linkmode-option]').forEach(label => {
+            const isChecked = label.querySelector('[data-linkmode-radio]').checked;
+            label.style.borderColor = isChecked ? '#4f46e5' : '';
+            label.style.background = isChecked ? 'rgba(79,70,229,.05)' : '';
           });
           if (destinationSection) {
             destinationSection.classList.toggle('d-none', active === 'child');
@@ -101,6 +103,11 @@
     @endif
 
     <div data-linkmode-section="destination">
+      @if ($menu->exists && $children->isNotEmpty())
+        <p class="text-muted mb-2" style="font-size:11px">
+          <i class="fa-solid fa-circle-info"></i> Ini tautan milik "{{ $menu->label }}" sendiri (bukan Subnav) — dipakai kalau memilih "Tampilkan dropdown Subnav" di atas.
+        </p>
+      @endif
       @include('admin.nav-menus._destination-fields')
     </div>
 
