@@ -20,16 +20,16 @@
 
     <div>
       <label class="form-label">Subjek</label>
-      <input type="text" name="subject" value="{{ old('subject') }}" required class="form-control" placeholder="Website tidak bisa diakses">
+      <input type="text" name="subject" value="{{ old('subject', request('subject')) }}" required class="form-control" placeholder="Website tidak bisa diakses">
     </div>
 
     <div class="row g-3">
       <div class="col-sm-6">
         <label class="form-label">Departemen</label>
         <select name="department" class="form-select">
-          <option value="support" @selected(old('department') === 'support')>Bantuan Teknis</option>
-          <option value="billing" @selected(old('department') === 'billing')>Tagihan &amp; Pembayaran</option>
-          <option value="sales" @selected(old('department') === 'sales')>Penjualan</option>
+          <option value="support" @selected(old('department', request('department')) === 'support')>Bantuan Teknis</option>
+          <option value="billing" @selected(old('department', request('department')) === 'billing')>Tagihan &amp; Pembayaran</option>
+          <option value="sales" @selected(old('department', request('department')) === 'sales')>Penjualan</option>
         </select>
       </div>
       <div class="col-sm-6">
@@ -56,7 +56,7 @@
 
     <div>
       <label class="form-label">Pesan</label>
-      <textarea name="message" rows="7" required class="form-control" placeholder="Ceritakan kendala Anda...">{{ old('message') }}</textarea>
+      <textarea name="message" rows="7" required class="form-control" placeholder="Ceritakan kendala Anda...">{{ old('message', request('message')) }}</textarea>
     </div>
 
     <div>

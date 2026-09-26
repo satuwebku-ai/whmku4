@@ -4,6 +4,7 @@ use App\Http\Controllers\Payment\WebhookController;
 use App\Http\Controllers\Site\CartController;
 use App\Http\Controllers\Site\CatalogController;
 use App\Http\Controllers\Site\DomainSearchController;
+use App\Http\Controllers\Site\PremiumDomainController;
 use App\Http\Controllers\Site\ChatController as SiteChatController;
 use App\Http\Controllers\Site\PageController as SitePageController;
 use Illuminate\Support\Facades\Route;
@@ -51,6 +52,14 @@ Route::controller(DomainSearchController::class)->group(function () {
     Route::post('cek-domain/keranjang', 'addToCart')->name('domain.add-to-cart');
     Route::get('transfer-domain', 'transferFormBootstrap')->name('domains.transfer');
     Route::post('transfer-domain', 'submitTransfer')->name('domains.transfer.submit');
+});
+
+// Domain Premium: keluarga .id (harga tetap per karakter, live dari
+// DNAMA) + TLD generik (harga per-nama, dicek dulu lalu dipesan lewat
+// tiket -- lihat PremiumDomainController untuk alasannya).
+Route::controller(PremiumDomainController::class)->prefix('domain-premium')->name('domain-premium.')->group(function () {
+    Route::get('/', 'indexBootstrap')->name('index');
+    Route::post('cek', 'check')->name('check');
 });
 
 // Link referral affiliate. Dua segmen ({code} lalu opsional {campaign})
