@@ -265,6 +265,18 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::get('tld/privacy', [TldController::class, 'privacyBootstrap'])->name('tlds.privacy');
         Route::post('tld/privacy/registrars', [TldController::class, 'updatePrivacyRegistrars'])->name('tlds.privacy.registrars');
         Route::post('tld/privacy/tlds', [TldController::class, 'updatePrivacyTlds'])->name('tlds.privacy.tlds');
+
+        // Halaman BARU: harga TLD yang DISARANKAN registrar untuk
+        // pelanggan/sub-reseller MEREKA sendiri (customer-tld-pricings
+        // & sub-reseller-tld-pricings) -- beda dari "TLD Pricing" di
+        // atas yang menyimpan harga MODAL kita. Sifatnya cuma
+        // lihat-lihat/referensi (belum ada tombol "tarik ke sini"),
+        // dipakai kalau nanti mau jual paket sub-reseller sendiri.
+        // Cuma jalan untuk registrar yang service class-nya punya
+        // method listCustomerTldPricings()/listSubResellerTldPricings()
+        // (dicek lewat method_exists di controller, sama seperti pola
+        // Diagnosa Registrar) -- saat ini baru DNAMA.
+        Route::get('tld/registrar-pricing', [TldController::class, 'registrarPricingBootstrap'])->name('tlds.registrar-pricing');
     });
 
     // ── Katalog Produk (Fase 7b) — harga jual yang memengaruhi seluruh

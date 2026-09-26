@@ -297,38 +297,224 @@ class DnamaService implements DomainRegistrarInterface
 
     // ─────────────────────────────────────────────────────────────
     // DNS Management
+    //
+    // PENTING: signature 3 method publik di bawah ini (listDnsRecords,
+    // addDnsRecord, deleteDnsRecord) DISAMAKAN PERSIS dengan
+    // LiquidService, karena ServiceController (portal klien) memanggil
+    // keduanya lewat pola generik yang sama -- lihat
+    // ServiceController::dnsView()/addDnsRecord()/deleteDnsRecord() di
+    // routes/client.php. Sebelumnya method-method ini punya urutan
+    // parameter & bentuk return berbeda dari yang dipanggil
+    // ServiceController (domain,subDomain,type,address,ttl vs
+    // domain,type,hostname,value,priority yang sebenarnya dikirim),
+    // jadi type/hostname/priority tertukar posisi dan tambah/hapus
+    // record DNS lewat portal klien salah sasaran untuk domain Dnama.
+    // Akses ke bentuk API asli (payload bebas, ttl kustom, tipe di
+    // luar 5 yang didukung form klien) tetap ada lewat versi *Raw() di
+    // bagian bawah.
     // ─────────────────────────────────────────────────────────────
 
     /**
-     * GET /domains/{domain_name}/dns-records
+     * GET /domains/{domain_name}/dns-records -- dipetakan ke bentuk
+     * generik {type, hostname, value, priority} per baris, SAMA
+     * seperti yang dikembalikan LiquidService::listDnsRecords(),
+     * supaya blade view client.domains.dns (yang membaca
+     * $record['type']/['hostname']/['value']/['priority']) bisa
+     * dipakai apa adanya untuk kedua registrar.
+     *
+     * Record dengan tipe di luar A/AAAA/CNAME/MX/TXT (mis. NS, SRV,
+     * DNAME -- yang didukung Dnama tapi tidak oleh form klien generik)
+     * dilewati dari daftar ini, bukan dihilangkan dari domainnya --
+     * masih bisa dilihat lewat listDnsRecordsRaw().
      */
     public function listDnsRecords(string $domain): array
+    {
+        $result = $this->listDnsRecordsRaw($domain);
+
+        if (! $result['success']) {
+            return ['success' => false, 'message' => $result['message'], 'records' => [], 'raw' => $result['raw']];
+        }
+
+        $records = [];
+
+        foreach ((array) ($result['raw']['data'] ?? []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $mapped = $this->mapRawDnsRow($row);
+
+            if ($mapped !== null) {
+                $records[] = $mapped;
+            }
+        }
+
+        return ['success' => true, 'message' => 'OK', 'records' => $records, 'raw' => $result['raw']];
+    }
+
+    /**
+     * Bentuk & urutan parameter disamakan dengan
+     * LiquidService::addDnsRecord() -- INI yang dipanggil
+     * ServiceController, bukan urutan (domain, subDomain, type,
+     * address, ttl) yang dipakai versi sebelumnya.
+     *
+     * $type dibatasi ke A/AAAA/CNAME/MX/TXT (sama seperti validasi di
+     * ServiceController::addDnsRecord()) karena tiap tipe DNAMA butuh
+     * nama field body yang berbeda (address/cname/exchange+preference/
+     * txt_data) -- dipetakan otomatis di sini.
+     */
+    public function addDnsRecord(string $domain, string $type, string $hostname, string $value, ?int $priority = null): array
+    {
+        $type = strtoupper($type);
+        $payload = ['sub_domain' => $hostname, 'type' => $type, 'ttl' => 3600];
+
+        switch ($type) {
+            case 'A':
+            case 'AAAA':
+                $payload['address'] = $value;
+                break;
+            case 'CNAME':
+                $payload['cname'] = $value;
+                break;
+            case 'MX':
+                $payload['exchange'] = $value;
+                $payload['preference'] = $priority ?? 10;
+                break;
+            case 'TXT':
+                $payload['txt_data'] = $value;
+                break;
+            default:
+                return ['success' => false, 'message' => "Jenis record {$type} tidak didukung lewat form ini.", 'raw' => null];
+        }
+
+        return $this->addDnsRecordRaw($domain, $payload);
+    }
+
+    /**
+     * Bentuk & urutan parameter disamakan dengan
+     * LiquidService::deleteDnsRecord() -- (domain, type, hostname,
+     * value), BUKAN (domain, dnsRecordId) seperti versi sebelumnya.
+     *
+     * DNAMA menghapus record berdasarkan ID numerik, bukan
+     * type/hostname/value -- jadi di sini diambil dulu daftar record
+     * mentah, dicari yang cocok (type + hostname + value setelah
+     * dipetakan), baru ID-nya dipakai untuk memanggil
+     * deleteDnsRecordRaw(). Kalau tidak ketemu (mis. sudah terhapus
+     * duluan / data di form sudah usang), dikembalikan gagal dengan
+     * pesan jelas, bukan diam-diam menghapus record yang salah.
+     */
+    public function deleteDnsRecord(string $domain, string $type, string $hostname, string $value): array
+    {
+        $type = strtoupper($type);
+        $list = $this->listDnsRecordsRaw($domain);
+
+        if (! $list['success']) {
+            return ['success' => false, 'message' => $list['message'], 'raw' => $list['raw']];
+        }
+
+        foreach ((array) ($list['raw']['data'] ?? []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $mapped = $this->mapRawDnsRow($row);
+
+            if (! $mapped || $mapped['type'] !== $type || $mapped['value'] !== $value) {
+                continue;
+            }
+
+            $sameHost = $mapped['hostname'] === $hostname
+                || ($hostname === '@' && in_array($mapped['hostname'], ['@', '', null], true));
+
+            if (! $sameHost) {
+                continue;
+            }
+
+            if (empty($row['id'])) {
+                continue;
+            }
+
+            return $this->deleteDnsRecordRaw($domain, (string) $row['id']);
+        }
+
+        return [
+            'success' => false,
+            'message' => "Record {$type} {$hostname} -> {$value} tidak ditemukan di DNAMA (mungkin sudah dihapus, atau nilainya sudah berubah).",
+            'raw' => $list['raw'],
+        ];
+    }
+
+    /**
+     * GET /domains/{domain_name}/dns-records -- versi MENTAH, apa
+     * adanya dari API (array baris dengan field berbeda-beda per
+     * "type": address / cname / preference+exchange / ns / txt_data /
+     * priority+weight+port+target). Dipakai internal oleh
+     * listDnsRecords()/deleteDnsRecord() di atas -- simpan juga untuk
+     * kebutuhan lain (mis. UI admin yang mau menampilkan NS/SRV/DNAME
+     * yang tidak dicakup form klien generik).
+     */
+    public function listDnsRecordsRaw(string $domain): array
     {
         return $this->call('get', "/domains/{$domain}/dns-records");
     }
 
     /**
-     * POST /domains/{domain_name}/dns-records
-     *
-     * @param  string  $subDomain  mis. "@" untuk root, "www" untuk www.domain
-     * @param  string  $type  A / AAAA / CNAME / MX / TXT / dst.
+     * POST /domains/{domain_name}/dns-records -- versi MENTAH, payload
+     * dikirim 1:1 sesuai skema API (bebas field apa saja: sub_domain,
+     * type, ttl, address/cname/preference+exchange/ns/txt_data/dst).
+     * addDnsRecord() di atas membangun payload ini otomatis untuk 5
+     * tipe yang didukung form klien -- pakai method ini langsung kalau
+     * butuh ttl kustom atau tipe lain (NS/SRV/DNAME).
      */
-    public function addDnsRecord(string $domain, string $subDomain, string $type, string $address, int $ttl = 3600): array
+    public function addDnsRecordRaw(string $domain, array $payload): array
     {
-        return $this->call('post', "/domains/{$domain}/dns-records", [
-            'sub_domain' => $subDomain,
-            'type' => strtoupper($type),
-            'ttl' => $ttl,
-            'address' => $address,
-        ]);
+        return $this->call('post', "/domains/{$domain}/dns-records", $payload);
     }
 
     /**
      * DELETE /domains/{domain_name}/dns-records/{dns_record_id}
      */
-    public function deleteDnsRecord(string $domain, string $dnsRecordId): array
+    public function deleteDnsRecordRaw(string $domain, string $dnsRecordId): array
     {
         return $this->call('delete', "/domains/{$domain}/dns-records/{$dnsRecordId}");
+    }
+
+    /**
+     * Petakan satu baris mentah /dns-records ke bentuk generik
+     * {id, type, hostname, value, priority} yang dipakai
+     * listDnsRecords()/deleteDnsRecord() di atas serta view
+     * client.domains.dns -- sengaja disamakan dengan bentuk yang
+     * dikembalikan LiquidService supaya kode client bisa dipakai
+     * bergantian untuk kedua registrar.
+     *
+     * Return null untuk tipe di luar A/AAAA/CNAME/MX/TXT (NS/SRV/DNAME)
+     * -- form generik cuma mendukung 5 tipe itu (lihat validasi
+     * 'type' di ServiceController::addDnsRecord()), jadi baris jenis
+     * lain tidak masuk daftar yang ditampilkan/dihapus lewat sana.
+     */
+    private function mapRawDnsRow(array $row): ?array
+    {
+        $type = strtoupper((string) ($row['type'] ?? ''));
+
+        $value = match ($type) {
+            'A', 'AAAA' => $row['address'] ?? null,
+            'CNAME' => $row['cname'] ?? null,
+            'MX' => $row['exchange'] ?? null,
+            'TXT' => $row['txt_data'] ?? null,
+            default => null,
+        };
+
+        if ($value === null) {
+            return null;
+        }
+
+        return [
+            'id' => $row['id'] ?? null,
+            'type' => $type,
+            'hostname' => $row['subDomain'] ?? '@',
+            'value' => $value,
+            'priority' => $type === 'MX' ? ($row['preference'] ?? null) : null,
+        ];
     }
 
     // ─────────────────────────────────────────────────────────────

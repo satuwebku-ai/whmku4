@@ -232,6 +232,144 @@ class TldController extends Controller
 
 
     /**
+     * Halaman BARU: harga TLD yang DISARANKAN registrar untuk
+     * pelanggan mereka sendiri (customer-tld-pricings) dan untuk
+     * sub-reseller (sub-reseller-tld-pricings) -- BEDA dari halaman
+     * "TLD Pricing" di atas yang menyimpan harga MODAL kita sendiri.
+     * Halaman ini murni lihat-lihat/referensi, dipakai untuk
+     * menyusun paket harga sub-reseller sendiri nantinya -- belum ada
+     * tombol "tarik ke sini" karena datanya harga jual REGISTRAR ke
+     * pihak lain, bukan harga modal kita.
+     *
+     * Sama seperti Diagnosa Registrar, dukungan dicek lewat
+     * method_exists() -- BUKAN nama provider -- supaya registrar lain
+     * yang suatu saat menambah method serupa otomatis ikut tampil di
+     * sini tanpa kode ini perlu diubah.
+     */
+    public function registrarPricing(Request $request): View
+    {
+        $registrars = Registrar::where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+
+        $registrarParam = $request->input('registrar');
+        $selected = null;
+        $customerPricing = null;
+        $subResellerPricing = null;
+        $apiErrors = [];
+
+        if ($registrarParam) {
+            $selected = $registrars->firstWhere('id', (int) $registrarParam);
+
+            if ($selected) {
+                $service = DomainRegistrarFactory::make($selected);
+                $supportsAny = false;
+
+                if (method_exists($service, 'listCustomerTldPricings')) {
+                    $supportsAny = true;
+
+                    try {
+                        $result = $service->listCustomerTldPricings();
+
+                        if ($result['success']) {
+                            $customerPricing = $this->normalizeTldPricingRows($result['raw']['data'] ?? []);
+                        } else {
+                            $apiErrors[] = 'Harga pelanggan: ' . $result['message'];
+                        }
+                    } catch (\Throwable $e) {
+                        $apiErrors[] = 'Harga pelanggan: ' . $e->getMessage();
+                    }
+                }
+
+                if (method_exists($service, 'listSubResellerTldPricings')) {
+                    $supportsAny = true;
+
+                    try {
+                        $result = $service->listSubResellerTldPricings();
+
+                        if ($result['success']) {
+                            $subResellerPricing = $this->normalizeSubResellerPackages($result['raw']['data'] ?? []);
+                        } else {
+                            $apiErrors[] = 'Harga sub-reseller: ' . $result['message'];
+                        }
+                    } catch (\Throwable $e) {
+                        $apiErrors[] = 'Harga sub-reseller: ' . $e->getMessage();
+                    }
+                }
+
+                if (! $supportsAny) {
+                    $apiErrors[] = "Registrar {$selected->name} belum mendukung harga pelanggan/sub-reseller lewat halaman ini.";
+                }
+            }
+        }
+
+        return view('admin.tlds.registrar-pricing', compact(
+            'registrars', 'selected', 'customerPricing', 'subResellerPricing', 'apiErrors'
+        ));
+    }
+
+    public function registrarPricingBootstrap(Request $request): View
+    {
+        return $this->registrarPricing($request);
+    }
+
+    /**
+     * Ratakan baris /customer-tld-pricings (atau tlds di dalam satu
+     * paket sub-reseller -- bentuknya identik) ke
+     * {extension, currency, is_premium, register, renew, transfer}
+     * berdasarkan durasi 1 tahun, mengikuti pendekatan yang sama
+     * dengan listPrices() di DnamaService untuk harga modal.
+     *
+     * BEDA dengan listPrices(): baris premium TETAP disertakan di sini
+     * (ditandai lewat 'is_premium'), bukan dilewati -- halaman ini
+     * cuma untuk DILIHAT, bukan disinkronkan ke tabel Tld, jadi tidak
+     * ada risiko baris premium menimpa harga reguler seperti saat
+     * sinkronisasi.
+     */
+    private function normalizeTldPricingRows(array $rows): array
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $oneYear = collect($row['pricings'] ?? [])->firstWhere('duration', 1);
+
+            $out[] = [
+                'extension' => $row['tld'] ?? '-',
+                'currency' => $row['currency'] ?? 'IDR',
+                'is_premium' => (bool) ($row['is_premium'] ?? false),
+                'register' => $oneYear['register_price'] ?? null,
+                'renew' => $oneYear['renewal_price'] ?? null,
+                'transfer' => $oneYear['transfer_price'] ?? null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Bentuk /sub-reseller-tld-pricings beda dari /customer-tld-pricings
+     * biasa -- dibagi per PAKET (mis. Silver/Gold), tiap paket punya
+     * syarat deposit minimum & batas saldo sendiri, baru di dalamnya
+     * ada daftar TLD dengan bentuk harga yang sama seperti
+     * customer-tld-pricings (ditangani lewat normalizeTldPricingRows()
+     * yang sama).
+     */
+    private function normalizeSubResellerPackages(array $packages): array
+    {
+        $out = [];
+
+        foreach ($packages as $package) {
+            $out[] = [
+                'package_name' => $package['package_name'] ?? '-',
+                'minimum_deposit' => $package['minimum_deposit'] ?? null,
+                'balance_limit' => $package['balance_limit'] ?? null,
+                'description' => $package['description'] ?? null,
+                'tlds' => $this->normalizeTldPricingRows($package['tlds'] ?? []),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Perbandingan harga antar registrar untuk ekstensi yang sama.
      * Cuma dihitung untuk ekstensi yang benar-benar tampil di halaman
      * (bukan seluruh tabel), supaya query-nya tetap ringan.
