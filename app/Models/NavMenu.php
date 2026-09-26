@@ -59,6 +59,7 @@ class NavMenu extends Model
      * WHMCS yang punya jalurnya sendiri, terpisah dari menu situs.
      */
     public const BUILTIN_ROUTES = [
+        '#' => '# (Tanpa Tautan)',
         'home' => 'Beranda',
         'catalog.index' => 'Katalog Hosting',
         'domain.search' => 'Cek Domain',
