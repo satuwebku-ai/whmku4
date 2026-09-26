@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Registrar;
+use App\Models\Setting;
 use App\Services\Domain\DomainRegistrarFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,20 @@ use Illuminate\View\View;
 
 class PremiumDomainController extends Controller
 {
+    /**
+     * Gerbang fitur -- terpisah dari Menu Navigasi. Menu cuma ngatur
+     * tautan yang tampil di navbar; ini yang benar-benar menentukan
+     * apakah halamannya bisa diakses publik sama sekali. Dimatikan
+     * dari Pengaturan > Umum saat fitur belum siap dirilis, tanpa
+     * perlu mengutak-atik menu atau routenya.
+     */
+    private function ensureActive(): void
+    {
+        if (! Setting::get('domain_premium_active', '1')) {
+            abort(404);
+        }
+    }
+
     /**
      * Ekstensi keluarga .id -- PANDI menetapkan tingkat harga premium
      * TETAP berdasarkan jumlah karakter, jadi bisa ditampilkan sebagai
@@ -42,11 +57,15 @@ class PremiumDomainController extends Controller
 
     public function index(): View
     {
+        $this->ensureActive();
+
         return view('public.catalog.domain-premium', $this->data());
     }
 
     public function indexBootstrap(): View
     {
+        $this->ensureActive();
+
         return view('public.catalog.domain-premium', $this->data());
     }
 
@@ -162,6 +181,8 @@ class PremiumDomainController extends Controller
      */
     public function check(Request $request): JsonResponse
     {
+        $this->ensureActive();
+
         $data = $request->validate([
             'domain_name' => ['required', 'string', 'max:255'],
         ]);

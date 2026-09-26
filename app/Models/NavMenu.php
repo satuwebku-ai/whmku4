@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Route as RouteFacade;
+use App\Models\Setting;
 
 class NavMenu extends Model
 {
@@ -38,6 +39,12 @@ class NavMenu extends Model
      * Halaman bawaan sistem yang boleh dipilih untuk tipe "route".
      * Dibatasi ke daftar ini (bukan nama route bebas) supaya admin tidak
      * bisa memasukkan nama route yang tidak ada dan mematahkan menu.
+     *
+     * Keranjang (cart.index) SENGAJA tidak dimasukkan di sini -- itu
+     * bagian dari proses checkout (dipicu tombol "Tambah ke Keranjang"
+     * di halaman produk/domain, lewat ikon keranjang di header), bukan
+     * halaman untuk dijelajah lewat menu navigasi. Mirip cart.php di
+     * WHMCS yang punya jalurnya sendiri, terpisah dari menu situs.
      */
     public const BUILTIN_ROUTES = [
         'home' => 'Beranda',
@@ -45,7 +52,6 @@ class NavMenu extends Model
         'domain.search' => 'Cek Domain',
         'domain-premium.index' => 'Domain Premium',
         'announcements.index' => 'Pengumuman',
-        'cart.index' => 'Keranjang',
     ];
 
     public function page(): BelongsTo
@@ -71,9 +77,15 @@ class NavMenu extends Model
     public function getResolvedUrlAttribute(): ?string
     {
         return match ($this->type) {
-            'route' => ($this->route_name && RouteFacade::has($this->route_name))
-                ? route($this->route_name)
-                : null,
+            // Fitur yang punya toggle Aktif/Nonaktif tersendiri di
+            // Pengaturan (mis. Domain Premium) -- kalau dimatikan, menu
+            // yang menunjuk ke sana ikut disembunyikan otomatis, supaya
+            // tidak ada link navbar yang mengarah ke halaman 404.
+            'route' => ($this->route_name === 'domain-premium.index' && ! Setting::get('domain_premium_active', '1'))
+                ? null
+                : (($this->route_name && RouteFacade::has($this->route_name))
+                    ? route($this->route_name)
+                    : null),
 
             'page' => ($this->page && $this->page->is_published)
                 ? route('page.show', $this->page->slug)
