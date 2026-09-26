@@ -8,6 +8,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TldPremium extends Model
 {
     /**
+     * WAJIB dideklarasikan eksplisit -- konvensi nama tabel Eloquent
+     * (Str::plural) membuat "TldPremium" jadi "tld_premia" (mengikuti
+     * pluralisasi ala Latin untuk akhiran "-ium", sama seperti
+     * "medium" -> "media"), padahal migration-nya membuat tabel
+     * bernama "tld_premiums" (pluralisasi Inggris biasa). Tanpa baris
+     * ini, SEMUA query model ini gagal dengan "no such table:
+     * tld_premia" walau tabel "tld_premiums" sungguhan ada.
+     */
+    protected $table = 'tld_premiums';
+
+    /**
      * Ekstensi keluarga .id -- PANDI menetapkan tingkat harga premium
      * TETAP berdasarkan jumlah karakter, jadi DNAMA mengirimnya sebagai
      * daftar harga siap pakai (bukan per-nama seperti TLD generik di
