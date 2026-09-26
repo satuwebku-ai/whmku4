@@ -21,7 +21,7 @@ class NavMenuController extends Controller
     {
         return view('admin.nav-menus.index', [
             'menus' => NavMenu::withCount('allChildren')
-                ->with('page')
+                ->with(['page', 'defaultChild'])
                 ->whereNull('parent_id')
                 ->orderBy('sort_order')
                 ->orderBy('id')
@@ -75,7 +75,7 @@ class NavMenuController extends Controller
     {
         abort_if($navMenu->parent_id !== null, 404);
 
-        $data = $this->validated($request, false);
+        $data = $this->validated($request, false, $navMenu);
         $data['parent_id'] = null;
 
         $navMenu->update($data);
@@ -244,6 +244,10 @@ class NavMenuController extends Controller
         return [
             'menu' => $menu,
             'pages' => $this->publishedPages(),
+            // Hanya Menu Utama yang sudah tersimpan yang bisa punya
+            // Subnav untuk dipilih sebagai tujuan langsung -- menu baru
+            // belum bisa punya Subnav sama sekali.
+            'children' => $menu->exists ? $menu->allChildren : collect(),
         ];
     }
 
@@ -272,28 +276,38 @@ class NavMenuController extends Controller
             : 'page';
     }
 
-    private function validated(Request $request, bool $submenu): array
+    private function validated(Request $request, bool $submenu, ?NavMenu $navMenu = null): array
     {
+        // Menu Utama yang sudah punya Subnav boleh diset supaya klik-nya
+        // langsung menuju satu Subnav tertentu, bukan dropdown. Saat mode
+        // ini dipilih, field "Tautan Menuju" (route/page/url) di bawahnya
+        // tidak dipakai -- tujuannya diambil dari Subnav yang dipilih.
+        $isDirectChildMode = ! $submenu && $request->input('link_mode') === 'child';
+
         $rules = [
             'label' => ['required', 'string', 'max:50'],
-            'type' => ['required', 'in:route,page,url'],
-            'route_name' => ['required_if:type,route', 'nullable', 'string', 'in:' . implode(',', array_keys(NavMenu::BUILTIN_ROUTES))],
-            'page_id' => ['required_if:type,page', 'nullable', 'exists:cms_pages,id'],
-            'url' => ['required_if:type,url', 'nullable', 'url', 'max:255'],
+            'type' => [$isDirectChildMode ? 'nullable' : 'required', 'in:route,page,url'],
+            'route_name' => [$isDirectChildMode ? 'nullable' : 'required_if:type,route', 'nullable', 'string', 'in:' . implode(',', array_keys(NavMenu::BUILTIN_ROUTES))],
+            'page_id' => [$isDirectChildMode ? 'nullable' : 'required_if:type,page', 'nullable', 'exists:cms_pages,id'],
+            'url' => [$isDirectChildMode ? 'nullable' : 'required_if:type,url', 'nullable', 'url', 'max:255'],
             'open_in_new_tab' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ];
 
         if ($submenu) {
             $rules['parent_id'] = ['required', 'exists:nav_menus,id'];
+        } elseif ($isDirectChildMode) {
+            $rules['default_child_id'] = ['required', 'integer'];
         }
 
         $data = $request->validate($rules, [
             'parent_id.required' => 'Pilih menu utama untuk submenu ini.',
+            'type.required' => 'Pilih tujuan tautan menu ini.',
             'route_name.required_if' => 'Pilih salah satu halaman bawaan.',
             'page_id.required_if' => 'Pilih salah satu halaman.',
             'url.required_if' => 'Isi alamat tautannya.',
             'url.url' => 'Format URL tidak valid — awali dengan https://',
+            'default_child_id.required' => 'Pilih Subnav tujuan.',
         ]);
 
         if ($submenu) {
@@ -306,10 +320,38 @@ class NavMenuController extends Controller
             }
         }
 
-        // Hanya simpan field sesuai jenis tautan yang dipilih.
-        $data['route_name'] = $data['type'] === 'route' ? $data['route_name'] : null;
-        $data['page_id'] = $data['type'] === 'page' ? $data['page_id'] : null;
-        $data['url'] = $data['type'] === 'url' ? $data['url'] : null;
+        if ($isDirectChildMode) {
+            $childId = (int) ($data['default_child_id'] ?? 0);
+            $belongsToThisMenu = $navMenu
+                ? NavMenu::where('id', $childId)->where('parent_id', $navMenu->id)->exists()
+                : false;
+
+            if (! $belongsToThisMenu) {
+                throw ValidationException::withMessages([
+                    'default_child_id' => 'Subnav yang dipilih tidak valid.',
+                ]);
+            }
+        }
+
+        if ($isDirectChildMode) {
+            // Tujuannya diambil dari Subnav yang dipilih, field
+            // route/page/url milik Menu Utama ini sendiri diabaikan.
+            $data['type'] = 'url';
+            $data['route_name'] = null;
+            $data['page_id'] = null;
+            $data['url'] = null;
+            $data['default_child_id'] = (int) $data['default_child_id'];
+        } else {
+            // Hanya simpan field sesuai jenis tautan yang dipilih.
+            $data['route_name'] = $data['type'] === 'route' ? $data['route_name'] : null;
+            $data['page_id'] = $data['type'] === 'page' ? $data['page_id'] : null;
+            $data['url'] = $data['type'] === 'url' ? $data['url'] : null;
+
+            if (! $submenu) {
+                $data['default_child_id'] = null;
+            }
+        }
+
         $data['open_in_new_tab'] = $request->boolean('open_in_new_tab');
         $data['is_active'] = $request->boolean('is_active', true);
 

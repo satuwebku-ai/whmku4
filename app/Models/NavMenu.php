@@ -11,7 +11,7 @@ use App\Models\Setting;
 class NavMenu extends Model
 {
     protected $fillable = [
-        'parent_id', 'label', 'type', 'route_name', 'page_id', 'url',
+        'parent_id', 'label', 'type', 'route_name', 'page_id', 'default_child_id', 'url',
         'open_in_new_tab', 'is_active', 'sort_order',
     ];
 
@@ -66,6 +66,17 @@ class NavMenu extends Model
         'announcements.index' => 'Pengumuman',
     ];
 
+    /**
+     * Subnav yang jadi tujuan LANGSUNG saat Menu Utama ini diklik di
+     * navbar publik, dipakai untuk menu yang punya Subnav tapi tidak
+     * ingin ditampilkan sebagai dropdown (lihat getDirectChildTargetAttribute).
+     * Hanya relevan untuk Menu Utama (parent_id null).
+     */
+    public function defaultChild(): BelongsTo
+    {
+        return $this->belongsTo(NavMenu::class, 'default_child_id');
+    }
+
     public function page(): BelongsTo
     {
         // FK disebut eksplisit -- kolomnya TETAP page_id (tidak ikut
@@ -88,6 +99,14 @@ class NavMenu extends Model
      */
     public function getResolvedUrlAttribute(): ?string
     {
+        // Menu Utama yang di-setting untuk langsung menuju salah satu
+        // Subnav-nya: tujuannya IKUT Subnav itu, bukan field type/route/
+        // page/url milik menu ini sendiri (yang sengaja dikosongkan saat
+        // mode ini aktif -- lihat NavMenuController::validated()).
+        if ($this->parent_id === null && $this->direct_child_target) {
+            return $this->direct_child_target->resolved_url;
+        }
+
         return match ($this->type) {
             // Fitur yang punya toggle Aktif/Nonaktif tersendiri di
             // Pengaturan (mis. Domain Premium) -- kalau dimatikan, menu
@@ -110,11 +129,36 @@ class NavMenu extends Model
     }
 
     /**
+     * Kalau Menu Utama ini di-setting untuk langsung menuju salah satu
+     * Subnav-nya (bukan menampilkan dropdown), accessor ini mengembalikan
+     * Subnav tujuannya -- tapi hanya kalau Subnav itu masih benar-benar
+     * berada di bawah menu ini dan tautannya masih valid. Kalau tidak,
+     * kembalikan null supaya layout publik jatuh balik ke perilaku lama
+     * (dropdown kalau punya Subnav, tautan sendiri kalau tidak).
+     */
+    public function getDirectChildTargetAttribute(): ?self
+    {
+        if (! $this->default_child_id) {
+            return null;
+        }
+
+        $child = $this->defaultChild;
+
+        // Cast eksplisit -- parent_id bisa balik sebagai string dari
+        // sebagian driver DB, jangan pakai perbandingan ketat langsung.
+        return ($child && (int) $child->parent_id === (int) $this->id && $child->resolved_url) ? $child : null;
+    }
+
+    /**
      * Nama pola route untuk menandai menu yang sedang aktif di navigasi
      * (mis. semua URL /hosting/* menyorot menu "Hosting").
      */
     public function getActivePatternAttribute(): ?string
     {
+        if ($this->parent_id === null && $this->direct_child_target) {
+            return $this->direct_child_target->active_pattern;
+        }
+
         return match ($this->type) {
             'route' => match ($this->route_name) {
                 'catalog.index' => 'catalog.*',

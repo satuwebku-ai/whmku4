@@ -61,18 +61,23 @@
             </span>
           </div>
           <p class="text-muted text-truncate mb-0" style="font-size:12px">
-            @switch($menu->type)
-              @case('route')
-                <i class="fa-solid fa-house" style="font-size:10px"></i>
-                Halaman bawaan — {{ \App\Models\NavMenu::BUILTIN_ROUTES[$menu->route_name] ?? $menu->route_name }}
-                @break
-              @case('page')
-                <i class="fa-regular fa-file" style="font-size:10px"></i>
-                Halaman — {{ $menu->page->title ?? '(halaman terhapus)' }}
-                @break
-              @default
-                <i class="fa-solid fa-link" style="font-size:10px"></i> {{ $menu->url }}
-            @endswitch
+            @if ($menu->default_child_id)
+              <i class="fa-solid fa-arrow-turn-up fa-rotate-90" style="font-size:10px"></i>
+              Langsung ke Subnav — {{ $menu->defaultChild->label ?? '(subnav terhapus)' }}
+            @else
+              @switch($menu->type)
+                @case('route')
+                  <i class="fa-solid fa-house" style="font-size:10px"></i>
+                  Halaman bawaan — {{ \App\Models\NavMenu::BUILTIN_ROUTES[$menu->route_name] ?? $menu->route_name }}
+                  @break
+                @case('page')
+                  <i class="fa-regular fa-file" style="font-size:10px"></i>
+                  Halaman — {{ $menu->page->title ?? '(halaman terhapus)' }}
+                  @break
+                @default
+                  <i class="fa-solid fa-link" style="font-size:10px"></i> {{ $menu->url }}
+              @endswitch
+            @endif
           </p>
         </div>
 

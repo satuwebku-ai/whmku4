@@ -7,7 +7,7 @@
   $favicon    = Setting::get('site_favicon');
   $themeColor = Setting::get('theme_color', '#6366F1');
   $footerPages = \App\Models\CmsPage::published()->where('show_in_footer', true)->orderBy('sort_order')->get();
-  $navMenus = \App\Models\NavMenu::active()->whereNull('parent_id')->with(['page', 'children.page'])->orderBy('sort_order')->get();
+  $navMenus = \App\Models\NavMenu::active()->whereNull('parent_id')->with(['page', 'children.page', 'defaultChild.page'])->orderBy('sort_order')->get();
   $cartCount = app(CartService::class)->count();
   $isImpersonating = session('impersonator_admin_id') && auth('client')->check();
 @endphp
@@ -83,7 +83,13 @@
 
       <nav id="publicHeaderNav" class="d-flex align-items-center gap-4">
         @foreach ($navMenus as $item)
-          @php $validChildren = $item->children->filter(fn ($c) => $c->resolved_url); @endphp
+          @php
+            // Kalau Menu Utama ini di-setting langsung menuju satu
+            // Subnav (default_child_id terisi & valid), jangan tampilkan
+            // dropdown sama sekali -- $item->resolved_url di bawah sudah
+            // otomatis mengarah ke Subnav itu (lihat NavMenu::getResolvedUrlAttribute).
+            $validChildren = $item->direct_child_target ? collect() : $item->children->filter(fn ($c) => $c->resolved_url);
+          @endphp
 
           @if ($validChildren->isNotEmpty())
             <div class="public-menu-item py-2" style="margin:-.5rem 0" data-menu-item>
@@ -137,14 +143,16 @@
             {{ $item->label }}
           </a>
         @endif
-        @foreach ($item->children as $child)
-          @continue(! $child->resolved_url)
-          <a href="{{ $child->resolved_url }}"
-             @if ($child->open_in_new_tab) target="_blank" rel="noopener noreferrer" @endif
-             class="text-nowrap text-decoration-none {{ $child->active_pattern && request()->routeIs($child->active_pattern) ? 'text-theme fw-medium' : 'text-muted' }}">
-            <i class="fa-solid fa-arrow-turn-up fa-rotate-90" style="font-size:9px"></i> {{ $child->label }}
-          </a>
-        @endforeach
+        @unless ($item->direct_child_target)
+          @foreach ($item->children as $child)
+            @continue(! $child->resolved_url)
+            <a href="{{ $child->resolved_url }}"
+               @if ($child->open_in_new_tab) target="_blank" rel="noopener noreferrer" @endif
+               class="text-nowrap text-decoration-none {{ $child->active_pattern && request()->routeIs($child->active_pattern) ? 'text-theme fw-medium' : 'text-muted' }}">
+              <i class="fa-solid fa-arrow-turn-up fa-rotate-90" style="font-size:9px"></i> {{ $child->label }}
+            </a>
+          @endforeach
+        @endunless
       @endforeach
     </nav>
   </header>
