@@ -3,104 +3,180 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\NavMenu;
 use App\Models\CmsPage;
+use App\Models\NavMenu;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class NavMenuController extends Controller
 {
+    /**
+     * MENU UTAMA
+     * Hanya menampilkan item dengan parent_id = null.
+     */
     public function index(): View
     {
-        return view('admin.nav-menus.index', $this->indexData());
+        return view('admin.nav-menus.index', [
+            'menus' => NavMenu::withCount('allChildren')
+                ->with('page')
+                ->whereNull('parent_id')
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(),
+        ]);
     }
 
     public function indexBootstrap(): View
     {
-        return view('admin.nav-menus.index', $this->indexData());
-    }
-
-    private function indexData(): array
-    {
-        // Cuma menu tingkat atas (parent_id kosong) yang diambil di sini —
-        // submenu-nya ikut lewat relasi children(), supaya tampilan admin
-        // menunjukkan hierarkinya jelas, bukan daftar datar tercampur.
-        $menus = NavMenu::with(['page', 'allChildren.page'])
-            ->whereNull('parent_id')
-            ->orderBy('sort_order')->orderBy('id')->get();
-
-        $topLevelForParentSelect = NavMenu::whereNull('parent_id')->orderBy('sort_order')->get();
-
-        return compact('menus', 'topLevelForParentSelect');
+        return $this->index();
     }
 
     public function create(): View
     {
-        return view('admin.nav-menus.form', [
-            'menu' => new NavMenu([
-                'type' => in_array(request('type'), ['route', 'page', 'url'], true) ? request('type') : 'page',
-                'parent_id' => request('parent_id'),
-            ]),
-            'pages' => CmsPage::published()->orderBy('title')->get(),
-            'parentOptions' => NavMenu::whereNull('parent_id')->orderBy('sort_order')->get(),
-        ]);
+        return view('admin.nav-menus.main-form', $this->formData(new NavMenu([
+            'type' => $this->requestedType(),
+            'is_active' => true,
+        ])));
     }
 
     public function createBootstrap(): View
     {
-        return view('admin.nav-menus.form', [
-            'menu' => new NavMenu([
-                'type' => in_array(request('type'), ['route', 'page', 'url'], true) ? request('type') : 'page',
-                'parent_id' => request('parent_id'),
-            ]),
-            'pages' => CmsPage::published()->orderBy('title')->get(),
-            'parentOptions' => NavMenu::whereNull('parent_id')->orderBy('sort_order')->get(),
-        ]);
+        return $this->create();
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validated($request);
-
-        $data['sort_order'] = (int) NavMenu::max('sort_order') + 1;
+        $data = $this->validated($request, false);
+        $data['parent_id'] = null;
+        $data['sort_order'] = $this->nextSortOrder(null);
 
         NavMenu::create($data);
 
-        return redirect()->route('admin.nav-menus')->with('success', 'Menu berhasil ditambahkan.');
+        return redirect()->route('admin.nav-menus')
+            ->with('success', 'Menu utama berhasil ditambahkan.');
     }
 
     public function edit(NavMenu $navMenu): View
     {
-        return view('admin.nav-menus.form', [
-            'menu' => $navMenu,
-            'pages' => CmsPage::published()->orderBy('title')->get(),
-            // Menu tidak boleh jadi anak dari dirinya sendiri.
-            'parentOptions' => NavMenu::whereNull('parent_id')->where('id', '!=', $navMenu->id)->orderBy('sort_order')->get(),
-        ]);
+        abort_if($navMenu->parent_id !== null, 404);
+
+        return view('admin.nav-menus.main-form', $this->formData($navMenu));
     }
 
     public function editBootstrap(NavMenu $navMenu): View
     {
-        return view('admin.nav-menus.form', [
-            'menu' => $navMenu,
-            'pages' => CmsPage::published()->orderBy('title')->get(),
-            'parentOptions' => NavMenu::whereNull('parent_id')->where('id', '!=', $navMenu->id)->orderBy('sort_order')->get(),
-        ]);
+        return $this->edit($navMenu);
     }
 
     public function update(Request $request, NavMenu $navMenu): RedirectResponse
     {
-        $navMenu->update($this->validated($request));
+        abort_if($navMenu->parent_id !== null, 404);
 
-        return redirect()->route('admin.nav-menus')->with('success', 'Menu berhasil diperbarui.');
+        $data = $this->validated($request, false);
+        $data['parent_id'] = null;
+
+        $navMenu->update($data);
+
+        return redirect()->route('admin.nav-menus')
+            ->with('success', 'Menu utama berhasil diperbarui.');
+    }
+
+    /**
+     * SUBMENU / SUBNAV
+     * Halaman ini sengaja dipisahkan dari Menu Utama.
+     */
+    public function submenus(): View
+    {
+        $mainMenus = NavMenu::whereNull('parent_id')
+            ->with(['children.page'])
+            ->withCount('allChildren')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return view('admin.nav-menus.submenus', compact('mainMenus'));
+    }
+
+    public function createSubmenu(Request $request): View
+    {
+        $parentOptions = $this->parentOptions();
+
+        $parentId = $request->integer('parent_id') ?: null;
+
+        if ($parentId && ! $parentOptions->contains('id', $parentId)) {
+            $parentId = null;
+        }
+
+        return view('admin.nav-menus.sub-form', [
+            'menu' => new NavMenu([
+                'parent_id' => $parentId,
+                'type' => $this->requestedType(),
+                'is_active' => true,
+            ]),
+            'pages' => $this->publishedPages(),
+            'parentOptions' => $parentOptions,
+        ]);
+    }
+
+    public function storeSubmenu(Request $request): RedirectResponse
+    {
+        $data = $this->validated($request, true);
+        $parentId = (int) $data['parent_id'];
+
+        $data['sort_order'] = $this->nextSortOrder($parentId);
+
+        NavMenu::create($data);
+
+        return redirect()->route('admin.nav-submenus')
+            ->with('success', 'Submenu berhasil ditambahkan.');
+    }
+
+    public function editSubmenu(NavMenu $navMenu): View
+    {
+        abort_if($navMenu->parent_id === null, 404);
+
+        return view('admin.nav-menus.sub-form', [
+            'menu' => $navMenu,
+            'pages' => $this->publishedPages(),
+            'parentOptions' => $this->parentOptions(),
+        ]);
+    }
+
+    public function updateSubmenu(Request $request, NavMenu $navMenu): RedirectResponse
+    {
+        abort_if($navMenu->parent_id === null, 404);
+
+        $oldParentId = $navMenu->parent_id;
+        $data = $this->validated($request, true);
+        $newParentId = (int) $data['parent_id'];
+
+        // Jika pindah induk, letakkan di paling bawah submenu induk baru.
+        if ($oldParentId !== $newParentId) {
+            $data['sort_order'] = $this->nextSortOrder($newParentId);
+        }
+
+        $navMenu->update($data);
+
+        return redirect()->route('admin.nav-submenus')
+            ->with('success', 'Submenu berhasil diperbarui.');
     }
 
     public function destroy(NavMenu $navMenu): RedirectResponse
     {
+        $label = $navMenu->label;
+        $isMain = $navMenu->parent_id === null;
+
         $navMenu->delete();
 
-        return back()->with('success', 'Menu berhasil dihapus.');
+        return back()->with(
+            'success',
+            $isMain
+                ? "Menu utama \"{$label}\" dan submenu di bawahnya berhasil dihapus."
+                : "Submenu \"{$label}\" berhasil dihapus."
+        );
     }
 
     public function toggleStatus(Request $request): RedirectResponse
@@ -108,38 +184,97 @@ class NavMenuController extends Controller
         $menu = NavMenu::findOrFail($request->input('nav_menu_id'));
         $menu->update(['is_active' => ! $menu->is_active]);
 
-        return back()->with('success', "Menu \"{$menu->label}\" berhasil " . ($menu->is_active ? 'ditampilkan.' : 'disembunyikan.'));
+        return back()->with(
+            'success',
+            "\"{$menu->label}\" berhasil " . ($menu->is_active ? 'ditampilkan.' : 'disembunyikan.')
+        );
     }
 
     /**
-     * Geser urutan menu satu posisi ke atas/bawah dengan menukar sort_order
-     * dengan tetangganya. Dipilih daripada drag-and-drop supaya tidak
-     * menambah dependensi JavaScript baru untuk kebutuhan yang sederhana.
+     * Urutan hanya dibandingkan dengan saudara pada level yang sama.
+     * Menu utama tidak boleh bertukar posisi dengan submenu milik menu lain.
      */
     public function move(Request $request, NavMenu $navMenu): RedirectResponse
     {
-        $direction = $request->input('direction');
+        $direction = $request->validate([
+            'direction' => ['required', 'in:up,down'],
+        ])['direction'];
+
+        $query = NavMenu::query()->where('parent_id', $navMenu->parent_id);
 
         $neighbor = $direction === 'up'
-            ? NavMenu::where('sort_order', '<', $navMenu->sort_order)->orderByDesc('sort_order')->first()
-            : NavMenu::where('sort_order', '>', $navMenu->sort_order)->orderBy('sort_order')->first();
+            ? $query->where(function ($q) use ($navMenu) {
+                $q->where('sort_order', '<', $navMenu->sort_order)
+                    ->orWhere(function ($q2) use ($navMenu) {
+                        $q2->where('sort_order', $navMenu->sort_order)
+                            ->where('id', '<', $navMenu->id);
+                    });
+            })->orderByDesc('sort_order')->orderByDesc('id')->first()
+            : $query->where(function ($q) use ($navMenu) {
+                $q->where('sort_order', '>', $navMenu->sort_order)
+                    ->orWhere(function ($q2) use ($navMenu) {
+                        $q2->where('sort_order', $navMenu->sort_order)
+                            ->where('id', '>', $navMenu->id);
+                    });
+            })->orderBy('sort_order')->orderBy('id')->first();
 
         if (! $neighbor) {
             return back();
         }
 
-        $a = $navMenu->sort_order;
-        $b = $neighbor->sort_order;
-        $navMenu->update(['sort_order' => $b]);
-        $neighbor->update(['sort_order' => $a]);
+        DB::transaction(function () use ($navMenu, $neighbor) {
+            $a = $navMenu->sort_order;
+            $b = $neighbor->sort_order;
+
+            // Hindari collision jika dua record memiliki sort_order sama.
+            if ($a === $b) {
+                $temporary = (int) NavMenu::max('sort_order') + 1000;
+                $navMenu->update(['sort_order' => $temporary]);
+            }
+
+            $navMenu->update(['sort_order' => $b]);
+            $neighbor->update(['sort_order' => $a]);
+        });
 
         return back();
     }
 
-    private function validated(Request $request): array
+    private function formData(NavMenu $menu): array
     {
-        $data = $request->validate([
-            'parent_id' => ['nullable', 'exists:nav_menus,id'],
+        return [
+            'menu' => $menu,
+            'pages' => $this->publishedPages(),
+        ];
+    }
+
+    private function publishedPages()
+    {
+        return CmsPage::published()->orderBy('title')->get();
+    }
+
+    private function parentOptions()
+    {
+        return NavMenu::whereNull('parent_id')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function nextSortOrder(?int $parentId): int
+    {
+        return ((int) NavMenu::where('parent_id', $parentId)->max('sort_order')) + 1;
+    }
+
+    private function requestedType(): string
+    {
+        return in_array(request('type'), ['route', 'page', 'url'], true)
+            ? request('type')
+            : 'page';
+    }
+
+    private function validated(Request $request, bool $submenu): array
+    {
+        $rules = [
             'label' => ['required', 'string', 'max:50'],
             'type' => ['required', 'in:route,page,url'],
             'route_name' => ['required_if:type,route', 'nullable', 'string', 'in:' . implode(',', array_keys(NavMenu::BUILTIN_ROUTES))],
@@ -147,31 +282,34 @@ class NavMenuController extends Controller
             'url' => ['required_if:type,url', 'nullable', 'url', 'max:255'],
             'open_in_new_tab' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
-        ], [
+        ];
+
+        if ($submenu) {
+            $rules['parent_id'] = ['required', 'exists:nav_menus,id'];
+        }
+
+        $data = $request->validate($rules, [
+            'parent_id.required' => 'Pilih menu utama untuk submenu ini.',
             'route_name.required_if' => 'Pilih salah satu halaman bawaan.',
             'page_id.required_if' => 'Pilih salah satu halaman.',
             'url.required_if' => 'Isi alamat tautannya.',
             'url.url' => 'Format URL tidak valid — awali dengan https://',
         ]);
 
-        // Submenu cuma boleh SATU tingkat (tidak ada sub-dari-submenu) —
-        // kalau parent yang dipilih ternyata sendiri punya parent, tolak.
-        if (! empty($data['parent_id'])) {
+        if ($submenu) {
             $parent = NavMenu::find($data['parent_id']);
 
-            if ($parent && $parent->parent_id) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'parent_id' => 'Submenu cuma boleh satu tingkat — pilih menu utama, bukan submenu lain.',
+            if (! $parent || $parent->parent_id !== null) {
+                throw ValidationException::withMessages([
+                    'parent_id' => 'Submenu harus berada langsung di bawah menu utama.',
                 ]);
             }
         }
 
-        // Hanya simpan kolom yang relevan dengan tipe terpilih, supaya
-        // tidak ada sisa data dari tipe sebelumnya yang membingungkan.
+        // Hanya simpan field sesuai jenis tautan yang dipilih.
         $data['route_name'] = $data['type'] === 'route' ? $data['route_name'] : null;
         $data['page_id'] = $data['type'] === 'page' ? $data['page_id'] : null;
         $data['url'] = $data['type'] === 'url' ? $data['url'] : null;
-
         $data['open_in_new_tab'] = $request->boolean('open_in_new_tab');
         $data['is_active'] = $request->boolean('is_active', true);
 

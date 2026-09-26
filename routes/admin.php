@@ -472,13 +472,24 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::post('/', 'update')->name('update');
         });
 
-        // ── CMS: Menu Navigasi Publik ──
+        // ── CMS: Navigasi Publik ──
+        // Menu Utama dan Submenu sengaja dipisahkan agar alurnya jelas.
         Route::controller(NavMenuController::class)->group(function () {
-            Route::get('nav-menus', 'indexBootstrap')->name('nav-menus');
-            Route::get('add/nav-menu', 'createBootstrap')->name('nav-menu.add.page');
+            // Menu Utama
+            Route::get('nav-menus', 'index')->name('nav-menus');
+            Route::get('add/nav-menu', 'create')->name('nav-menu.add.page');
             Route::post('add/nav-menu', 'store')->name('nav-menu.add');
-            Route::get('edit/nav-menu/{navMenu}', 'editBootstrap')->name('nav-menu.edit.page');
+            Route::get('edit/nav-menu/{navMenu}', 'edit')->name('nav-menu.edit.page');
             Route::post('update/nav-menu/{navMenu}', 'update')->name('nav-menu.update');
+
+            // Submenu / Subnav
+            Route::get('nav-submenus', 'submenus')->name('nav-submenus');
+            Route::get('add/nav-submenu', 'createSubmenu')->name('nav-submenu.add.page');
+            Route::post('add/nav-submenu', 'storeSubmenu')->name('nav-submenu.add');
+            Route::get('edit/nav-submenu/{navMenu}', 'editSubmenu')->name('nav-submenu.edit.page');
+            Route::post('update/nav-submenu/{navMenu}', 'updateSubmenu')->name('nav-submenu.update');
+
+            // Aksi bersama
             Route::delete('delete/nav-menu/{navMenu}', 'destroy')->name('nav-menu.delete');
             Route::post('nav-menu/status', 'toggleStatus')->name('nav-menu.status');
             Route::post('nav-menu/{navMenu}/move', 'move')->name('nav-menu.move');
