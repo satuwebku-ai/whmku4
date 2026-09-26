@@ -185,19 +185,6 @@
       </div>
     </div>
 
-    <hr class="my-3">
-
-    <h2 class="small fw-bold text-dark mb-2">Fitur Situs</h2>
-    <label class="d-flex align-items-start gap-2 small text-dark mb-1">
-      <input type="checkbox" name="domain_premium_active" value="1"
-             @checked(old('domain_premium_active', Setting::get('domain_premium_active', '0')))
-             class="form-check-input mt-1">
-      <span>
-        Aktifkan halaman Domain Premium (<code>/domain-premium</code>)
-        <br><span class="text-muted" style="font-size:11px">Default-nya <b>nonaktif</b> — halaman ini 404 untuk pengunjung publik sampai kamu centang & simpan di sini, terlepas dari apakah dia dipasang di Menu Navigasi atau tidak.</span>
-      </span>
-    </label>
-
     <button type="submit" class="btn btn-primary btn-sm mt-3"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan Pengaturan</button>
   </form>
 

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
+use App\Models\NavMenu;
 use App\Models\Registrar;
-use App\Models\Setting;
 use App\Services\Domain\DomainRegistrarFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,20 +15,16 @@ use Illuminate\View\View;
 class PremiumDomainController extends Controller
 {
     /**
-     * Gerbang fitur -- terpisah dari Menu Navigasi. Menu cuma ngatur
-     * tautan yang tampil di navbar; ini yang benar-benar menentukan
-     * apakah halamannya bisa diakses publik sama sekali.
-     *
-     * Default-nya SENGAJA nonaktif ('0') -- fitur baru yang belum
-     * pernah disentuh admin di Pengaturan tidak boleh diam-diam sudah
-     * bisa diakses publik. Admin harus aktif memilih untuk
-     * menyalakannya dulu di Pengaturan > Umum, baru halamannya hidup.
+     * Gerbang fitur -- halaman ini SENGAJA cuma bisa diakses publik
+     * kalau sedang terdaftar sebagai Menu Utama atau Submenu yang aktif
+     * (lihat NavMenu::isRouteRegisteredAndActive()). Tidak ada saklar
+     * Aktif/Nonaktif terpisah lagi di Pengaturan -- satu-satunya sumber
+     * kebenaran soal "halaman ini boleh diakses publik atau tidak" ya
+     * status pendaftarannya di admin/nav-menus / admin/nav-submenus.
      */
     private function ensureActive(): void
     {
-        if (! Setting::get('domain_premium_active', '0')) {
-            abort(404);
-        }
+        abort_unless(NavMenu::isRouteRegisteredAndActive('domain-premium.index'), 404);
     }
 
     /**

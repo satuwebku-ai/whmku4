@@ -22,7 +22,7 @@ class SettingController extends Controller
         return view('admin.settings.general');
     }
 
-    public function updateGeneral(Request $request): RedirectResponse
+        public function updateGeneral(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'site_name'        => ['required', 'string', 'max:120'],
@@ -37,8 +37,6 @@ class SettingController extends Controller
 
             'site_logo'        => ['nullable', 'image', 'mimes:png,jpg,jpeg,svg,webp', 'max:1024'],
             'site_favicon'     => ['nullable', 'image', 'mimes:png,ico,svg', 'max:256'],
-
-            'domain_premium_active' => ['nullable', 'boolean'],
         ], [
             'theme_color.regex' => 'Warna harus dalam format heksadesimal, contoh #6366F1.',
             'site_logo.max'     => 'Ukuran logo maksimal 1 MB.',
@@ -82,8 +80,6 @@ class SettingController extends Controller
                 $data[$field] = null;
             }
         }
-
-        $data['domain_premium_active'] = $request->boolean('domain_premium_active') ? '1' : '0';
 
         Setting::putMany($data, 'general');
 
