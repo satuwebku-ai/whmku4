@@ -124,8 +124,23 @@ class TldPremiumPricingTest extends TestCase
 
     public function test_resync_never_overwrites_manually_entered_sell_price(): void
     {
+        $firstPayload = $this->sampleDnamaPayload();
+
+        // Sinkron ulang dengan harga MODAL yang berubah dari DNAMA --
+        // harga JUAL yang sudah diisi admin harus tetap utuh.
+        $updatedPayload = $this->sampleDnamaPayload();
+        $updatedPayload[1]['pricings'][0]['register_price'] = 700000000;
+
+        // PENTING: kedua respons didaftarkan lewat SATU Http::fake() memakai
+        // Http::sequence() -- memanggil Http::fake() dua kali dengan pola URL
+        // yang sama tidak menimpa stub pertama, karena resolver Http::fake()
+        // mengambil stub yang PERTAMA cocok, bukan yang terakhir didaftarkan.
+        // Panggilan sinkron kedua diam-diam masih memakai payload pertama
+        // kalau stub-nya didaftarkan lewat Http::fake() terpisah.
         Http::fake([
-            'api.dnama.test/customer-tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
+            'api.dnama.test/customer-tld-pricings*' => Http::sequence()
+                ->push($firstPayload, 200)
+                ->push($updatedPayload, 200),
         ]);
 
         $registrar = $this->makeDnamaRegistrar();
@@ -141,15 +156,6 @@ class TldPremiumPricingTest extends TestCase
             'rows' => [
                 $twoChar->id => ['sell_register_price' => 650000000],
             ],
-        ]);
-
-        // Sinkron ulang dengan harga MODAL yang berubah dari DNAMA --
-        // harga JUAL yang sudah diisi admin harus tetap utuh.
-        $updatedPayload = $this->sampleDnamaPayload();
-        $updatedPayload[1]['pricings'][0]['register_price'] = 700000000;
-
-        Http::fake([
-            'api.dnama.test/customer-tld-pricings*' => Http::response($updatedPayload, 200),
         ]);
 
         $this->post(route('admin.tld.premium-pricing.sync'), ['registrar_id' => $registrar->id]);
