@@ -25,7 +25,7 @@ class TldPremium extends Model
      * premium, tapi harganya PER-NAMA -- tidak ada daftar harga tetap
      * seperti keluarga .id di atas. Alur pemesanannya manual (bukan
      * lewat Reseller API), jadi baris ini di database cuma referensi
-     * daftar dukungan (is_generic = true), tanpa cost_*/sell_*.
+     * daftar dukungan (is_generic = true), tanpa cost_ / sell_.
      */
     public const GENERIC_EXTENSIONS = [
         '.com', '.org', '.net', '.asia', '.biz', '.info', '.xyz', '.co',
