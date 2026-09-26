@@ -271,9 +271,14 @@ class NavMenuController extends Controller
 
     private function requestedType(): string
     {
+        // "Halaman Bawaan" (built-in route seperti Domain Premium, Cek
+        // Domain, dst) jauh lebih sering dipakai daripada Halaman CMS,
+        // jadi jadikan itu default tab yang terbuka -- supaya admin
+        // tidak salah pilih tab lalu kena error "belum ada halaman
+        // yang diterbitkan" padahal maksudnya mau pilih halaman bawaan.
         return in_array(request('type'), ['route', 'page', 'url'], true)
             ? request('type')
-            : 'page';
+            : 'route';
     }
 
     private function validated(Request $request, bool $submenu, ?NavMenu $navMenu = null): array
