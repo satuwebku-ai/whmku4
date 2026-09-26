@@ -26,7 +26,7 @@ class NavMenuController extends Controller
         // Cuma menu tingkat atas (parent_id kosong) yang diambil di sini —
         // submenu-nya ikut lewat relasi children(), supaya tampilan admin
         // menunjukkan hierarkinya jelas, bukan daftar datar tercampur.
-        $menus = NavMenu::with(['page', 'children.page'])
+        $menus = NavMenu::with(['page', 'allChildren.page'])
             ->whereNull('parent_id')
             ->orderBy('sort_order')->orderBy('id')->get();
 
@@ -38,7 +38,10 @@ class NavMenuController extends Controller
     public function create(): View
     {
         return view('admin.nav-menus.form', [
-            'menu' => new NavMenu(['type' => 'page', 'parent_id' => request('parent_id')]),
+            'menu' => new NavMenu([
+                'type' => in_array(request('type'), ['route', 'page', 'url'], true) ? request('type') : 'page',
+                'parent_id' => request('parent_id'),
+            ]),
             'pages' => CmsPage::published()->orderBy('title')->get(),
             'parentOptions' => NavMenu::whereNull('parent_id')->orderBy('sort_order')->get(),
         ]);
@@ -47,7 +50,10 @@ class NavMenuController extends Controller
     public function createBootstrap(): View
     {
         return view('admin.nav-menus.form', [
-            'menu' => new NavMenu(['type' => 'page', 'parent_id' => request('parent_id')]),
+            'menu' => new NavMenu([
+                'type' => in_array(request('type'), ['route', 'page', 'url'], true) ? request('type') : 'page',
+                'parent_id' => request('parent_id'),
+            ]),
             'pages' => CmsPage::published()->orderBy('title')->get(),
             'parentOptions' => NavMenu::whereNull('parent_id')->orderBy('sort_order')->get(),
         ]);

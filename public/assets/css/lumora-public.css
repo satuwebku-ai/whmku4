@@ -37,12 +37,18 @@ body.lumora-public{ background:#f8fafc; color:#1e293b; }
 #publicHeader .nav-link:hover, #publicHeader .nav-link.active{ color:var(--lumora-theme); }
 #publicHeader .nav-link.active{ font-weight:600; }
 
-/* Dropdown submenu header -- murni hover CSS, tanpa JS tambahan. */
+/* Dropdown submenu header -- hover (mouse) tetap jalan, DITAMBAH class
+   .open lewat JS supaya bisa juga dibuka dengan klik/tap (perlu di HP,
+   karena :hover tidak reliable di layar sentuh). Lihat script toggle
+   submenu di layout.blade.php. */
 .public-menu-item{ position:relative; }
 .public-menu-item .public-submenu{
   position:absolute; left:0; top:100%; padding-top:.5rem; display:none; z-index:1040; min-width:200px;
 }
-.public-menu-item:hover .public-submenu{ display:block; }
+.public-menu-item:hover .public-submenu,
+.public-menu-item.open .public-submenu{ display:block; }
+.public-menu-item button .fa-chevron-down{ transition:transform .15s ease; }
+.public-menu-item.open button .fa-chevron-down{ transform:rotate(180deg); }
 .public-submenu-inner{ background:#fff; border-radius:.75rem; box-shadow:0 10px 30px rgba(15,23,42,.12); border:1px solid #f1f5f9; padding:.375rem 0; }
 .public-submenu-inner a{ display:block; padding:.5rem 1rem; font-size:14px; color:#475569; text-decoration:none; }
 .public-submenu-inner a:hover{ background:#f8fafc; color:var(--lumora-theme); }

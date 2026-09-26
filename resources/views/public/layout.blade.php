@@ -86,8 +86,8 @@
           @php $validChildren = $item->children->filter(fn ($c) => $c->resolved_url); @endphp
 
           @if ($validChildren->isNotEmpty())
-            <div class="public-menu-item py-2" style="margin:-.5rem 0">
-              <button type="button" class="btn btn-link p-0 nav-link d-flex align-items-center gap-1 border-0 {{ $item->active_pattern && request()->routeIs($item->active_pattern) ? 'active' : '' }}">
+            <div class="public-menu-item py-2" style="margin:-.5rem 0" data-menu-item>
+              <button type="button" data-menu-toggle class="btn btn-link p-0 nav-link d-flex align-items-center gap-1 border-0 {{ $item->active_pattern && request()->routeIs($item->active_pattern) ? 'active' : '' }}">
                 {{ $item->label }}
                 <i class="fa-solid fa-chevron-down" style="font-size:9px;opacity:.5"></i>
               </button>
@@ -176,6 +176,39 @@
 
   <script src="{{ asset('assets/js/vendor/bootstrap-5.3.8.bundle.min.js') }}"></script>
   @include('public.partials.livechat')
+
+  {{-- Dropdown submenu navbar -- diklik untuk buka/tutup (bukan cuma
+       hover), supaya jalan juga di HP/tablet yang tidak punya hover.
+       Klik di luar atau tekan Escape akan menutupnya lagi. --}}
+  <script>
+    (function () {
+      const items = document.querySelectorAll('[data-menu-item]');
+
+      items.forEach(function (item) {
+        const toggle = item.querySelector('[data-menu-toggle]');
+        if (! toggle) return;
+
+        toggle.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const isOpen = item.classList.contains('open');
+
+          items.forEach(function (other) { other.classList.remove('open'); });
+
+          if (! isOpen) item.classList.add('open');
+        });
+      });
+
+      document.addEventListener('click', function () {
+        items.forEach(function (item) { item.classList.remove('open'); });
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          items.forEach(function (item) { item.classList.remove('open'); });
+        }
+      });
+    })();
+  </script>
 
   {{-- ══════════ Modal konfirmasi ══════════
        Sebelumnya atribut data-confirm di berbagai tombol (mis. "Kosongkan

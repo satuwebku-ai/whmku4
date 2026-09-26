@@ -48,8 +48,8 @@
 
   <div class="d-flex align-items-center gap-2 flex-shrink-0">
     @unless ($indent)
-      <a href="{{ route('admin.nav-menu.add.page', ['parent_id' => $menu->id]) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Tambah Submenu">
-        <i class="fa-solid fa-plus" style="font-size:12px"></i>
+      <a href="{{ route('admin.nav-menu.add.page', ['parent_id' => $menu->id]) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" title="Tambah Submenu untuk &quot;{{ $menu->label }}&quot;">
+        <i class="fa-solid fa-plus" style="font-size:11px"></i> <span class="d-none d-md-inline">Submenu</span>
       </a>
     @endunless
     <form method="POST" action="{{ route('admin.nav-menu.status') }}">

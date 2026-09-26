@@ -17,13 +17,16 @@ class PremiumDomainController extends Controller
     /**
      * Gerbang fitur -- terpisah dari Menu Navigasi. Menu cuma ngatur
      * tautan yang tampil di navbar; ini yang benar-benar menentukan
-     * apakah halamannya bisa diakses publik sama sekali. Dimatikan
-     * dari Pengaturan > Umum saat fitur belum siap dirilis, tanpa
-     * perlu mengutak-atik menu atau routenya.
+     * apakah halamannya bisa diakses publik sama sekali.
+     *
+     * Default-nya SENGAJA nonaktif ('0') -- fitur baru yang belum
+     * pernah disentuh admin di Pengaturan tidak boleh diam-diam sudah
+     * bisa diakses publik. Admin harus aktif memilih untuk
+     * menyalakannya dulu di Pengaturan > Umum, baru halamannya hidup.
      */
     private function ensureActive(): void
     {
-        if (! Setting::get('domain_premium_active', '1')) {
+        if (! Setting::get('domain_premium_active', '0')) {
             abort(404);
         }
     }

@@ -36,6 +36,18 @@ class NavMenu extends Model
     }
 
     /**
+     * Sama seperti children(), tapi TANPA filter is_active -- dipakai
+     * khusus di admin supaya submenu yang lagi disembunyikan (nonaktif)
+     * tetap kelihatan di daftar (redup), bukan hilang begitu saja dan
+     * bikin bingung "kok submenu-nya nggak ada". Jangan dipakai di
+     * layout publik -- di situ harus children() yang sudah difilter.
+     */
+    public function allChildren(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(NavMenu::class, 'parent_id')->orderBy('sort_order');
+    }
+
+    /**
      * Halaman bawaan sistem yang boleh dipilih untuk tipe "route".
      * Dibatasi ke daftar ini (bukan nama route bebas) supaya admin tidak
      * bisa memasukkan nama route yang tidak ada dan mematahkan menu.
@@ -81,7 +93,7 @@ class NavMenu extends Model
             // Pengaturan (mis. Domain Premium) -- kalau dimatikan, menu
             // yang menunjuk ke sana ikut disembunyikan otomatis, supaya
             // tidak ada link navbar yang mengarah ke halaman 404.
-            'route' => ($this->route_name === 'domain-premium.index' && ! Setting::get('domain_premium_active', '1'))
+            'route' => ($this->route_name === 'domain-premium.index' && ! Setting::get('domain_premium_active', '0'))
                 ? null
                 : (($this->route_name && RouteFacade::has($this->route_name))
                     ? route($this->route_name)
