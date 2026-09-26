@@ -277,6 +277,18 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         // (dicek lewat method_exists di controller, sama seperti pola
         // Diagnosa Registrar) -- saat ini baru DNAMA.
         Route::get('tld/registrar-pricing', [TldController::class, 'registrarPricingBootstrap'])->name('tlds.registrar-pricing');
+
+        // Halaman BARU: Domain Premium -- beda dari "Harga Reseller/
+        // Sub-Reseller" (yang murni lihat-lihat data live DNAMA) karena
+        // di sini harga JUAL kita sendiri (sell_*) TERSIMPAN ke database
+        // lewat tabel tld_premiums, tidak ditimpa tiap kali sinkron.
+        // Sinkronisasi cuma menimpa kolom cost_* (harga modal), dipakai
+        // untuk keluarga .id yang tingkat harganya PANDI tetapkan per
+        // jumlah karakter. Ekstensi generik (.com, dst) cuma referensi
+        // daftar dukungan -- harganya per-nama, tidak ada daftar tetap.
+        Route::get('tld/premium-pricing', [TldController::class, 'premiumPricingBootstrap'])->name('tlds.premium-pricing');
+        Route::post('tld/premium-pricing/sync', [TldController::class, 'syncPremiumPricing'])->name('tld.premium-pricing.sync');
+        Route::post('tld/premium-pricing', [TldController::class, 'updatePremiumPricing'])->name('tld.premium-pricing.update');
     });
 
     // ── Katalog Produk (Fase 7b) — harga jual yang memengaruhi seluruh

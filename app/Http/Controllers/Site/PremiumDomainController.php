@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Site;
 use App\Http\Controllers\Controller;
 use App\Models\NavMenu;
 use App\Models\Registrar;
+use App\Models\TldPremium;
 use App\Services\Domain\DomainRegistrarFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -27,32 +27,10 @@ class PremiumDomainController extends Controller
         abort_unless(NavMenu::isRouteRegisteredAndActive('domain-premium.index'), 404);
     }
 
-    /**
-     * Ekstensi keluarga .id -- PANDI menetapkan tingkat harga premium
-     * TETAP berdasarkan jumlah karakter, jadi bisa ditampilkan sebagai
-     * daftar harga langsung (diambil live dari DNAMA lewat
-     * listCustomerTldPricings(), sudah ada sejak halaman Harga
-     * Reseller/Sub-Reseller admin). Beda dengan TLD generik di bawah,
-     * yang harga premiumnya per-nama, bukan daftar tetap.
-     */
-    private const ID_FAMILY = [
-        '.id', '.co.id', '.my.id', '.ac.id', '.sch.id',
-        '.or.id', '.web.id', '.biz.id', '.ponpes.id',
-    ];
-
-    /**
-     * Ekstensi generik yang DNAMA izinkan dicek/dipesan sebagai domain
-     * premium (lewat daftarnama.id/reseller/premium-domains), tapi
-     * harganya per-nama -- TIDAK ada daftar harga tetap seperti
-     * keluarga .id di atas. Alur DNAMA sendiri memprosesnya manual
-     * (bukan lewat Reseller API), jadi di sini cuma ditawarkan sebagai
-     * "cek dulu, lalu pesan lewat tiket".
-     */
-    private const GENERIC_EXTENSIONS = [
-        '.com', '.org', '.net', '.asia', '.biz', '.info', '.xyz', '.co',
-        '.tv', '.name', '.mobi', '.cc', '.education', '.institute',
-        '.foundation', '.store', '.travel', '.com.my',
-    ];
+    // Daftar keluarga .id & ekstensi generik (TldPremium::ID_FAMILY /
+    // ::GENERIC_EXTENSIONS, dipakai langsung -- lihat method di bawah)
+    // dipakai bersama dengan halaman admin "Domain Premium"
+    // (TldController::premiumPricing() dkk) supaya tidak dobel.
 
     public function index(): View
     {
@@ -71,80 +49,63 @@ class PremiumDomainController extends Controller
     private function data(): array
     {
         $idFamily = $this->idFamilyPricing();
-        $genericExtensions = self::GENERIC_EXTENSIONS;
+        $genericExtensions = TldPremium::GENERIC_EXTENSIONS;
         $banners = \App\Models\PromoBanner::live()->forPage('domain_premium')->orderBy('sort_order')->get();
 
         return compact('idFamily', 'genericExtensions', 'banners');
     }
 
     /**
-     * Ambil harga premium keluarga .id langsung dari DNAMA, dicache 1 jam
-     * -- daftar harga PANDI jarang berubah dalam hitungan menit, jadi
-     * tidak perlu memanggil API di setiap kunjungan halaman publik.
+     * Ambil harga premium keluarga .id dari tabel tld_premiums --
+     * BUKAN lagi live dari API DNAMA. Harga yang tampil di sini adalah
+     * harga JUAL (sell_*) yang admin isi manual di halaman admin
+     * "Domain Premium" (lihat TldController::premiumPricing() &
+     * syncPremiumPricing()), supaya pengunjung publik melihat harga
+     * yang benar-benar kita tetapkan, bukan harga modal/sarat DNAMA.
+     *
+     * Kalau admin belum sempat mengisi harga jual untuk suatu tingkat,
+     * baris itu jatuh balik ke harga modal (cost_*) apa adanya --
+     * lebih baik tetap tampil (walau belum ada margin) daripada
+     * mendadak hilang dari daftar dan terlihat seperti tidak dijual.
      */
     private function idFamilyPricing(): array
     {
-        return Cache::remember('public.premium-domain.id-family', 3600, function () {
-            $registrar = Registrar::where('provider', 'dnama')->where('is_active', true)->first();
+        $registrar = Registrar::where('provider', 'dnama')->where('is_active', true)->first();
 
-            if (! $registrar) {
-                return ['rows' => [], 'error' => null];
-            }
+        if (! $registrar) {
+            return ['rows' => [], 'error' => null];
+        }
 
-            try {
-                $service = DomainRegistrarFactory::make($registrar);
+        $rows = TldPremium::where('registrar_id', $registrar->id)
+            ->where('is_generic', false)
+            ->get();
 
-                if (! method_exists($service, 'listCustomerTldPricings')) {
-                    return ['rows' => [], 'error' => null];
-                }
-
-                $result = $service->listCustomerTldPricings();
-
-                if (! $result['success']) {
-                    return ['rows' => [], 'error' => $result['message']];
-                }
-
-                return ['rows' => $this->groupIdFamilyRows($result['raw']['data'] ?? []), 'error' => null];
-            } catch (\Throwable $e) {
-                return ['rows' => [], 'error' => $e->getMessage()];
-            }
-        });
+        return ['rows' => $this->groupIdFamilyRows($rows), 'error' => null];
     }
 
     /**
-     * Kelompokkan baris mentah DNAMA jadi {ekstensi => [reguler, premium...]}.
-     *
-     * DNAMA mengirim BARIS TERPISAH untuk varian premium dari ekstensi
-     * yang sama (lihat catatan serupa di DnamaService::listTlds()) --
-     * dibedakan lewat is_premium + max_premium_character, bukan lewat
-     * nama field terpisah.
+     * Kelompokkan baris tld_premiums jadi {ekstensi => [reguler, premium...]}.
      */
-    private function groupIdFamilyRows(array $rows): array
+    private function groupIdFamilyRows($rows): array
     {
-        $wanted = self::ID_FAMILY;
+        $wanted = TldPremium::ID_FAMILY;
         $out = [];
 
         foreach ($rows as $row) {
-            $ext = $row['tld'] ?? null;
+            $ext = $row->extension;
 
             if (! $ext || ! in_array($ext, $wanted, true)) {
                 continue;
             }
 
-            $oneYear = collect($row['pricings'] ?? [])->firstWhere('duration', 1);
-            $isPremium = (bool) ($row['is_premium'] ?? false);
-            $maxChar = $row['max_premium_character'] ?? null;
-
             $out[$ext][] = [
-                'label' => $isPremium
-                    ? $ext . ($maxChar ? " ({$maxChar} karakter) Premium" : ' Premium')
-                    : $ext,
-                'is_premium' => $isPremium,
-                'max_premium_character' => $maxChar,
-                'register' => $oneYear['register_price'] ?? null,
-                'renew' => $oneYear['renewal_price'] ?? null,
-                'transfer' => $oneYear['transfer_price'] ?? null,
-                'currency' => $row['currency'] ?? 'IDR',
+                'label' => $row->label,
+                'is_premium' => $row->is_premium,
+                'max_premium_character' => $row->max_premium_character,
+                'register' => $row->sell_register_price ?? $row->cost_register,
+                'renew' => $row->sell_renew_price ?? $row->cost_renew,
+                'transfer' => $row->sell_transfer_price ?? $row->cost_transfer,
+                'currency' => $row->cost_currency ?? 'IDR',
             ];
         }
 
@@ -191,7 +152,7 @@ class PremiumDomainController extends Controller
         $domain = preg_replace('#^www\.#', '', $domain);
         $ext = '.' . Str::after($domain, '.');
 
-        if (! str_contains($domain, '.') || ! in_array($ext, self::GENERIC_EXTENSIONS, true)) {
+        if (! str_contains($domain, '.') || ! in_array($ext, TldPremium::GENERIC_EXTENSIONS, true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ekstensi tersebut belum kami dukung untuk pengecekan domain premium di halaman ini.',

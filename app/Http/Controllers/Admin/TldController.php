@@ -311,6 +311,193 @@ class TldController extends Controller
         return $this->registrarPricing($request);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Domain Premium -- lihat catatan panjang di routes/admin.php
+    // untuk bedanya dengan "Harga Reseller/Sub-Reseller" di atas.
+    // ─────────────────────────────────────────────────────────────
+
+    public function premiumPricing(Request $request): View
+    {
+        $registrars = Registrar::where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+
+        $registrarParam = $request->input('registrar');
+        $selected = $registrarParam ? $registrars->firstWhere('id', (int) $registrarParam) : null;
+
+        $familyRows = collect();
+        $genericRows = collect();
+
+        if ($selected) {
+            $order = array_flip(\App\Models\TldPremium::ID_FAMILY);
+
+            $familyRows = \App\Models\TldPremium::where('registrar_id', $selected->id)
+                ->where('is_generic', false)
+                ->get()
+                ->sortBy(fn ($row) => sprintf(
+                    '%03d-%d-%03d',
+                    $order[$row->extension] ?? 999,
+                    $row->is_premium ? 1 : 0,
+                    $row->max_premium_character ?? 0
+                ))
+                ->values();
+
+            $genericRows = \App\Models\TldPremium::where('registrar_id', $selected->id)
+                ->where('is_generic', true)
+                ->orderBy('extension')
+                ->get();
+        }
+
+        return view('admin.tlds.premium-pricing', compact('registrars', 'selected', 'familyRows', 'genericRows'));
+    }
+
+    public function premiumPricingBootstrap(Request $request): View
+    {
+        return $this->premiumPricing($request);
+    }
+
+    /**
+     * Tarik harga MODAL keluarga .id dari DNAMA (GET /customer-tld-pricings,
+     * lewat listCustomerTldPricings() -- endpoint yang sama dengan tab
+     * "Harga Reseller/Sub-Reseller"), lalu simpan ke tld_premiums.
+     *
+     * PENTING: cuma kolom cost_* yang ditimpa di sini. sell_* (harga jual
+     * yang admin isi manual) TIDAK PERNAH disentuh oleh sinkronisasi --
+     * kalau tidak, harga jual yang sudah diatur bisa hilang tiap sinkron
+     * ulang.
+     *
+     * Baris ekstensi generik (is_generic = true) ikut "diseed" di sini
+     * kalau belum ada -- bukan dari API (tidak ada daftar tetapnya),
+     * cuma supaya baris referensinya muncul otomatis saat halaman
+     * pertama kali dibuka untuk registrar ini.
+     */
+    public function syncPremiumPricing(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'registrar_id' => ['required', 'exists:registrars,id'],
+        ]);
+
+        $registrar = Registrar::findOrFail($data['registrar_id']);
+        $service = DomainRegistrarFactory::make($registrar);
+
+        if (! method_exists($service, 'listCustomerTldPricings')) {
+            return back()->with('error', "Registrar {$registrar->name} belum mendukung sinkronisasi harga premium lewat halaman ini.");
+        }
+
+        $result = $service->listCustomerTldPricings();
+
+        if (! $result['success']) {
+            return back()->with('error', 'Gagal mengambil harga dari ' . $registrar->name . ': ' . $result['message']);
+        }
+
+        $wanted = \App\Models\TldPremium::ID_FAMILY;
+        $rows = $result['raw']['data'] ?? [];
+        $synced = 0;
+
+        foreach ($rows as $row) {
+            $ext = $row['tld'] ?? null;
+
+            if (! $ext || ! in_array($ext, $wanted, true)) {
+                continue;
+            }
+
+            $oneYear = collect($row['pricings'] ?? [])->firstWhere('duration', 1);
+            $isPremium = (bool) ($row['is_premium'] ?? false);
+            $maxChar = $row['max_premium_character'] ?? null;
+
+            $label = $isPremium
+                ? $ext . ($maxChar ? " ({$maxChar} karakter) Premium" : ' Premium')
+                : $ext;
+
+            \App\Models\TldPremium::updateOrCreate(
+                [
+                    'registrar_id' => $registrar->id,
+                    'extension' => $ext,
+                    'is_premium' => $isPremium,
+                    'max_premium_character' => $maxChar,
+                ],
+                [
+                    'label' => $label,
+                    'is_generic' => false,
+                    'cost_register' => $oneYear['register_price'] ?? null,
+                    'cost_renew' => $oneYear['renewal_price'] ?? null,
+                    'cost_transfer' => $oneYear['transfer_price'] ?? null,
+                    'cost_currency' => $row['currency'] ?? 'IDR',
+                    'cost_synced_at' => now(),
+                ]
+            );
+
+            $synced++;
+        }
+
+        foreach (\App\Models\TldPremium::GENERIC_EXTENSIONS as $ext) {
+            \App\Models\TldPremium::firstOrCreate(
+                [
+                    'registrar_id' => $registrar->id,
+                    'extension' => $ext,
+                    'is_premium' => true,
+                    'max_premium_character' => null,
+                ],
+                [
+                    'label' => "{$ext} Premium",
+                    'is_generic' => true,
+                ]
+            );
+        }
+
+        return back()->with('success', "{$synced} baris harga premium keluarga .id berhasil disinkron dari {$registrar->name}.");
+    }
+
+    /**
+     * Simpan harga JUAL (sell_register_price dkk) yang diisi manual oleh
+     * admin -- dipisah dari sinkronisasi di atas supaya submit form ini
+     * tidak pernah menimpa cost_* yang berasal dari DNAMA.
+     */
+    public function updatePremiumPricing(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'registrar_id' => ['required', 'exists:registrars,id'],
+            'rows' => ['required', 'array'],
+            'rows.*.sell_register_price' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.sell_renew_price' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.sell_transfer_price' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $premiums = \App\Models\TldPremium::whereIn('id', array_keys($data['rows']))
+            ->where('registrar_id', $data['registrar_id'])
+            ->get()
+            ->keyBy('id');
+
+        $changed = 0;
+
+        foreach ($data['rows'] as $id => $row) {
+            $premium = $premiums->get((int) $id);
+
+            if (! $premium) {
+                continue;
+            }
+
+            // Beda dari toNumber() yang dipakai halaman TLD Pricing biasa:
+            // kosong di sini TETAP disimpan sebagai null (bukan
+            // dikembalikan ke nilai lama) supaya admin bisa sengaja
+            // mengosongkan harga jual kalau sebuah tingkat premium belum
+            // mau dijual, dan supaya baris yang memang belum pernah
+            // diisi tidak diam-diam berubah jadi Rp 0.
+            $toNullableNumber = fn ($v) => ($v === null || $v === '') ? null : round((float) $v, 2);
+
+            $premium->fill([
+                'sell_register_price' => $toNullableNumber($row['sell_register_price'] ?? null),
+                'sell_renew_price' => $toNullableNumber($row['sell_renew_price'] ?? null),
+                'sell_transfer_price' => $toNullableNumber($row['sell_transfer_price'] ?? null),
+            ]);
+
+            if ($premium->isDirty()) {
+                $premium->save();
+                $changed++;
+            }
+        }
+
+        return back()->with($changed > 0 ? 'success' : 'info', "{$changed} harga jual domain premium berhasil disimpan.");
+    }
+
     /**
      * Ratakan baris /customer-tld-pricings (atau tlds di dalam satu
      * paket sub-reseller -- bentuknya identik) ke
