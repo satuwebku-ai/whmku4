@@ -35,6 +35,7 @@
     </div>
 
     @forelse ($menus as $menu)
+      @php $hasValidChild = $menu->children->contains(fn ($c) => (bool) $c->resolved_url); @endphp
       <div class="d-flex align-items-center gap-3 px-4 py-3 border-bottom {{ $menu->is_active ? '' : 'opacity-50' }}">
         <div class="d-flex flex-column flex-shrink-0" style="gap:2px">
           <form method="POST" action="{{ route('admin.nav-menu.move', $menu) }}">
@@ -81,7 +82,7 @@
           </p>
         </div>
 
-        @if (! $menu->resolved_url)
+        @if (! $menu->resolved_url && ! $hasValidChild)
           <span class="badge badge-soft-danger flex-shrink-0">Tautan rusak</span>
         @endif
 

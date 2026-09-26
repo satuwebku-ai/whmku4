@@ -21,7 +21,7 @@ class NavMenuController extends Controller
     {
         return view('admin.nav-menus.index', [
             'menus' => NavMenu::withCount('allChildren')
-                ->with(['page', 'defaultChild'])
+                ->with(['page', 'defaultChild', 'children'])
                 ->whereNull('parent_id')
                 ->orderBy('sort_order')
                 ->orderBy('id')
