@@ -690,21 +690,44 @@ class DnamaService implements DomainRegistrarInterface
      */
     private function fetchAllTldPricings(): array
     {
+        return $this->fetchAllPaginated('/tld-pricings');
+    }
+
+    /**
+     * Ambil SELURUH baris dari endpoint pricing DNAMA yang dipaginasi,
+     * mengikuti pagination ala Laravel resource collection
+     * ({"data": [...], "links": {...}, "meta": {"current_page": 1,
+     * "last_page": N, ...}}). Dipakai bersama oleh /tld-pricings,
+     * /customer-tld-pricings, dan /sub-reseller-tld-pricings -- KETIGANYA
+     * dipaginasi dengan cara yang sama, bukan cuma /tld-pricings.
+     *
+     * PENTING: sebelumnya listCustomerTldPricings() dan
+     * listSubResellerTldPricings() masing-masing cuma memanggil endpoint
+     * SEKALI (halaman 1), persis bug yang sama yang pernah ditemukan di
+     * /tld-pricings -- akibatnya baris premium ".id" (2/3/4 karakter),
+     * yang kebetulan ada di halaman-halaman berikutnya, tidak pernah
+     * ikut terbaca di halaman "Harga Reseller/Sub-Reseller" admin
+     * maupun di halaman publik Domain Premium.
+     *
+     * @return array{success: bool, message: string, raw: array{data: array}}
+     */
+    private function fetchAllPaginated(string $endpoint): array
+    {
         $all = [];
         $page = 1;
         $lastPage = 1;
 
         do {
-            $result = $this->call('get', '/tld-pricings', ['page' => $page], timeout: 60);
+            $result = $this->call('get', $endpoint, ['page' => $page], timeout: 60);
 
             if (! $result['success']) {
                 // Kalau sudah dapat sebagian halaman lalu gagal di
                 // tengah jalan, lebih baik tetap kembalikan apa yang
                 // sudah terkumpul daripada membuang semuanya -- tapi
                 // pesan errornya tetap disampaikan lewat log supaya
-                // ketahuan kalau sinkron jadi tidak lengkap.
+                // ketahuan kalau pengambilan datanya jadi tidak lengkap.
                 if ($all) {
-                    Log::warning("DNAMA /tld-pricings: berhenti di halaman {$page} -- {$result['message']}");
+                    Log::warning("DNAMA {$endpoint}: berhenti di halaman {$page} -- {$result['message']}");
                     break;
                 }
 
@@ -717,7 +740,7 @@ class DnamaService implements DomainRegistrarInterface
 
             // Kalau tidak ada key "meta" sama sekali, berarti endpoint
             // ini memang tidak dipaginasi -- loop otomatis berhenti di
-            // page 1 seperti perilaku lama, tidak ada perubahan.
+            // page 1, tidak ada perubahan perilaku.
             $lastPage = $body['meta']['last_page'] ?? 1;
             $page++;
         } while ($page <= $lastPage);
@@ -730,7 +753,7 @@ class DnamaService implements DomainRegistrarInterface
      */
     public function listCustomerTldPricings(): array
     {
-        return $this->call('get', '/customer-tld-pricings', timeout: 60);
+        return $this->fetchAllPaginated('/customer-tld-pricings');
     }
 
     /**
@@ -738,7 +761,7 @@ class DnamaService implements DomainRegistrarInterface
      */
     public function listSubResellerTldPricings(): array
     {
-        return $this->call('get', '/sub-reseller-tld-pricings', timeout: 60);
+        return $this->fetchAllPaginated('/sub-reseller-tld-pricings');
     }
 
     /**

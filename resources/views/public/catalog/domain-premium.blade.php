@@ -8,6 +8,10 @@
 @section('content')
 
   <div class="mb-4">
+    @include('public._promo-banner-carousel')
+  </div>
+
+  <div class="mb-4">
     <p class="text-muted mb-2" style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">Domain Premium</p>
     <h1 class="fw-bold text-dark mb-2" style="font-size:1.6rem">Domain Premium</h1>
     <p class="text-muted mb-0" style="max-width:44rem">

@@ -43,6 +43,7 @@ class NavMenu extends Model
         'home' => 'Beranda',
         'catalog.index' => 'Katalog Hosting',
         'domain.search' => 'Cek Domain',
+        'domain-premium.index' => 'Domain Premium',
         'announcements.index' => 'Pengumuman',
         'cart.index' => 'Keranjang',
     ];
@@ -94,6 +95,7 @@ class NavMenu extends Model
             'route' => match ($this->route_name) {
                 'catalog.index' => 'catalog.*',
                 'domain.search' => 'domain.*',
+                'domain-premium.index' => 'domain-premium.*',
                 'announcements.index' => 'announcements.*',
                 default => $this->route_name,
             },

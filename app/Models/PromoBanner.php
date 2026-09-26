@@ -17,6 +17,7 @@ class PromoBanner extends Model
         'home' => 'Beranda',
         'catalog' => 'Katalog Hosting',
         'domain_search' => 'Cek Domain',
+        'domain_premium' => 'Domain Premium',
         'email' => 'Email Transaksional',
         'pdf_invoice' => 'PDF Invoice',
     ];

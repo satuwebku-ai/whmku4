@@ -54,8 +54,9 @@ class PremiumDomainController extends Controller
     {
         $idFamily = $this->idFamilyPricing();
         $genericExtensions = self::GENERIC_EXTENSIONS;
+        $banners = \App\Models\PromoBanner::live()->forPage('domain_premium')->orderBy('sort_order')->get();
 
-        return compact('idFamily', 'genericExtensions');
+        return compact('idFamily', 'genericExtensions', 'banners');
     }
 
     /**

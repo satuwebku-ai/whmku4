@@ -25,6 +25,7 @@ class CmsPage extends Model
         'admin', 'client', 'hosting', 'cek-domain', 'keranjang', 'chat',
         'p', 'announcements', 'payment', 'storage', 'build', 'vendor',
         'api', 'login', 'register', 'logout', 'dashboard', 'home',
+        'domain-premium', 'transfer-domain', 'ref',
         'robots.txt', 'sitemap.xml', 'favicon.ico',
     ];
 
