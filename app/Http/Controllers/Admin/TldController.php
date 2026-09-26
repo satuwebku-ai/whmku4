@@ -340,10 +340,18 @@ class TldController extends Controller
                 ))
                 ->values();
 
+            // Diurutkan mengikuti posisi di TldPremium::GENERIC_EXTENSIONS
+            // (BUKAN alfabetis) -- urutan itu yang jadi acuan tampilan di
+            // halaman publik Domain Premium (PremiumDomainController::data()
+            // memakai konstanta ini langsung), jadi urutan di admin ikut
+            // disamakan supaya tidak beda dengan yang pengunjung lihat.
+            $genericOrder = array_flip(\App\Models\TldPremium::GENERIC_EXTENSIONS);
+
             $genericRows = \App\Models\TldPremium::where('registrar_id', $selected->id)
                 ->where('is_generic', true)
-                ->orderBy('extension')
-                ->get();
+                ->get()
+                ->sortBy(fn ($row) => $genericOrder[$row->extension] ?? 999)
+                ->values();
         }
 
         return view('admin.tlds.premium-pricing', compact('registrars', 'selected', 'familyRows', 'genericRows'));
