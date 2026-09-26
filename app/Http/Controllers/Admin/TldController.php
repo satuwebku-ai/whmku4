@@ -379,13 +379,15 @@ class TldController extends Controller
         $service = DomainRegistrarFactory::make($registrar);
 
         if (! method_exists($service, 'listCustomerTldPricings')) {
-            return back()->with('error', "Registrar {$registrar->name} belum mendukung sinkronisasi harga premium lewat halaman ini.");
+            return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $registrar->id])
+                ->with('error', "Registrar {$registrar->name} belum mendukung sinkronisasi harga premium lewat halaman ini.");
         }
 
         $result = $service->listCustomerTldPricings();
 
         if (! $result['success']) {
-            return back()->with('error', 'Gagal mengambil harga dari ' . $registrar->name . ': ' . $result['message']);
+            return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $registrar->id])
+                ->with('error', 'Gagal mengambil harga dari ' . $registrar->name . ': ' . $result['message']);
         }
 
         $wanted = \App\Models\TldPremium::ID_FAMILY;
@@ -443,7 +445,22 @@ class TldController extends Controller
             );
         }
 
-        return back()->with('success', "{$synced} baris harga premium keluarga .id berhasil disinkron dari {$registrar->name}.");
+        $msg = "{$synced} baris harga premium keluarga .id berhasil disinkron dari {$registrar->name}.";
+
+        if ($synced === 0) {
+            $msg = "Sinkron selesai, tapi 0 baris keluarga .id ditemukan di /customer-tld-pricings akun {$registrar->name} -- kemungkinan akun reseller ini belum diberi akses ke TLD premium tersebut oleh DNAMA (lihat jumlah \"Ekstensi unik\" di halaman Diagnosa Registrar untuk baris yang benar-benar tersedia).";
+        }
+
+        // Redirect EKSPLISIT ke halaman ini dengan registrar yang sama
+        // (bukan back()) -- back() bergantung pada URL "sebelumnya" yang
+        // tersimpan di session, yang gampang tertimpa kalau ada tab lain
+        // di sesi yang sama sempat membuka halaman GET lain (mis. tab
+        // Diagnosa Registrar) sebelum tombol Sinkron ini ditekan. Kalau
+        // itu terjadi, back() bisa membawa balik ke halaman TANPA
+        // ?registrar=, yang membuat data terlihat "hilang" padahal
+        // sebenarnya sudah tersimpan di database.
+        return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $registrar->id])
+            ->with($synced > 0 ? 'success' : 'info', $msg);
     }
 
     /**
@@ -495,7 +512,8 @@ class TldController extends Controller
             }
         }
 
-        return back()->with($changed > 0 ? 'success' : 'info', "{$changed} harga jual domain premium berhasil disimpan.");
+        return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $data['registrar_id']])
+            ->with($changed > 0 ? 'success' : 'info', "{$changed} harga jual domain premium berhasil disimpan.");
     }
 
     /**

@@ -766,10 +766,27 @@ class DnamaService implements DomainRegistrarInterface
 
     /**
      * GET /my/balance
+     *
+     * Dimemoisasi per-instance (bukan lewat Cache facade -- datanya
+     * harus selalu segar antar REQUEST, cuma dobel dalam SATU request
+     * yang sama yang dihindari) -- halaman Diagnosa memanggil
+     * getAccountDetails() DAN getAccountBalance() sekaligus, dan
+     * KEDUANYA ternyata cuma bungkus tipis dari getBalance() yang
+     * sama persis (Dnama tidak punya endpoint detail akun terpisah,
+     * lihat catatan di getAccountDetails()). Tanpa memoisasi ini,
+     * satu buka halaman Diagnosa = 2x round-trip ke /my/balance yang
+     * hasilnya identik -- salah satu penyebab halaman itu terasa
+     * lambat dimuat.
      */
+    private ?array $balanceCache = null;
+
     public function getBalance(): array
     {
-        return $this->call('get', '/my/balance');
+        if ($this->balanceCache !== null) {
+            return $this->balanceCache;
+        }
+
+        return $this->balanceCache = $this->call('get', '/my/balance');
     }
 
     // ─────────────────────────────────────────────────────────────
