@@ -76,7 +76,7 @@
                 <p class="text-dark mb-0">{{ $lineItem->description }}</p>
                 @if ($lineItem->order)
                   <a href="{{ route('admin.orders.details', $lineItem->order) }}" class="text-decoration-none text-accent" style="font-size:11px">
-                    #{{ $lineItem->order->order_number }} · {{ ucfirst($lineItem->order->status) }}
+                    #{{ $lineItem->order->order_number }} · {{ ucfirst(str_replace('_', ' ', $lineItem->order->status->value)) }}
                   </a>
                 @endif
               </div>

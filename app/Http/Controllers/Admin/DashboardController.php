@@ -95,7 +95,7 @@ class DashboardController extends Controller
                 'id'      => '#' . $order->order_number,
                 'client'  => $order->client->name ?? '—',
                 'product' => $order->product_name,
-                'status'  => $order->status,
+                'status'  => $order->status->value,
                 'total'   => 'Rp ' . number_format((float) $order->amount, 0, ',', '.'),
             ]);
 

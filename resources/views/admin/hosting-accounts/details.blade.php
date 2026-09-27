@@ -158,10 +158,24 @@
       @if ($account->orders->isNotEmpty())
         <div class="card border rounded-4 p-4 mb-3">
           <h2 class="small fw-bold text-dark mb-2">Order Terkait</h2>
+          @php
+            // Beda dari $statusBadge di atas (itu untuk HostingAccount::status,
+            // string biasa) -- Order::status di-cast ke enum OrderStatus,
+            // jadi butuh peta terpisah dikunci pakai ->value.
+            $orderStatusBadge = [
+              'draft' => 'badge-soft-secondary', 'requirements_pending' => 'badge-soft-warning',
+              'requirements_review' => 'badge-soft-warning', 'requirements_rejected' => 'badge-soft-danger',
+              'requirements_approved' => 'badge-soft-info', 'pending' => 'badge-soft-warning',
+              'pending_payment' => 'badge-soft-warning', 'paid' => 'badge-soft-info',
+              'provisioning' => 'badge-soft-info', 'completed' => 'badge-soft-success',
+              'failed' => 'badge-soft-danger', 'cancelled' => 'badge-soft-secondary',
+              'expired' => 'badge-soft-secondary',
+            ];
+          @endphp
           @foreach ($account->orders as $order)
             <a href="{{ route('admin.orders.details', $order) }}" class="d-flex align-items-center justify-content-between py-2 small text-decoration-none border-bottom text-dark">
               <span>#{{ $order->order_number }} — {{ $order->product_name }}</span>
-              <span class="badge {{ $statusBadge[$order->status] ?? 'badge-soft-secondary' }}">{{ ucfirst($order->status) }}</span>
+              <span class="badge {{ $orderStatusBadge[$order->status->value] ?? 'badge-soft-secondary' }}">{{ ucfirst(str_replace('_', ' ', $order->status->value)) }}</span>
             </a>
           @endforeach
         </div>

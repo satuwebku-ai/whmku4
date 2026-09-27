@@ -5,9 +5,37 @@
 @section('content')
 
   @php
+    // Sama seperti admin.orders.index -- $order->status di-cast ke enum
+    // OrderStatus, jadi peta ini HARUS dikunci pakai ->value (string).
     $statusBadge = [
-      'active' => 'badge-soft-success', 'pending' => 'badge-soft-warning',
-      'suspended' => 'badge-soft-danger', 'cancelled' => 'badge-soft-secondary',
+      'draft' => 'badge-soft-secondary',
+      'requirements_pending' => 'badge-soft-warning',
+      'requirements_review' => 'badge-soft-warning',
+      'requirements_rejected' => 'badge-soft-danger',
+      'requirements_approved' => 'badge-soft-info',
+      'pending' => 'badge-soft-warning',
+      'pending_payment' => 'badge-soft-warning',
+      'paid' => 'badge-soft-info',
+      'provisioning' => 'badge-soft-info',
+      'completed' => 'badge-soft-success',
+      'failed' => 'badge-soft-danger',
+      'cancelled' => 'badge-soft-secondary',
+      'expired' => 'badge-soft-secondary',
+    ];
+    $statusLabel = [
+      'draft' => 'Draft',
+      'requirements_pending' => 'Menunggu Syarat',
+      'requirements_review' => 'Ditinjau Admin',
+      'requirements_rejected' => 'Ditolak',
+      'requirements_approved' => 'Disetujui',
+      'pending' => 'Pending',
+      'pending_payment' => 'Menunggu Bayar',
+      'paid' => 'Lunas',
+      'provisioning' => 'Diproses',
+      'completed' => 'Aktif',
+      'failed' => 'Gagal',
+      'cancelled' => 'Dibatalkan',
+      'expired' => 'Kadaluarsa',
     ];
   @endphp
 
@@ -16,7 +44,9 @@
       <a href="{{ route('admin.orders') }}" class="text-decoration-none text-muted" style="font-size:12px"><i class="fa-solid fa-arrow-left"></i> Kembali ke Order</a>
       <h1 class="h4 fw-bold text-dark mt-1 mb-0">Order #{{ $order->order_number }}</h1>
     </div>
-    <span class="badge {{ $statusBadge[$order->status] ?? 'badge-soft-secondary' }}" style="font-size:13px;padding:.4rem .8rem">{{ ucfirst($order->status) }}</span>
+    <span class="badge {{ $statusBadge[$order->status->value] ?? 'badge-soft-secondary' }}" style="font-size:13px;padding:.4rem .8rem">
+      {{ $statusLabel[$order->status->value] ?? ucfirst($order->status->value) }}
+    </span>
   </div>
 
   <div class="row g-3">
@@ -98,21 +128,21 @@
       <div class="card border rounded-4 p-4">
         <h2 class="small fw-bold text-dark mb-2">Aksi</h2>
         <div class="d-flex flex-column gap-2">
-          @if ($order->status !== 'active')
+          @if ($order->status !== \App\Enums\OrderStatus::Completed)
             <form method="POST" action="{{ route('admin.order.accept') }}">
               @csrf
               <input type="hidden" name="order_id" value="{{ $order->id }}">
               <button type="submit" class="btn btn-primary btn-sm w-100 text-start"><i class="fa-solid fa-check" style="font-size:11px"></i> Terima & Aktifkan</button>
             </form>
           @endif
-          @if ($order->status !== 'pending')
+          @if ($order->status !== \App\Enums\OrderStatus::PendingPayment)
             <form method="POST" action="{{ route('admin.order.mark.pending') }}">
               @csrf
               <input type="hidden" name="order_id" value="{{ $order->id }}">
               <button type="submit" class="btn btn-outline-secondary btn-sm w-100 text-start"><i class="fa-solid fa-clock" style="font-size:11px"></i> Kembalikan ke Pending</button>
             </form>
           @endif
-          @if ($order->status !== 'cancelled')
+          @if ($order->status !== \App\Enums\OrderStatus::Cancelled)
             <form method="POST" action="{{ route('admin.order.cancel') }}" data-confirm="Batalkan order ini?" data-confirm-title="Batalkan" data-confirm-style="warn" data-confirm-label="Ya, Batalkan">
               @csrf
               <input type="hidden" name="order_id" value="{{ $order->id }}">

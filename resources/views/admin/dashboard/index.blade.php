@@ -69,12 +69,25 @@
             <tbody>
               @php
                 // Peta status Lumora -> warna badge-soft-* yang tersedia
-                // di lumora-admin.css (bukan class baru).
+                // di lumora-admin.css (bukan class baru). Order::status
+                // dikirim sebagai string mentah (->value) dari
+                // DashboardController -- nilai aslinya dari enum
+                // OrderStatus (bukan status Lumora lama 'active'/'pending'
+                // dst.), jadi peta ini disesuaikan agar cocok.
                 $statusBadge = [
-                    'active' => 'badge-soft-success', 'paid' => 'badge-soft-success',
+                    'draft' => 'badge-soft-secondary',
+                    'requirements_pending' => 'badge-soft-warning',
+                    'requirements_review' => 'badge-soft-warning',
+                    'requirements_rejected' => 'badge-soft-danger',
+                    'requirements_approved' => 'badge-soft-info',
                     'pending' => 'badge-soft-warning', 'unpaid' => 'badge-soft-warning',
-                    'suspended' => 'badge-soft-danger', 'overdue' => 'badge-soft-danger',
+                    'pending_payment' => 'badge-soft-warning',
+                    'paid' => 'badge-soft-success',
+                    'provisioning' => 'badge-soft-info',
+                    'completed' => 'badge-soft-success', 'active' => 'badge-soft-success',
+                    'failed' => 'badge-soft-danger', 'suspended' => 'badge-soft-danger', 'overdue' => 'badge-soft-danger',
                     'terminated' => 'badge-soft-secondary', 'cancelled' => 'badge-soft-secondary',
+                    'expired' => 'badge-soft-secondary',
                 ];
               @endphp
               @foreach ($recentOrders as $order)
@@ -84,7 +97,7 @@
                   <td class="text-muted">{{ $order['product'] }}</td>
                   <td>
                     <span class="badge {{ $statusBadge[$order['status']] ?? 'badge-soft-secondary' }}">
-                      {{ ucfirst($order['status']) }}
+                      {{ ucfirst(str_replace('_', ' ', $order['status'])) }}
                     </span>
                   </td>
                   <td class="text-end px-4 fw-medium text-dark">{{ $order['total'] }}</td>

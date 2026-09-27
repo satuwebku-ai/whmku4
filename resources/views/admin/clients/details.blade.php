@@ -74,7 +74,7 @@
           @foreach ($client->orders as $order)
             <a href="{{ route('admin.orders.details', $order) }}" class="d-flex align-items-center justify-content-between py-2 small text-decoration-none border-bottom text-dark">
               <span>#{{ $order->order_number }} — {{ $order->product_name }}</span>
-              <span class="badge {{ $statusBadge($order->status) }}">{{ ucfirst($order->status) }}</span>
+              <span class="badge {{ $statusBadge($order->status->value) }}">{{ ucfirst(str_replace('_', ' ', $order->status->value)) }}</span>
             </a>
           @endforeach
         </div>

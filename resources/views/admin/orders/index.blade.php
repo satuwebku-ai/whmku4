@@ -17,11 +17,17 @@
   {{-- Tab status --}}
   <div class="d-flex align-items-center gap-1 mb-3 border-bottom flex-wrap">
     @php
+      // Nilai 'status' di sini HARUS sama dengan string yang dikirim
+      // Admin\OrderController ke masing-masing rute tab (lihat
+      // OrderStatus::PendingPayment/Completed/Failed->value) --
+      // sebelumnya nilainya cuma tebakan lama ('pending','active',
+      // 'suspended') yang tidak pernah cocok dengan $activeStatus
+      // sungguhan, jadi tab yang aktif tidak pernah ke-highlight.
       $tabs = [
         ['label' => 'Semua', 'route' => 'admin.orders', 'status' => null],
-        ['label' => 'Pending', 'route' => 'admin.orders.pending', 'status' => 'pending'],
-        ['label' => 'Aktif', 'route' => 'admin.orders.active', 'status' => 'active'],
-        ['label' => 'Suspended', 'route' => 'admin.orders.suspended', 'status' => 'suspended'],
+        ['label' => 'Menunggu Bayar', 'route' => 'admin.orders.pending', 'status' => \App\Enums\OrderStatus::PendingPayment->value],
+        ['label' => 'Aktif', 'route' => 'admin.orders.active', 'status' => \App\Enums\OrderStatus::Completed->value],
+        ['label' => 'Gagal', 'route' => 'admin.orders.suspended', 'status' => \App\Enums\OrderStatus::Failed->value],
         ['label' => 'Cancelled', 'route' => 'admin.orders.cancelled', 'status' => 'cancelled'],
       ];
     @endphp
@@ -56,9 +62,42 @@
         </thead>
         <tbody>
           @php
+            // $order->status di-cast ke enum App\Enums\OrderStatus (lihat
+            // Order::casts()) -- kedua peta di bawah HARUS dikunci pakai
+            // ->value (string mentah), bukan objek enum-nya langsung.
+            // Mengunci array pakai objek enum melempar "Cannot access
+            // offset of type App\Enums\OrderStatus on array" -- ini yang
+            // kemarin membuat halaman ini 500 begitu Order pertama
+            // dibuat (sebelumnya selalu kosong jadi tidak pernah ketahuan).
             $statusBadge = [
-              'active' => 'badge-soft-success', 'pending' => 'badge-soft-warning',
-              'suspended' => 'badge-soft-danger', 'cancelled' => 'badge-soft-secondary',
+              'draft' => 'badge-soft-secondary',
+              'requirements_pending' => 'badge-soft-warning',
+              'requirements_review' => 'badge-soft-warning',
+              'requirements_rejected' => 'badge-soft-danger',
+              'requirements_approved' => 'badge-soft-info',
+              'pending' => 'badge-soft-warning',
+              'pending_payment' => 'badge-soft-warning',
+              'paid' => 'badge-soft-info',
+              'provisioning' => 'badge-soft-info',
+              'completed' => 'badge-soft-success',
+              'failed' => 'badge-soft-danger',
+              'cancelled' => 'badge-soft-secondary',
+              'expired' => 'badge-soft-secondary',
+            ];
+            $statusLabel = [
+              'draft' => 'Draft',
+              'requirements_pending' => 'Menunggu Syarat',
+              'requirements_review' => 'Ditinjau Admin',
+              'requirements_rejected' => 'Ditolak',
+              'requirements_approved' => 'Disetujui',
+              'pending' => 'Pending',
+              'pending_payment' => 'Menunggu Bayar',
+              'paid' => 'Lunas',
+              'provisioning' => 'Diproses',
+              'completed' => 'Aktif',
+              'failed' => 'Gagal',
+              'cancelled' => 'Dibatalkan',
+              'expired' => 'Kadaluarsa',
             ];
           @endphp
           @forelse ($orders as $order)
@@ -68,7 +107,11 @@
               </td>
               <td class="text-muted py-3">{{ $order->client->name ?? '—' }}</td>
               <td class="text-muted py-3">{{ $order->product_name }}</td>
-              <td class="py-3"><span class="badge {{ $statusBadge[$order->status] ?? 'badge-soft-secondary' }}">{{ ucfirst($order->status) }}</span></td>
+              <td class="py-3">
+                <span class="badge {{ $statusBadge[$order->status->value] ?? 'badge-soft-secondary' }}">
+                  {{ $statusLabel[$order->status->value] ?? ucfirst($order->status->value) }}
+                </span>
+              </td>
               <td class="text-end text-dark py-3">Rp {{ number_format($order->amount, 0, ',', '.') }}</td>
               <td class="text-end px-4 py-3">
                 <div class="d-flex align-items-center justify-content-end gap-2">
