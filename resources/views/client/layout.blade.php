@@ -2,6 +2,7 @@
   use App\Models\Setting;
   use App\Services\Cart\CartService;
   $siteName = Setting::get('site_name', config('app.name', 'Lumora Hosting'));
+  $favicon = Setting::get('site_favicon');
   $themeColor = Setting::get('theme_color', '#6366F1');
   $client = auth('client')->user();
   $cartCount = app(CartService::class)->count();
@@ -29,6 +30,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>@yield('title', 'Dashboard') — {{ $siteName }}</title>
+
+@if ($favicon)
+  <link rel="icon" href="{{ route('branding.file', $favicon) }}">
+@endif
 
 <link rel="stylesheet" href="{{ asset('assets/css/vendor/bootstrap-5.3.8.min.css') }}?v={{ @filemtime(public_path('assets/css/vendor/bootstrap-5.3.8.min.css')) ?: time() }}">
 <link rel="stylesheet" href="{{ asset('assets/css/lumora-public.css') }}?v={{ @filemtime(public_path('assets/css/lumora-public.css')) ?: time() }}">
@@ -143,10 +148,33 @@
   <header id="clientTopbar" class="d-flex align-items-center px-3 position-sticky" style="top:{{ session('impersonator_admin_id') ? '41px' : '0' }};z-index:1030">
     <div class="container d-flex align-items-center justify-content-between" style="max-width:72rem">
       <a href="{{ route('client.dashboard') }}" class="d-flex align-items-center gap-2 text-decoration-none">
-        <span class="rounded-3 d-flex align-items-center justify-content-center" style="width:32px;height:32px;background:rgba(255,255,255,.15)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2.2"><path d="M13 2 3 14h7l-1 8 11-12h-7l1-8z"/></svg>
-        </span>
-        <span class="fw-bold text-white">{{ $siteName }}</span>
+        @php
+          $brandingDisplay = Setting::get('branding_display', 'logo_and_text');
+          $siteLogo = Setting::get('site_logo');
+          $siteIcon = Setting::get('site_icon');
+        @endphp
+
+        @if ($brandingDisplay === 'logo_and_text')
+          {{-- Sama seperti header publik: pakai ikon kecil, jatuh balik
+               ke logo utama, lalu ke lambang bawaan -- supaya konsisten
+               dan tidak dobel dengan teks nama situs di sebelahnya. --}}
+          @if ($siteIcon)
+            <img src="{{ route('branding.file', $siteIcon) }}" alt="" style="height:32px;width:32px;object-fit:contain">
+          @elseif ($siteLogo)
+            <img src="{{ route('branding.file', $siteLogo) }}" alt="" style="height:32px;width:32px;object-fit:contain">
+          @else
+            <span class="rounded-3 d-flex align-items-center justify-content-center" style="width:32px;height:32px;background:rgba(255,255,255,.15)">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2.2"><path d="M13 2 3 14h7l-1 8 11-12h-7l1-8z"/></svg>
+            </span>
+          @endif
+          <span class="fw-bold text-white">{{ $siteName }}</span>
+        @elseif ($brandingDisplay === 'logo_only' && $siteLogo)
+          {{-- Mode "Logo Saja": logo dianggap sudah memuat nama, jadi
+               ditampilkan lebih besar tanpa teks tambahan. --}}
+          <img src="{{ route('branding.file', $siteLogo) }}" alt="{{ $siteName }}" style="height:40px;width:auto;max-width:220px;object-fit:contain">
+        @else
+          <span class="fw-bold text-white">{{ $siteName }}</span>
+        @endif
       </a>
 
       <div class="d-flex align-items-center gap-3">
