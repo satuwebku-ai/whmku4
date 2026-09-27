@@ -363,9 +363,19 @@ class TldController extends Controller
     }
 
     /**
-     * Tarik harga MODAL keluarga .id dari DNAMA (GET /customer-tld-pricings,
-     * lewat listCustomerTldPricings() -- endpoint yang sama dengan tab
-     * "Harga Reseller/Sub-Reseller"), lalu simpan ke tld_premiums.
+     * Tarik harga MODAL varian PREMIUM keluarga .id dari DNAMA (GET
+     * /customer-tld-pricings, lewat listCustomerTldPricings() -- endpoint
+     * yang sama dengan tab "Harga Reseller/Sub-Reseller"), lalu simpan ke
+     * tld_premiums.
+     *
+     * Baris REGULER (is_premium = false, mis. ".id" seharga Rp 215rb)
+     * SENGAJA tidak disimpan ke sini -- harga jual .id biasa sepenuhnya
+     * dikelola dari tabel `tlds` lewat halaman "TLD Pricing", yang juga
+     * jadi SATU-SATUNYA sumber harga saat pelanggan order domain (lihat
+     * DomainSearchController). Kalau baris reguler ikut disimpan di sini,
+     * halaman ini menampilkan input "Jual Register/Renew/Transfer" yang
+     * kelihatan bisa diisi tapi tidak berpengaruh apa-apa ke harga yang
+     * sungguhan dibayar pelanggan.
      *
      * PENTING: cuma kolom cost_* yang ditimpa di sini. sell_* (harga jual
      * yang admin isi manual) TIDAK PERNAH disentuh oleh sinkronisasi --
@@ -404,24 +414,35 @@ class TldController extends Controller
 
         foreach ($rows as $row) {
             $ext = $row['tld'] ?? null;
+            $isPremium = (bool) ($row['is_premium'] ?? false);
 
             if (! $ext || ! in_array($ext, $wanted, true)) {
                 continue;
             }
 
+            // Baris REGULER (bukan premium) keluarga .id SENGAJA dilewati --
+            // harga jual .id biasa sudah dikelola dari halaman "TLD Pricing"
+            // (tabel `tlds`), yang JUGA dipakai satu-satunya oleh alur order
+            // domain sungguhan (lihat DomainSearchController). Kalau baris
+            // reguler ikut disimpan ke sini, halaman ini menampilkan kolom
+            // "Jual Register/Renew/Transfer" yang KELIHATAN bisa diisi tapi
+            // sebenarnya tidak berpengaruh sama sekali ke harga yang dibayar
+            // pelanggan -- membingungkan admin yang mengira sudah mengatur
+            // harga .id dari sini.
+            if (! $isPremium) {
+                continue;
+            }
+
             $oneYear = collect($row['pricings'] ?? [])->firstWhere('duration', 1);
-            $isPremium = (bool) ($row['is_premium'] ?? false);
             $maxChar = $row['max_premium_character'] ?? null;
 
-            $label = $isPremium
-                ? $ext . ($maxChar ? " ({$maxChar} karakter) Premium" : ' Premium')
-                : $ext;
+            $label = $ext . ($maxChar ? " ({$maxChar} karakter) Premium" : ' Premium');
 
             \App\Models\TldPremium::updateOrCreate(
                 [
                     'registrar_id' => $registrar->id,
                     'extension' => $ext,
-                    'is_premium' => $isPremium,
+                    'is_premium' => true,
                     'max_premium_character' => $maxChar,
                 ],
                 [
@@ -437,6 +458,16 @@ class TldController extends Controller
 
             $synced++;
         }
+
+        // Bersihkan baris REGULER (is_premium = false) keluarga .id yang
+        // mungkin sudah kadung tersimpan dari sinkronisasi versi lama --
+        // baris itu dead-end (lihat catatan di docblock method ini), jadi
+        // sinkronisasi ulang sekarang jadi kesempatan untuk membereskannya
+        // otomatis tanpa admin perlu utak-atik database manual.
+        \App\Models\TldPremium::where('registrar_id', $registrar->id)
+            ->where('is_generic', false)
+            ->where('is_premium', false)
+            ->delete();
 
         foreach (\App\Models\TldPremium::GENERIC_EXTENSIONS as $ext) {
             \App\Models\TldPremium::firstOrCreate(

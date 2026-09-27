@@ -91,17 +91,16 @@ class TldPremiumPricingTest extends TestCase
 
         $response->assertRedirect();
 
-        // 3 baris keluarga .id (reguler + 2 karakter + 3 karakter)
-        // HARUS jadi 3 baris terpisah, bukan saling menimpa -- ini yang
-        // paling sering rusak kalau matching cuma berdasarkan ekstensi.
-        $this->assertSame(3, TldPremium::where('registrar_id', $registrar->id)->where('is_generic', false)->count());
+        // Cuma 2 baris (2 karakter + 3 karakter) yang tersimpan -- baris
+        // REGULER (is_premium = false) SENGAJA tidak disinkron ke sini,
+        // karena harga jual .id biasa dikelola sepenuhnya dari halaman
+        // "TLD Pricing" (tabel `tlds`), satu-satunya sumber harga yang
+        // dipakai alur order domain sungguhan.
+        $this->assertSame(2, TldPremium::where('registrar_id', $registrar->id)->where('is_generic', false)->count());
 
         $regular = TldPremium::where('registrar_id', $registrar->id)
             ->where('extension', '.id')->where('is_premium', false)->first();
-        $this->assertNotNull($regular);
-        $this->assertSame('.id', $regular->label);
-        $this->assertSame(215000.0, (float) $regular->cost_register);
-        $this->assertNull($regular->max_premium_character);
+        $this->assertNull($regular);
 
         $twoChar = TldPremium::where('registrar_id', $registrar->id)
             ->where('extension', '.id')->where('max_premium_character', 2)->first();
@@ -119,6 +118,35 @@ class TldPremiumPricingTest extends TestCase
         $this->assertSame(
             count(TldPremium::GENERIC_EXTENSIONS),
             TldPremium::where('registrar_id', $registrar->id)->where('is_generic', true)->count()
+        );
+    }
+
+    public function test_sync_cleans_up_stale_regular_row_left_by_older_sync(): void
+    {
+        Http::fake([
+            'api.dnama.test/customer-tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
+        ]);
+
+        $registrar = $this->makeDnamaRegistrar();
+
+        // Simulasikan baris peninggalan dari versi sinkronisasi lama
+        // (sebelum baris reguler berhenti disimpan).
+        TldPremium::create([
+            'registrar_id' => $registrar->id,
+            'extension' => '.id',
+            'is_premium' => false,
+            'max_premium_character' => null,
+            'label' => '.id',
+            'is_generic' => false,
+            'cost_register' => 215000,
+            'cost_currency' => 'IDR',
+        ]);
+
+        $this->actingAsAdmin()
+            ->post(route('admin.tld.premium-pricing.sync'), ['registrar_id' => $registrar->id]);
+
+        $this->assertNull(
+            TldPremium::where('registrar_id', $registrar->id)->where('is_premium', false)->first()
         );
     }
 
@@ -180,7 +208,7 @@ class TldPremiumPricingTest extends TestCase
         $response->assertOk();
 
         $familyLabels = $response->viewData('familyRows')->pluck('label')->all();
-        $this->assertSame(['.id', '.id (2 karakter) Premium', '.id (3 karakter) Premium'], $familyLabels);
+        $this->assertSame(['.id (2 karakter) Premium', '.id (3 karakter) Premium'], $familyLabels);
 
         // Ekstensi generik HARUS mengikuti urutan TldPremium::GENERIC_EXTENSIONS
         // (.com, .org, .net, ...) -- BUKAN alfabetis (.asia, .biz, .cc, ...) --
