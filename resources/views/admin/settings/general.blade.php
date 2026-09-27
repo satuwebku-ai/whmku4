@@ -185,6 +185,34 @@
       </div>
     </div>
 
+    {{-- Template tampilan -- publik & client dipisah supaya bisa ganti
+         template independen satu sama lain. --}}
+    <div class="pt-3 mt-3 border-top">
+      <h2 class="small fw-bold text-dark mb-3">Template Tampilan</h2>
+
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <label class="form-label small fw-medium text-dark">Template Halaman Publik</label>
+          <select name="public_template" class="form-select form-select-sm">
+            @foreach (config('themes.public', []) as $key => $theme)
+              <option value="{{ $key }}" @selected(old('public_template', Setting::get('public_template', 'default')) === $key)>{{ $theme['label'] }}</option>
+            @endforeach
+          </select>
+          @error('public_template') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small fw-medium text-dark">Template Panel Client</label>
+          <select name="client_template" class="form-select form-select-sm">
+            @foreach (config('themes.client', []) as $key => $theme)
+              <option value="{{ $key }}" @selected(old('client_template', Setting::get('client_template', 'default')) === $key)>{{ $theme['label'] }}</option>
+            @endforeach
+          </select>
+          @error('client_template') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+        </div>
+      </div>
+      <p class="text-muted mt-2 mb-0" style="font-size:11px">Baru ada 1 template ("Default") untuk masing-masing area. Template tambahan otomatis muncul di sini setelah didaftarkan di config/themes.php.</p>
+    </div>
+
     <button type="submit" class="btn btn-primary btn-sm mt-3"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan Pengaturan</button>
   </form>
 

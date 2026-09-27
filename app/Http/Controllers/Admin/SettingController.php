@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SettingController extends Controller
@@ -37,6 +38,13 @@ class SettingController extends Controller
 
             'site_logo'        => ['nullable', 'image', 'mimes:png,jpg,jpeg,svg,webp', 'max:1024'],
             'site_favicon'     => ['nullable', 'image', 'mimes:png,ico,svg', 'max:256'],
+
+            // Tema tampilan Publik & Client -- dipisah supaya masing-
+            // masing bisa ganti template independen. Rule::in() dibuat
+            // dinamis dari config/themes.php, jadi tema baru yang
+            // ditambahkan di sana otomatis ikut jadi pilihan valid.
+            'public_template'  => ['nullable', 'string', Rule::in(array_keys(config('themes.public', ['default' => true])))],
+            'client_template'  => ['nullable', 'string', Rule::in(array_keys(config('themes.client', ['default' => true])))],
         ], [
             'theme_color.regex' => 'Warna harus dalam format heksadesimal, contoh #6366F1.',
             'site_logo.max'     => 'Ukuran logo maksimal 1 MB.',
