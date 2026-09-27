@@ -364,8 +364,11 @@ class TldController extends Controller
 
     /**
      * Tarik harga MODAL varian PREMIUM keluarga .id dari DNAMA (GET
-     * /customer-tld-pricings, lewat listCustomerTldPricings() -- endpoint
-     * yang sama dengan tab "Harga Reseller/Sub-Reseller"), lalu simpan ke
+     * /tld-pricings, lewat listTldPricings() -- endpoint modal yang SAMA
+     * dipakai sync "TLD Pricing" biasa lewat listPrices(), BUKAN
+     * /customer-tld-pricings/listCustomerTldPricings() yang isinya harga
+     * SARAN DNAMA untuk pelanggan mereka sendiri, bukan modal kita --
+     * lihat docblock DnamaService::listTldPricings()), lalu simpan ke
      * tld_premiums.
      *
      * Baris REGULER (is_premium = false, mis. ".id" seharga Rp 215rb)
@@ -396,12 +399,25 @@ class TldController extends Controller
         $registrar = Registrar::findOrFail($data['registrar_id']);
         $service = DomainRegistrarFactory::make($registrar);
 
-        if (! method_exists($service, 'listCustomerTldPricings')) {
+        // PENTING: WAJIB listTldPricings() (GET /tld-pricings), BUKAN
+        // listCustomerTldPricings() (GET /customer-tld-pricings). Yang
+        // kedua itu harga yang DNAMA SARANKAN untuk pelanggan MEREKA
+        // sendiri -- bukan harga MODAL yang dibebankan ke saldo reseller
+        // kita (lihat docblock DnamaService::listTldPricings()). Sync
+        // "TLD Pricing" biasa (TldController::syncPreview() ->
+        // DnamaService::listPrices()) sudah benar memakai /tld-pricings;
+        // sebelumnya sinkronisasi harga premium di sini malah memakai
+        // endpoint yang salah, jadi kolom "Harga MODAL" yang ditampilkan
+        // bukan modal sungguhan, dan baris premium yang ikut kebaca pun
+        // lebih sedikit dari yang sebenarnya tersedia (bandingkan dengan
+        // "Statistik & Contoh Harga" di halaman Diagnosa Registrar, yang
+        // memang sengaja diambil dari /tld-pricings).
+        if (! method_exists($service, 'listTldPricings')) {
             return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $registrar->id])
                 ->with('error', "Registrar {$registrar->name} belum mendukung sinkronisasi harga premium lewat halaman ini.");
         }
 
-        $result = $service->listCustomerTldPricings();
+        $result = $service->listTldPricings();
 
         if (! $result['success']) {
             return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $registrar->id])

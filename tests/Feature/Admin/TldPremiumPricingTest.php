@@ -11,10 +11,12 @@ use Tests\TestCase;
 
 /**
  * Mengunci perilaku sinkronisasi & tampilan halaman admin Domain Premium
- * (admin/tld/premium-pricing) memakai payload sungguhan dari
- * GET /customer-tld-pricings DNAMA -- sebelumnya fitur ini SAMA SEKALI
- * tidak punya test, jadi regresi (mis. urutan tampil salah) bisa lolos
- * tanpa ketahuan.
+ * (admin/tld/premium-pricing) memakai payload sungguhan dari GET
+ * /tld-pricings DNAMA (harga MODAL -- endpoint yang sama dipakai sync
+ * "TLD Pricing" biasa, BUKAN /customer-tld-pricings yang isinya harga
+ * saran DNAMA untuk pelanggan mereka sendiri) -- sebelumnya fitur ini
+ * SAMA SEKALI tidak punya test, jadi regresi (mis. urutan tampil salah,
+ * atau kembali memakai endpoint yang salah) bisa lolos tanpa ketahuan.
  */
 class TldPremiumPricingTest extends TestCase
 {
@@ -81,7 +83,7 @@ class TldPremiumPricingTest extends TestCase
     public function test_sync_creates_separate_rows_per_premium_character_tier(): void
     {
         Http::fake([
-            'api.dnama.test/customer-tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
+            'api.dnama.test/tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
         ]);
 
         $registrar = $this->makeDnamaRegistrar();
@@ -124,7 +126,7 @@ class TldPremiumPricingTest extends TestCase
     public function test_sync_cleans_up_stale_regular_row_left_by_older_sync(): void
     {
         Http::fake([
-            'api.dnama.test/customer-tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
+            'api.dnama.test/tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
         ]);
 
         $registrar = $this->makeDnamaRegistrar();
@@ -166,7 +168,7 @@ class TldPremiumPricingTest extends TestCase
         // Panggilan sinkron kedua diam-diam masih memakai payload pertama
         // kalau stub-nya didaftarkan lewat Http::fake() terpisah.
         Http::fake([
-            'api.dnama.test/customer-tld-pricings*' => Http::sequence()
+            'api.dnama.test/tld-pricings*' => Http::sequence()
                 ->push($firstPayload, 200)
                 ->push($updatedPayload, 200),
         ]);
@@ -196,7 +198,7 @@ class TldPremiumPricingTest extends TestCase
     public function test_admin_page_orders_family_and_generic_rows_correctly(): void
     {
         Http::fake([
-            'api.dnama.test/customer-tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
+            'api.dnama.test/tld-pricings*' => Http::response($this->sampleDnamaPayload(), 200),
         ]);
 
         $registrar = $this->makeDnamaRegistrar();
