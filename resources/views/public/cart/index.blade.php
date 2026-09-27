@@ -55,11 +55,17 @@
             @foreach ($items as $item)
               <div class="card-public p-4 d-flex align-items-start justify-content-between gap-3 flex-wrap">
                 <div class="d-flex align-items-start gap-3 min-w-0">
-                  <span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;{{ $item['type'] === 'domain' ? 'background:rgba(6,182,212,.14);color:#0891b2' : 'background:rgba(79,70,229,.12);color:#4f46e5' }}">
-                    <i class="fa-solid {{ $item['type'] === 'domain' ? 'fa-globe' : 'fa-server' }}"></i>
+                  <span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;{{ in_array($item['type'], ['domain', 'domain_premium'], true) ? 'background:rgba(6,182,212,.14);color:#0891b2' : 'background:rgba(79,70,229,.12);color:#4f46e5' }}">
+                    <i class="fa-solid {{ in_array($item['type'], ['domain', 'domain_premium'], true) ? 'fa-globe' : 'fa-server' }}"></i>
                   </span>
                   <div class="min-w-0">
-                    @if ($item['type'] === 'product')
+                    @if ($item['type'] === 'domain_premium')
+                      <p class="fw-semibold text-dark mb-0">
+                        {{ $item['domain_name'] }}
+                        <span class="badge ms-1" style="background:#fef3c7;color:#92400e;font-weight:600;font-size:10px">Premium</span>
+                      </p>
+                      <p class="text-muted mb-0 mt-1" style="font-size:11px">Registrasi domain premium — 1 tahun (harga tetap, tidak bisa diubah)</p>
+                    @elseif ($item['type'] === 'product')
                       <p class="fw-semibold text-dark mb-0">{{ $item['name'] }}</p>
 
                       <form method="POST" action="{{ route('cart.update-cycle') }}" class="mt-2">

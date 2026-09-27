@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
+use App\Models\Domain;
 use App\Models\NavMenu;
 use App\Models\Registrar;
 use App\Models\TldPremium;
-use App\Services\Domain\DomainRegistrarFactory;
+use App\Services\Domain\AvailabilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PremiumDomainController extends Controller
@@ -49,10 +50,9 @@ class PremiumDomainController extends Controller
     private function data(): array
     {
         $idFamily = $this->idFamilyPricing();
-        $genericExtensions = TldPremium::GENERIC_EXTENSIONS;
         $banners = \App\Models\PromoBanner::live()->forPage('domain_premium')->orderBy('sort_order')->get();
 
-        return compact('idFamily', 'genericExtensions', 'banners');
+        return compact('idFamily', 'banners');
     }
 
     /**
@@ -99,6 +99,7 @@ class PremiumDomainController extends Controller
             }
 
             $out[$ext][] = [
+                'id' => $row->id,
                 'label' => $row->label,
                 'is_premium' => $row->is_premium,
                 'max_premium_character' => $row->max_premium_character,
@@ -134,29 +135,40 @@ class PremiumDomainController extends Controller
     }
 
     /**
-     * Cek satu nama domain generik (mis. "toko.com") LANGSUNG ke API
-     * DNAMA (bukan RDAP seperti halaman Cek Domain biasa) -- supaya
-     * flag is_premium ikut didapat. Dipanggil lewat AJAX dari halaman
-     * Domain Premium.
+     * Cek satu nama domain KELUARGA .id: nama (label) + ekstensi dipilih
+     * terpisah supaya kita bisa langsung menghitung tingkatan harga yang
+     * tepat berdasarkan JUMLAH KARAKTER label (lihat resolvePremiumTier)
+     * -- bukan cuma menampilkan tabel harga statis seperti sebelumnya.
+     * Ketersediaan sungguhan dicek lewat RDAP (AvailabilityService),
+     * sama seperti halaman Cek Domain biasa, supaya klien tidak bisa
+     * "memesan" nama yang sebenarnya sudah terdaftar.
      */
-    public function check(Request $request): JsonResponse
+    public function check(Request $request, AvailabilityService $availability): JsonResponse
     {
         $this->ensureActive();
 
         $data = $request->validate([
-            'domain_name' => ['required', 'string', 'max:255'],
+            'label' => ['required', 'string', 'max:63'],
+            'extension' => ['required', 'string', Rule::in(TldPremium::ID_FAMILY)],
         ]);
 
-        $domain = strtolower(trim($data['domain_name']));
-        $domain = preg_replace('#^https?://#', '', $domain);
-        $domain = preg_replace('#^www\.#', '', $domain);
-        $ext = '.' . Str::after($domain, '.');
+        $label = strtolower(trim($data['label']));
+        $label = preg_replace('#^https?://#', '', $label);
+        $label = preg_replace('#^www\.#', '', $label);
+        $ext = $data['extension'];
+        $extNoDot = ltrim($ext, '.');
+        // Kalau klien menyalin nama lengkap dengan ekstensinya sendiri,
+        // buang ekstensi itu supaya tidak dobel ("toko.id" + ".id").
+        $label = preg_replace('#\.' . preg_quote($extNoDot, '#') . '$#i', '', $label);
 
-        if (! str_contains($domain, '.') || ! in_array($ext, TldPremium::GENERIC_EXTENSIONS, true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ekstensi tersebut belum kami dukung untuk pengecekan domain premium di halaman ini.',
-            ]);
+        if ($label === '' || ! preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $label)) {
+            return response()->json(['success' => false, 'message' => 'Nama domain tidak valid.']);
+        }
+
+        $domainName = "{$label}{$ext}";
+
+        if (Domain::whereRaw('LOWER(domain_name) = ?', [strtolower($domainName)])->whereIn('status', ['pending', 'active'])->exists()) {
+            return response()->json(['success' => true, 'domain' => $domainName, 'available' => false, 'message' => "{$domainName} sudah terdaftar/dipesan lebih dulu."]);
         }
 
         $registrar = Registrar::where('provider', 'dnama')->where('is_active', true)->first();
@@ -165,25 +177,100 @@ class PremiumDomainController extends Controller
             return response()->json(['success' => false, 'message' => 'Layanan pengecekan sedang tidak tersedia.']);
         }
 
-        try {
-            $service = DomainRegistrarFactory::make($registrar);
-            $result = $service->checkAvailability([$domain]);
+        $result = $availability->check([$domainName]);
+        $available = $result['results'][$domainName] ?? null;
 
-            if (! $result['success'] && empty($result['results'])) {
-                return response()->json(['success' => false, 'message' => $result['message'] ?? 'Gagal mengecek domain.']);
+        if ($available === false) {
+            return response()->json(['success' => true, 'domain' => $domainName, 'available' => false, 'message' => "{$domainName} sudah terdaftar."]);
+        }
+
+        $premium = $this->resolvePremiumTier($registrar, $ext, strlen($label));
+
+        if (! $premium) {
+            return response()->json(['success' => false, 'message' => 'Harga untuk ekstensi ini belum tersedia. Silakan hubungi kami.']);
+        }
+
+        // Cross-check ke DNAMA (sumber SUNGGUHAN status premium & tersedia
+        // di registry), bukan cuma dipercaya dari perhitungan panjang
+        // karakter kita sendiri. Di-cache 10 menit -- domain-availability
+        // di DNAMA punya rate limit ketat, jadi jangan dipanggil tiap
+        // klik "Cek" untuk nama yang sama berulang-ulang.
+        $verified = null;
+        try {
+            $verified = \Illuminate\Support\Facades\Cache::remember(
+                "dnama-premium-check:{$domainName}",
+                now()->addMinutes(10),
+                fn () => (new \App\Services\Domain\DnamaService($registrar))->checkPremiumStatus($domainName)
+            );
+        } catch (\Throwable $e) {
+            $verified = null; // API DNAMA bermasalah -- jatuh balik ke tebakan tingkatan karakter di bawah, jangan sampai halaman ini ikut gagal cuma karena cross-check-nya gagal.
+        }
+
+        $isPremium = (bool) $premium->is_premium;
+        $premiumVerifiedByRegistry = false;
+
+        if ($verified && $verified['success']) {
+            // DNAMA bilang TIDAK tersedia padahal RDAP bilang tersedia/
+            // tidak pasti -- percaya DNAMA, karena dialah yang benar-benar
+            // memegang data registrasi .id (RDAP cuma bootstrap publik).
+            if ($verified['available'] === false) {
+                return response()->json(['success' => true, 'domain' => $domainName, 'available' => false, 'message' => "{$domainName} sudah terdaftar."]);
             }
 
-            $available = (bool) ($result['results'][$domain] ?? false);
-            $isPremium = (bool) ($result['raw']['data']['is_premium'] ?? false);
-
-            return response()->json([
-                'success' => true,
-                'domain' => $domain,
-                'available' => $available,
-                'is_premium' => $isPremium,
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            $isPremium = $verified['is_premium'];
+            $premiumVerifiedByRegistry = true;
         }
+
+        $price = (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0);
+
+        if ($price <= 0) {
+            return response()->json(['success' => false, 'message' => 'Harga domain ini belum diisi admin. Silakan hubungi kami lewat tiket.']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'domain' => $domainName,
+            'available' => $available !== false,
+            // RDAP kadang tidak bisa memastikan (timeout/tidak didukung
+            // registry) -- ditandai di sini supaya UI bisa memberi
+            // peringatan "belum bisa dipastikan" alih-alih diam-diam
+            // menganggap tersedia.
+            'unknown' => $available === null && ! $premiumVerifiedByRegistry,
+            'tld_premium_id' => $premium->id,
+            'is_premium' => $isPremium,
+            // true kalau status premium di atas sudah dikonfirmasi
+            // langsung dari DNAMA, false kalau cuma tebakan dari
+            // tingkatan panjang karakter (API DNAMA sedang tidak bisa
+            // dihubungi) -- dipakai UI untuk menampilkan catatan kecil.
+            'premium_verified' => $premiumVerifiedByRegistry,
+            'label' => $label,
+            'extension' => $ext,
+            'price' => $price,
+            'price_formatted' => 'Rp ' . number_format($price, 0, ',', '.'),
+        ]);
+    }
+
+    /**
+     * Pilih baris tld_premiums yang tepat untuk SATU nama, berdasarkan
+     * jumlah karakternya:
+     *   - Kalau ada tingkatan premium (is_premium=true) yang batas
+     *     karakternya (max_premium_character) >= panjang nama, pakai
+     *     tingkatan TERKECIL yang masih cukup (paling murah yang valid).
+     *   - Kalau nama lebih panjang dari semua tingkatan premium, jatuh
+     *     balik ke baris reguler (is_premium=false) ekstensi itu.
+     */
+    private function resolvePremiumTier(Registrar $registrar, string $extension, int $labelLength): ?TldPremium
+    {
+        $rows = TldPremium::where('registrar_id', $registrar->id)
+            ->where('extension', $extension)
+            ->where('is_active', true)
+            ->get();
+
+        $tier = $rows->where('is_premium', true)
+            ->filter(fn (TldPremium $r) => $r->max_premium_character !== null && $labelLength <= $r->max_premium_character)
+            ->sortBy('max_premium_character')
+            ->first();
+
+        return $tier ?? $rows->firstWhere('is_premium', false);
     }
 }

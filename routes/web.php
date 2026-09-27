@@ -54,9 +54,11 @@ Route::controller(DomainSearchController::class)->group(function () {
     Route::post('transfer-domain', 'submitTransfer')->name('domains.transfer.submit');
 });
 
-// Domain Premium: keluarga .id (harga tetap per karakter, live dari
-// DNAMA) + TLD generik (harga per-nama, dicek dulu lalu dipesan lewat
-// tiket -- lihat PremiumDomainController untuk alasannya).
+// Domain Premium: keluarga .id (harga tetap per karakter, sumber
+// harga dari tabel tld_premiums yang diisi admin -- lihat
+// TldPremium::sell_register_price). Klien mengetik nama + pilih
+// ekstensi, dicek (RDAP + tingkatan harga), lalu langsung dipesan
+// lewat keranjang (rute POST-nya menumpang di grup Keranjang di bawah).
 Route::controller(PremiumDomainController::class)->prefix('domain-premium')->name('domain-premium.')->group(function () {
     Route::get('/', 'indexBootstrap')->name('index');
     Route::post('cek', 'check')->name('check');
@@ -70,6 +72,7 @@ Route::get('ref/{code}/{campaign?}', [\App\Http\Controllers\Site\ReferralControl
 Route::controller(CartController::class)->prefix('keranjang')->name('cart.')->group(function () {
     Route::get('/', 'indexBootstrap')->name('index');
     Route::post('produk', 'addProduct')->name('add-product');
+    Route::post('domain-premium', 'addPremiumDomain')->name('add-premium-domain');
     Route::post('update-siklus', 'updateProductCycle')->name('update-cycle');
     Route::post('update-tahun', 'updateDomainYears')->name('update-years');
     Route::post('privacy', 'toggleWhoisPrivacy')->name('toggle-privacy');

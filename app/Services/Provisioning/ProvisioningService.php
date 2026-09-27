@@ -295,6 +295,25 @@ class ProvisioningService
             return null;
         }
 
+        // Domain PREMIUM (keluarga .id harga tetap ATAU generik hasil
+        // penawaran admin) TIDAK PERNAH didaftarkan otomatis lewat API
+        // registrar -- harga premium & ketersediaannya seringkali perlu
+        // dikonfirmasi ulang manual ke registry/registrar sebelum benar-
+        // benar didaftarkan, dan API registrasi biasa memakai jalur
+        // harga normal (bisa salah tagih / registry menolak). Invoice-nya
+        // tetap lunas seperti biasa -- yang ditahan cuma langkah
+        // registrasinya, admin menyelesaikannya manual lewat halaman
+        // Edit Domain (set status/tanggal setelah didaftarkan sungguhan
+        // di panel registrar).
+        if ($domain->is_premium) {
+            $domain->update([
+                'provision_status' => 'manual',
+                'provision_message' => 'Domain premium — invoice sudah lunas, registrasi diselesaikan MANUAL oleh admin di panel registrar (bukan otomatis lewat API).',
+            ]);
+
+            return null;
+        }
+
         // TLD tanpa registrar (mis. TLD demo ".test" dari lumora:demo-tld,
         // atau domain yang sengaja diproses manual) — TIDAK ada API untuk
         // dipanggil, tapi domainnya tetap harus ditandai aktif di database.

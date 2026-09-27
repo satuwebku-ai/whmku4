@@ -14,6 +14,7 @@ class Domain extends Model
         'client_id', 'order_id', 'registrar_id', 'tld_id', 'domain_name',
         'price', 'years', 'status', 'register_date', 'expiry_date',
         'auto_renew', 'whois_privacy', 'nameservers',
+        'is_premium', 'tld_premium_id',
         'provision_status', 'provision_message', 'internal_notes',
         'renewal_invoice_id', 'is_transfer', 'transfer_auth_code',
         'eligibility_criteria', 'eligibility_extra', 'documents_verified_at',
@@ -29,6 +30,7 @@ class Domain extends Model
             'expiry_date' => 'date',
             'auto_renew' => 'boolean',
             'whois_privacy' => 'boolean',
+            'is_premium' => 'boolean',
             'nameservers' => 'array',
             'is_transfer' => 'boolean',
             'transfer_auth_code' => 'encrypted',
@@ -94,6 +96,11 @@ class Domain extends Model
     public function tld(): BelongsTo
     {
         return $this->belongsTo(Tld::class);
+    }
+
+    public function tldPremium(): BelongsTo
+    {
+        return $this->belongsTo(TldPremium::class);
     }
 
     public function renewalInvoice(): BelongsTo

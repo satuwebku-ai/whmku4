@@ -4,6 +4,7 @@ namespace App\Services\Cart;
 
 use App\Models\Product;
 use App\Models\Tld;
+use App\Models\TldPremium;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -82,6 +83,19 @@ class CartService
         $changed = false;
 
         foreach ($items as &$item) {
+            if (($item['type'] ?? null) === 'domain_premium' && ! empty($item['tld_premium_id'])) {
+                $premium = TldPremium::find($item['tld_premium_id']);
+                $newPrice = $premium ? (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0) : 0;
+
+                if ($newPrice > 0 && $newPrice != ($item['price'] ?? null)) {
+                    $item['base_price'] = $newPrice;
+                    $item['price'] = $newPrice;
+                    $changed = true;
+                }
+
+                continue;
+            }
+
             if (($item['type'] ?? null) !== 'domain' || empty($item['tld_id'])) {
                 continue;
             }
@@ -352,6 +366,83 @@ class CartService
         return ['success' => true, 'message' => $isTransfer
             ? "Permintaan transfer {$domainName} ditambahkan ke keranjang."
             : "{$domainName} ditambahkan ke keranjang."];
+    }
+
+    /**
+     * Tambah domain PREMIUM keluarga .id (harga tetap per karakter, dari
+     * tabel tld_premiums) ke keranjang -- dipanggil dari halaman Domain
+     * Premium, BUKAN dari halaman Cek Domain biasa (lihat
+     * PremiumDomainController). Beda dari addDomain():
+     *   - Hanya untuk 1 tahun (harga register premium cuma berlaku untuk
+     *     registrasi baru; perpanjangan tahun berikutnya pakai harga
+     *     renew premium yang normal, bukan harga register yang mahal).
+     *   - Tidak menawarkan ID Protection -- domain premium keluarga .id
+     *     tunduk aturan WHOIS PANDI yang sama seperti .id biasa (lihat
+     *     Tld::isIdFamily), jadi tidak pernah eligible.
+     *   - Harga diambil LANGSUNG dari $premium (harga jual admin), tidak
+     *     lewat Tld::priceForYears() -- checkout tetap akan membaca ulang
+     *     dari tabel tld_premiums saat ini (bukan snapshot ini) sebagai
+     *     sumber kebenaran final, sama prinsipnya seperti domain biasa.
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function addPremiumDomain(string $label, TldPremium $premium): array
+    {
+        if (! $premium->is_active || $premium->is_generic) {
+            return ['success' => false, 'message' => 'Domain premium ini sedang tidak tersedia untuk dipesan.'];
+        }
+
+        $label = strtolower(trim($label));
+        $label = preg_replace('#^https?://#', '', $label);
+        $label = preg_replace('#^www\.#', '', $label);
+        // Label yang dikirim dari form cuma nama sebelum ekstensi (mis.
+        // "toko" untuk baris ".id") -- kalau klien menyalin nama lengkap
+        // dengan ekstensinya sendiri, ekstensi itu dibuang supaya tidak
+        // dobel ("toko.id.id").
+        $ext = ltrim($premium->extension, '.');
+        $label = preg_replace('#\.' . preg_quote($ext, '#') . '$#i', '', $label);
+
+        if ($label === '' || ! preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $label)) {
+            return ['success' => false, 'message' => 'Nama domain tidak valid.'];
+        }
+
+        $domainName = "{$label}.{$ext}";
+
+        foreach ($this->items() as $item) {
+            if (($item['type'] ?? null) === 'domain_premium' && strtolower($item['domain_name'] ?? '') === $domainName) {
+                return ['success' => false, 'message' => "{$domainName} sudah ada di keranjang Anda."];
+            }
+
+            if (($item['type'] ?? null) === 'domain' && strtolower($item['domain_name'] ?? '') === $domainName) {
+                return ['success' => false, 'message' => "{$domainName} sudah ada di keranjang Anda."];
+            }
+        }
+
+        if (\App\Models\Domain::whereRaw('LOWER(domain_name) = ?', [$domainName])
+            ->whereIn('status', ['pending', 'active'])
+            ->exists()) {
+            return ['success' => false, 'message' => "{$domainName} sudah terdaftar dan tidak bisa dipesan lagi."];
+        }
+
+        $price = (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0);
+
+        if ($price <= 0) {
+            return ['success' => false, 'message' => 'Harga untuk domain premium ini belum diisi admin. Silakan hubungi kami lewat tiket.'];
+        }
+
+        $this->push([
+            'key'             => (string) Str::uuid(),
+            'type'            => 'domain_premium',
+            'tld_premium_id'  => $premium->id,
+            'extension'       => $premium->extension,
+            'domain_name'     => $domainName,
+            'label'           => $premium->label,
+            'years'           => 1,
+            'base_price'      => $price,
+            'price'           => $price,
+        ]);
+
+        return ['success' => true, 'message' => "{$domainName} (domain premium) ditambahkan ke keranjang."];
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\InvoiceItem;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tld;
+use App\Models\TldPremium;
 use App\Services\Billing\CouponService;
 use App\Services\Cart\CartService;
 use Carbon\Carbon;
@@ -248,6 +249,19 @@ class CheckoutController extends Controller
         foreach ($cart->items() as $item) {
             $mode = $item['domain_mode'] ?? null;
 
+            if ($item['type'] === 'domain_premium') {
+                $premium = ! empty($item['tld_premium_id']) ? TldPremium::find($item['tld_premium_id']) : null;
+                $price = $premium ? (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0) : 0;
+
+                if (! $premium || ! $premium->is_active || $price <= 0) {
+                    $issues[] = "Domain premium \"{$item['domain_name']}\" sudah tidak tersedia/belum ada harganya. Hapus item ini dari keranjang.";
+                } elseif (Domain::whereRaw('LOWER(domain_name) = ?', [strtolower($item['domain_name'] ?? '')])
+                    ->whereIn('status', ['pending', 'active'])
+                    ->exists()) {
+                    $issues[] = "Domain premium \"{$item['domain_name']}\" sudah terdaftar/dipesan lebih dulu. Hapus item ini dari keranjang.";
+                }
+            }
+
             if ($item['type'] === 'product' && ! empty($item['product_id'])) {
                 $product = Product::with('server')->find($item['product_id']);
 
@@ -364,6 +378,10 @@ class CheckoutController extends Controller
     {
         if ($item['type'] === 'domain') {
             return [$this->buildStandaloneDomainLine($client, $item)];
+        }
+
+        if ($item['type'] === 'domain_premium') {
+            return [$this->buildPremiumDomainLine($client, $item)];
         }
 
         $lines = $this->buildHostingLines($client, $item);
@@ -640,6 +658,73 @@ class CheckoutController extends Controller
             . ($hasPaidPrivacy ? ' + ID Protection' : '');
 
         return ['order' => $order, 'amount' => $finalDomainPrice, 'description' => $description];
+    }
+
+    /**
+     * Domain premium keluarga .id (harga tetap dari tabel tld_premiums).
+     * Sama prinsipnya seperti buildStandaloneDomainLine(): harga dibaca
+     * ULANG dari sumbernya di sini (bukan dipercaya dari snapshot
+     * keranjang), supaya perubahan harga admin di tengah proses checkout
+     * tidak bisa "dibekukan" oleh klien dengan harga lama.
+     *
+     * TLD induk (kalau ekstensi ini juga dijual reguler, mis. ".id"
+     * biasa) diisi ke tld_id HANYA supaya syarat berkas (KTP/NPWP dst,
+     * lihat DocumentRequirement::forExtension) & tampilan tetap
+     * konsisten dengan domain .id biasa -- harga & FK registrar tetap
+     * mengikuti baris tld_premiums, bukan Tld biasa.
+     *
+     * Domain ini SENGAJA ditandai is_premium=true supaya
+     * ProvisioningService TIDAK mencoba mendaftarkannya otomatis lewat
+     * API registrar (yang akan memakai harga normal, bukan harga
+     * premium) -- admin menyelesaikan registrasi sungguhan secara manual
+     * di panel registrar setelah invoice ini lunas.
+     */
+    private function buildPremiumDomainLine(Client $client, array $item): array
+    {
+        $premium = TldPremium::find($item['tld_premium_id'] ?? null);
+
+        if (! $premium || ! $premium->is_active) {
+            throw new \RuntimeException("Domain premium \"{$item['domain_name']}\" sudah tidak tersedia. Silakan hapus item ini dari keranjang.");
+        }
+
+        $price = (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0);
+
+        if ($price <= 0) {
+            throw new \RuntimeException("Harga domain premium \"{$item['domain_name']}\" belum diisi admin. Silakan hubungi kami lewat tiket.");
+        }
+
+        $ext = strtolower($premium->extension);
+        $tld = Tld::whereRaw('LOWER(extension) = ?', [$ext])->first();
+
+        $domain = Domain::create([
+            'client_id'         => $client->id,
+            'registrar_id'      => $premium->registrar_id,
+            'tld_id'            => $tld?->id,
+            'tld_premium_id'    => $premium->id,
+            'domain_name'       => $item['domain_name'],
+            'price'             => $price,
+            'years'             => 1,
+            'status'            => 'pending',
+            'provision_status'  => 'manual',
+            'whois_privacy'     => false,
+            'is_premium'        => true,
+        ]);
+
+        $order = Order::create([
+            'client_id'    => $client->id,
+            'product_name' => "Registrasi Domain Premium {$item['domain_name']}",
+            'order_type'   => 'domain',
+            'amount'       => $price,
+            'status'       => \App\Enums\OrderStatus::PendingPayment,
+        ]);
+
+        $domain->update(['order_id' => $order->id]);
+
+        return [
+            'order' => $order,
+            'amount' => $price,
+            'description' => "Registrasi Domain Premium {$item['domain_name']} (1 tahun)",
+        ];
     }
 
     private function nextDueDate(string $cycle, ?\App\Models\Product $product = null): Carbon

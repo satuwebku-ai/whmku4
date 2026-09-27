@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Site;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\TldPremium;
 use App\Services\Cart\CartService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,6 +86,28 @@ class CartController extends Controller
         $cart->updateProductCycle($data['key'], $data['billing_cycle']);
 
         return back()->with('success', 'Siklus tagihan diperbarui.');
+    }
+
+    /**
+     * Tambah domain premium keluarga .id (harga tetap, dipilih dari
+     * daftar harga di halaman Domain Premium) ke keranjang.
+     */
+    public function addPremiumDomain(Request $request, CartService $cart): RedirectResponse
+    {
+        $data = $request->validate([
+            'tld_premium_id' => ['required', 'exists:tld_premiums,id'],
+            'domain_label'   => ['required', 'string', 'max:63'],
+        ]);
+
+        $premium = TldPremium::findOrFail($data['tld_premium_id']);
+
+        $result = $cart->addPremiumDomain($data['domain_label'], $premium);
+
+        if (! $result['success']) {
+            return back()->withInput()->with('error', $result['message']);
+        }
+
+        return redirect()->route('cart.index')->with('success', $result['message']);
     }
 
     public function updateDomainYears(Request $request, CartService $cart): RedirectResponse

@@ -100,6 +100,34 @@ class DnamaService implements DomainRegistrarInterface
     }
 
     /**
+     * Cek SATU domain + ambil flag "is_premium"-nya LANGSUNG dari DNAMA
+     * -- checkAvailability() di atas cuma mengembalikan tersedia/tidak
+     * (kontrak DomainRegistrarInterface yang dipakai bersama registrar
+     * lain, tidak punya field is_premium), jadi dibuat method terpisah
+     * di sini khusus dipakai halaman Domain Premium (lihat
+     * PremiumDomainController::check()) untuk cross-check klasifikasi
+     * premium yang kita hitung sendiri dari jumlah karakter (tabel
+     * tld_premiums) terhadap data premium SUNGGUHAN di sisi registry.
+     */
+    public function checkPremiumStatus(string $domain): array
+    {
+        $result = $this->call('get', '/domain-availability', ['domain_name' => $domain]);
+
+        if (! $result['success']) {
+            return ['success' => false, 'message' => $result['message'], 'available' => null, 'is_premium' => null];
+        }
+
+        $data = $result['raw']['data'] ?? [];
+
+        return [
+            'success' => true,
+            'message' => 'OK',
+            'available' => (bool) ($data['available'] ?? false),
+            'is_premium' => (bool) ($data['is_premium'] ?? false),
+        ];
+    }
+
+    /**
      * POST /domains
      *
      * $params:
