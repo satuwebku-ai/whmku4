@@ -119,7 +119,7 @@
 
     {{-- Konten --}}
     <main class="flex-grow-1 p-3 p-lg-4 min-w-0">
-      <x-toast />
+      @include('client.partials.toast')
 
       @yield('content')
     </main>

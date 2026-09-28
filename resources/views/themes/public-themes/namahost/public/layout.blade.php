@@ -104,7 +104,7 @@
             @endforeach
           </ul>
 
-          <div class="d-flex align-items-center gap-2 py-2 py-lg-0">
+          <div class="nav-actions d-flex align-items-center gap-2 py-2 py-lg-0">
             @auth('client')
               <a href="{{ route('client.dashboard') }}" class="btn btn-accent">Akun Saya</a>
             @else
@@ -118,7 +118,7 @@
   </header>
 
   <main class="flex-grow-1">
-    <x-toast />
+    @include('public.partials.toast')
 
     @hasSection('full-width')
       @yield('full-width')

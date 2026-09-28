@@ -164,3 +164,55 @@ header.hero .row{animation:rise .8s ease both}
 .auth-side{background:radial-gradient(40rem 24rem at 90% 0,rgba(34,211,197,.35),transparent 60%),radial-gradient(30rem 20rem at 0 100%,rgba(91,91,214,.45),transparent 60%),linear-gradient(135deg,#0b2a33,#0e4a56);color:#e8f3f5}
 
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ==========================================================================
+   Perbaikan v2: header, tombol hero, notifikasi
+   ========================================================================== */
+/* Header: semua kontrol kanan setinggi sama dan berjarak rata */
+#publicHeader .navbar{padding:.7rem 0}
+#publicHeader .navbar>.container{gap:.5rem;align-items:center}
+#publicHeader .navbar-nav{gap:.15rem;align-items:center}
+#publicHeader .nav-link{padding:.5rem .85rem;font-size:15px;font-weight:600;border-radius:.5rem}
+#publicHeader .nav-link:hover{background:rgba(255,255,255,.08)}
+#publicHeader .nav-link.active{background:rgba(255,255,255,.12)}
+#publicHeader .nav-actions .btn,
+#publicHeader .cart-link{height:40px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-size:14.5px;font-weight:600}
+#publicHeader .nav-actions .btn{padding:0 1.1rem}
+#publicHeader .cart-link{width:40px;padding:0;font-size:1.05rem}
+#publicHeader .nav-actions{margin-left:auto}
+@media(min-width:992px){
+  #publicHeader .navbar-collapse{justify-content:flex-start;gap:.5rem}
+  #publicHeader .navbar-nav{margin-left:1rem}
+  #publicHeader .cart-link{margin-left:.25rem}
+}
+@media(max-width:991.98px){
+  #publicHeader .navbar-collapse{flex-basis:100%;padding-top:.5rem;border-top:1px solid rgba(255,255,255,.12);margin-top:.5rem}
+  #publicHeader .navbar>.container>.d-flex.order-lg-last{margin-left:auto}
+  #publicHeader .nav-actions{margin-left:0;display:grid!important;grid-template-columns:1fr 1fr;gap:.5rem!important}
+  #publicHeader .nav-actions .btn:only-child{grid-column:1/-1}
+}
+/* Tombol di kotak cari domain tidak boleh patah baris */
+.domain-box .btn{white-space:nowrap;flex-shrink:0}
+.domain-box .form-control{min-width:0}
+
+/* Notifikasi */
+.nh-toasts{position:fixed;top:88px;right:1rem;z-index:1090;display:flex;flex-direction:column;gap:.6rem;width:min(23rem,calc(100vw - 2rem));pointer-events:none}
+.nh-toasts.in-client{top:1rem}
+.nh-toast{--tc:#0e7c86;pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:flex-start;gap:.75rem;padding:.8rem .9rem .95rem;background:#fff;color:var(--bs-body-color);border:1px solid #e3edf0;border-radius:.9rem;box-shadow:0 .9rem 2.2rem rgba(11,42,51,.22);animation:nhIn .3s cubic-bezier(.2,.9,.3,1) both}
+.nh-toast.out{animation:nhOut .22s ease both}
+.nh-toast .ic{width:2rem;height:2rem;border-radius:.65rem;display:grid;place-items:center;color:#fff;font-size:1rem;flex-shrink:0;background:linear-gradient(135deg,#22d3c5,#0e7c86)}
+.nh-toast .body{flex:1;min-width:0}
+.nh-toast .t{font-weight:800;font-size:13.5px;line-height:1.3}
+.nh-toast .m{font-size:13.5px;line-height:1.45;color:#4f6a72;word-break:break-word}
+.nh-toast .x{border:0;background:transparent;color:#7d969d;padding:0;width:1.5rem;height:1.5rem;display:grid;place-items:center;border-radius:.4rem;flex-shrink:0;font-size:1.2rem}
+.nh-toast .x:hover{background:#eef4f6;color:#16323a}
+.nh-toast .bar{position:absolute;left:0;bottom:0;height:3px;width:100%;transform-origin:left;background:var(--tc);animation:nhBar var(--dur,4500ms) linear forwards}
+.nh-toast.success{--tc:#0e7c86}
+.nh-toast.error{--tc:#ff5a4f}.nh-toast.error .ic{background:linear-gradient(135deg,#ff9a6b,#ff5a4f)}
+.nh-toast.warning{--tc:#f5a524}.nh-toast.warning .ic{background:linear-gradient(135deg,#ffd166,#f5a524)}
+.nh-toast.info{--tc:#5b5bd6}.nh-toast.info .ic{background:linear-gradient(135deg,#8b8bf0,#5b5bd6)}
+.nh-toast:hover .bar{animation-play-state:paused}
+@keyframes nhIn{from{opacity:0;transform:translateX(1.5rem)}}
+@keyframes nhOut{to{opacity:0;transform:translateX(1.5rem)}}
+@keyframes nhBar{to{transform:scaleX(0)}}
+@media(max-width:575.98px){.nh-toasts{right:1rem;left:1rem;width:auto;top:76px}}
