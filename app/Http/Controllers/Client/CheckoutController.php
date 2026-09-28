@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Coupon;
 use App\Models\Domain;
+use App\Models\DomainInterest;
 use App\Models\HostingAccount;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -198,6 +199,20 @@ class CheckoutController extends Controller
             // stok yang sempat terjadi), jadi aman diberi tahu ke klien
             // tanpa ada efek samping yang tertinggal.
             return redirect()->route('cart.index')->with('error', $e->getMessage());
+        }
+
+        foreach ($cart->items() as $item) {
+            if (filled($item['domain_name'] ?? null)
+                && in_array($item['type'] ?? null, ['domain', 'domain_premium'], true)) {
+                DomainInterest::recordCheckout(
+                    $item['domain_name'],
+                    $item['tld_id'] ?? null,
+                    $item['tld_premium_id'] ?? null,
+                    $item['years'] ?? null,
+                    $invoice->id,
+                    ['domain_mode' => $item['domain_mode'] ?? 'register'],
+                );
+            }
         }
 
         $cart->clear();

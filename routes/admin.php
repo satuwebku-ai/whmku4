@@ -189,6 +189,9 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::post('cancel/domain', 'cancel')->name('domain.cancel');
             Route::post('domain/notes', 'notes')->name('domain.notes');
         });
+
+        Route::get('domain-interests', [\App\Http\Controllers\Admin\DomainInterestController::class, 'index'])
+            ->name('domain-interests.index');
     });
 
     // ── Klien ── (modul: services)

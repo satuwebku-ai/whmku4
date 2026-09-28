@@ -46,6 +46,12 @@ class CronJob extends Model
             'command' => 'lumora:mark-overdue',
             'interval_minutes' => 360, // 6 jam
         ],
+        'cancel_overdue_checkouts' => [
+            'name' => 'Batalkan Checkout Terlambat',
+            'description' => 'Batalkan checkout baru yang overdue melewati masa toleransi dan lepaskan reservasinya.',
+            'command' => 'lumora:cancel-overdue-checkouts',
+            'interval_minutes' => 1440,
+        ],
         'suspend_overdue' => [
             'name' => 'Suspend Layanan Menunggak',
             'description' => 'Suspend hosting yang tagihannya lewat tempo melebihi batas toleransi.',

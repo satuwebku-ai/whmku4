@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
+use App\Models\DomainInterest;
 use App\Models\Tld;
 use App\Services\Cart\CartService;
 use App\Services\Domain\AvailabilityService;
@@ -88,6 +89,11 @@ class DomainSearchController extends Controller
                 if (empty($candidates)) {
                     $results = ['success' => false, 'message' => 'Belum ada ekstensi domain yang dijual saat ini.', 'results' => [], 'unknown' => []];
                 } else {
+                    DomainInterest::recordSearch($candidates, [
+                        'query' => $query,
+                        'extensions' => $selected,
+                    ]);
+
                     // TLD demo tidak punya server RDAP (memang bukan TLD
                     // sungguhan), jadi dipisahkan dan langsung dianggap
                     // tersedia — kalau ikut dicek, statusnya akan selalu

@@ -288,6 +288,30 @@
 
         <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan</button>
       </form>
+
+      {{-- Auto cancel checkout --}}
+      <form method="POST" action="{{ route('admin.cron.settings') }}" class="card border rounded-4 p-4 mt-3">
+        @csrf
+        <h2 class="small fw-bold text-dark mb-2">Batalkan Checkout Otomatis</h2>
+        <p class="text-muted mb-3" style="font-size:12px">
+          Hanya checkout baru yang terkena. Invoice renewal, upgrade, addon, top-up,
+          dan invoice manual tidak ikut dibatalkan.
+        </p>
+
+        <div class="mb-3">
+          <label class="form-label small fw-medium text-dark">Toleransi (hari setelah jatuh tempo)</label>
+          <input type="number" name="checkout_cancel_grace_days"
+                 value="{{ Setting::get('checkout_cancel_grace_days', 3) }}"
+                 min="0" max="90" class="form-control form-control-sm">
+        </div>
+
+        <div class="rounded-3 px-3 py-2 mb-3" style="background:#eff6ff;border:1px solid #bfdbfe;font-size:11px;color:#1e40af">
+          Invoice dibatalkan lewat jalur billing resmi. Order menjadi expired,
+          domain pending menjadi cancelled, kupon dan reservasi stok dilepas.
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan</button>
+      </form>
     </div>
   </div>
 

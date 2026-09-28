@@ -52,9 +52,9 @@ class Order extends Model
     private const TRANSITIONS = [
         OrderStatus::Draft->value => [OrderStatus::RequirementsPending->value, OrderStatus::PendingPayment->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
         OrderStatus::RequirementsPending->value => [OrderStatus::RequirementsReview->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
-        OrderStatus::RequirementsReview->value => [OrderStatus::RequirementsApproved->value, OrderStatus::RequirementsRejected->value, OrderStatus::Cancelled->value],
-        OrderStatus::RequirementsRejected->value => [OrderStatus::RequirementsPending->value, OrderStatus::Cancelled->value],
-        OrderStatus::RequirementsApproved->value => [OrderStatus::PendingPayment->value, OrderStatus::Cancelled->value],
+        OrderStatus::RequirementsReview->value => [OrderStatus::RequirementsApproved->value, OrderStatus::RequirementsRejected->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
+        OrderStatus::RequirementsRejected->value => [OrderStatus::RequirementsPending->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
+        OrderStatus::RequirementsApproved->value => [OrderStatus::PendingPayment->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
         OrderStatus::LegacyPending->value => [OrderStatus::PendingPayment->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
         OrderStatus::PendingPayment->value => [OrderStatus::Paid->value, OrderStatus::Cancelled->value, OrderStatus::Expired->value],
         OrderStatus::Paid->value => [OrderStatus::Provisioning->value, OrderStatus::Completed->value, OrderStatus::Failed->value],

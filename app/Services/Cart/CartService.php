@@ -3,6 +3,7 @@
 namespace App\Services\Cart;
 
 use App\Models\Product;
+use App\Models\DomainInterest;
 use App\Models\Tld;
 use App\Models\TldPremium;
 use Illuminate\Support\Facades\Session;
@@ -218,6 +219,17 @@ class CartService
             'transfer_auth_code' => $product->allowsDomain() && $domainMode === 'transfer' ? $transferAuthCode : null,
         ]);
 
+        if (filled($domainName) && in_array($domainMode, ['register', 'transfer'], true)) {
+            DomainInterest::recordCart(
+                $domainName,
+                null,
+                null,
+                $domainMode === 'transfer' ? 1 : null,
+                'product_domain',
+                ['product_id' => $product->id, 'domain_mode' => $domainMode],
+            );
+        }
+
         return ['success' => true, 'message' => "{$product->name} ditambahkan ke keranjang."];
     }
 
@@ -363,6 +375,15 @@ class CartService
             'transfer_auth_code' => $isTransfer ? $authCode : null,
         ]);
 
+        DomainInterest::recordCart(
+            $domainName,
+            $tld->id,
+            null,
+            $years,
+            'domain_cart',
+            ['domain_mode' => $isTransfer ? 'transfer' : 'register'],
+        );
+
         return ['success' => true, 'message' => $isTransfer
             ? "Permintaan transfer {$domainName} ditambahkan ke keranjang."
             : "{$domainName} ditambahkan ke keranjang."];
@@ -443,6 +464,15 @@ class CartService
             'base_price'      => $price,
             'price'           => $price,
         ]);
+
+        DomainInterest::recordCart(
+            $domainName,
+            null,
+            $premium->id,
+            1,
+            'premium_cart',
+            ['domain_mode' => 'register'],
+        );
 
         return ['success' => true, 'message' => "{$domainName} (domain premium) ditambahkan ke keranjang."];
     }

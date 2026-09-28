@@ -110,6 +110,7 @@
               ['label' => 'Klien',            'route' => 'admin.clients', 'match' => ['admin.client*']],
               ['label' => 'Hosting Account',  'route' => 'admin.hosting-accounts', 'match' => ['admin.hosting-account*']],
               ['label' => 'Domain',           'route' => 'admin.domains', 'match' => ['admin.domain*', 'admin.tlds.*', 'admin.registrars.*']],
+              ['label' => 'Minat Domain',      'route' => 'admin.domain-interests.index', 'match' => ['admin.domain-interests.*']],
               ['label' => 'Verifikasi Berkas','route' => 'admin.domain-documents.index', 'match' => ['admin.domain-documents.*']],
             ]],
 
