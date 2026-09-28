@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Setting;
+use App\Support\ThemeRegistry;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -65,7 +66,10 @@ class ThemeServiceProvider extends ServiceProvider
      */
     private function resolveActiveThemes(): array
     {
-        $available = config('themes', ['public' => [], 'client' => []]);
+        $available = [
+            'public' => ThemeRegistry::available('public'),
+            'client' => ThemeRegistry::available('client'),
+        ];
 
         $publicTheme = 'default';
         $clientTheme = 'default';

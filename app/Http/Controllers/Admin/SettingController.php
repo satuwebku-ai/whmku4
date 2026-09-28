@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Support\ThemeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -43,8 +44,8 @@ class SettingController extends Controller
             // masing bisa ganti template independen. Rule::in() dibuat
             // dinamis dari config/themes.php, jadi tema baru yang
             // ditambahkan di sana otomatis ikut jadi pilihan valid.
-            'public_template'  => ['nullable', 'string', Rule::in(array_keys(config('themes.public', ['default' => true])))],
-            'client_template'  => ['nullable', 'string', Rule::in(array_keys(config('themes.client', ['default' => true])))],
+            'public_template'  => ['nullable', 'string', Rule::in(array_keys(ThemeRegistry::available('public')))],
+            'client_template'  => ['nullable', 'string', Rule::in(array_keys(ThemeRegistry::available('client')))],
         ], [
             'theme_color.regex' => 'Warna harus dalam format heksadesimal, contoh #6366F1.',
             'site_logo.max'     => 'Ukuran logo maksimal 1 MB.',

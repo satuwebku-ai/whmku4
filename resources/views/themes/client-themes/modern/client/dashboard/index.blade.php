@@ -14,7 +14,7 @@
   @endphp
 
   <div class="d-flex align-items-center gap-3 mb-4">
-    <span class="rounded-4 d-flex align-items-center justify-content-center flex-shrink-0" style="width:52px;height:52px;background:linear-gradient(135deg,var(--lumora-theme),#818cf8);box-shadow:0 4px 12px -3px rgba(79,70,229,.45)">
+    <span class="rounded-4 d-flex align-items-center justify-content-center flex-shrink-0" style="width:52px;height:52px;background:var(--lumora-theme);box-shadow:0 4px 12px -3px rgba(79,70,229,.45)">
       <span style="font-size:22px">👋</span>
     </span>
     <div>
@@ -38,7 +38,7 @@
 
   {{-- Tagihan menunggak tampil paling menonjol --}}
   @if ($stats['unpaidInvoices'] > 0)
-    <div class="dash-card p-4 mb-4" style="border-color:#fde68a;background:linear-gradient(120deg,#fffbeb 0%,#fef3c7 100%)">
+    <div class="dash-card p-4 mb-4" style="border-color:#f3e2b3;background:#fdf6e3">
       <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
         <div class="d-flex align-items-center gap-3">
           <span class="rounded-4 d-flex align-items-center justify-content-center flex-shrink-0 position-relative" style="width:44px;height:44px;background:rgba(180,83,9,.12);color:#b45309">
@@ -63,7 +63,7 @@
   <div class="row g-3 mb-4">
     @php
       $cards = [
-        ['label' => 'Layanan Aktif', 'value' => $stats['services'], 'icon' => 'fa-server', 'bg' => 'rgba(79,70,229,.1)', 'fg' => '#4f46e5', 'route' => 'client.services'],
+        ['label' => 'Layanan Aktif', 'value' => $stats['services'], 'icon' => 'fa-server', 'bg' => 'color-mix(in srgb, var(--lumora-theme) 12%, transparent)', 'fg' => 'var(--lumora-theme)', 'route' => 'client.services'],
         ['label' => 'Domain Aktif', 'value' => $stats['domains'], 'icon' => 'fa-globe', 'bg' => 'rgba(6,182,212,.1)', 'fg' => '#0891b2', 'route' => 'client.domains'],
         ['label' => 'Invoice Belum Bayar', 'value' => $stats['unpaidInvoices'], 'icon' => 'fa-file-invoice', 'bg' => 'rgba(245,158,11,.1)', 'fg' => '#b45309', 'route' => 'client.invoices'],
         ['label' => 'Tiket Terbuka', 'value' => $stats['openTickets'], 'icon' => 'fa-comments', 'bg' => 'rgba(16,185,129,.1)', 'fg' => '#047857', 'route' => 'client.tickets'],
@@ -171,7 +171,7 @@
         @endif
       </div>
 
-      <div class="dash-card p-4" style="background:linear-gradient(160deg,#eef2ff 0%,#fff 70%)">
+      <div class="dash-card p-4" style="background:#fff">
         <span class="rounded-4 d-flex align-items-center justify-content-center mb-3" style="width:40px;height:40px;background:rgba(79,70,229,.12);color:var(--lumora-theme)">
           <i class="fa-solid fa-headset" style="font-size:15px"></i>
         </span>

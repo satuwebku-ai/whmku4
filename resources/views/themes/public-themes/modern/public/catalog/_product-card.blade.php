@@ -5,58 +5,47 @@
   ];
   $cycles = $product->availableCycles();
   $firstCycleKey = array_key_first($cycles);
+  $featuredCard = $product->is_featured && $product->isInStock();
 @endphp
 
-<a href="{{ $product->category->productUrl($product) }}"
-   class="card-public p-4 d-flex flex-column text-decoration-none position-relative h-100 prod-card {{ $product->is_featured && $product->isInStock() ? 'prod-card-featured' : '' }}">
-  @if ($product->is_featured && $product->isInStock())
-    <span class="badge-public-active position-absolute" style="top:1rem;right:1rem"><i class="fa-solid fa-star" style="font-size:9px"></i> Unggulan</span>
+<a href="{{ $product->category->productUrl($product) }}" class="mx-pcard {{ $featuredCard ? 'mx-pcard-featured' : '' }}">
+  @if ($featuredCard)
+    <span class="mx-tag"><i class="fa-solid fa-star" style="font-size:9px"></i> Unggulan</span>
   @elseif (! $product->isInStock())
-    <span class="badge-public-inactive position-absolute" style="top:1rem;right:1rem">Stok Habis</span>
+    <span class="mx-tag mx-tag-muted">Stok Habis</span>
   @endif
 
   @if ($product->isDepositBilled())
-    <span class="badge rounded-pill mb-2 align-self-start" style="font-size:10.5px;background:#eef2ff;color:#4338ca;padding:.3rem .65rem">
-      <i class="fa-solid fa-bolt" style="font-size:9px"></i> Bayar per Jam
-    </span>
+    <span class="mx-eyebrow mb-2" style="font-size:10.5px"><i class="fa-solid fa-bolt"></i> Bayar per jam</span>
   @endif
 
-  <h3 class="fw-semibold text-dark mb-2" style="font-size:16px">{{ $product->name }}</h3>
+  <h3 style="font-size:1.15rem;font-weight:700;letter-spacing:-.02em;color:#18181b;margin:0 0 .35rem;padding-right:5rem">{{ $product->name }}</h3>
   @if ($product->tagline)
-    <p class="text-muted mb-3" style="font-size:13px;line-height:1.6">{{ $product->tagline }}</p>
+    <p style="font-size:13.5px;color:#71717a;margin:0;line-height:1.6">{{ $product->tagline }}</p>
   @endif
 
   @if ($product->features)
-    <ul class="mb-3 flex-grow-1 ps-0" style="list-style:none">
+    <ul class="mx-feat">
       @foreach (array_slice($product->features, 0, 4) as $feature)
-        <li class="d-flex align-items-start gap-2 text-muted mb-2" style="font-size:12.5px;line-height:1.7">
-          <i class="fa-solid fa-check text-success flex-shrink-0" style="width:14px;margin-top:3px;text-align:center"></i>
-          <span class="min-w-0">{{ $feature }}</span>
-        </li>
+        <li><i class="fa-solid fa-check"></i><span>{{ $feature }}</span></li>
       @endforeach
     </ul>
   @else
-    <div class="flex-grow-1"></div>
+    <div style="flex-grow:1;min-height:1rem"></div>
   @endif
 
-  <div class="pt-3 border-top">
+  <div style="border-top:1px solid #f0efe9;padding-top:1.25rem">
     @if ($product->isDepositBilled())
       @php $hourly = $product->estimatedHourlyRate(); @endphp
       @if ($hourly)
-        <p class="fw-bold text-dark mb-0" style="font-size:1.5rem;letter-spacing:-.01em">
-          Rp {{ number_format($hourly, 2, ',', '.') }}
-          <span class="text-muted fw-normal" style="font-size:12px">/ jam</span>
-        </p>
-        <p class="text-muted mb-0" style="font-size:11.5px">± Rp {{ number_format($hourly * 730, 0, ',', '.') }} / bulan bila menyala terus · dipotong dari saldo</p>
+        <div class="mx-price">Rp {{ number_format($hourly, 2, ',', '.') }} <small>/ jam</small></div>
+        <p style="font-size:11.5px;color:#71717a;margin:.4rem 0 0">± Rp {{ number_format($hourly * 730, 0, ',', '.') }} / bulan bila menyala terus · dipotong dari saldo</p>
       @else
-        <p class="fw-bold text-dark mb-0" style="font-size:1.1rem;letter-spacing:-.01em">Sesuai Pemakaian</p>
-        <p class="text-muted mb-0" style="font-size:11.5px">Dipotong otomatis dari saldo, per jam</p>
+        <div class="mx-price" style="font-size:1.3rem">Sesuai Pemakaian</div>
+        <p style="font-size:11.5px;color:#71717a;margin:.4rem 0 0">Dipotong otomatis dari saldo, per jam</p>
       @endif
     @elseif ($product->starting_price !== null)
-      <p class="fw-bold text-dark mb-0" style="font-size:1.5rem;letter-spacing:-.01em">
-        Rp {{ number_format($product->starting_price, 0, ',', '.') }}
-        <span class="text-muted fw-normal" style="font-size:12px">{{ $unit[$firstCycleKey] ?? '' }}</span>
-      </p>
+      <div class="mx-price">Rp {{ number_format($product->starting_price, 0, ',', '.') }} <small>{{ $unit[$firstCycleKey] ?? '' }}</small></div>
     @else
       <p class="text-danger mb-0" style="font-size:14px">Harga belum tersedia</p>
     @endif
@@ -65,12 +54,3 @@
     </span>
   </div>
 </a>
-
-@once
-<style>
-  .prod-card{ transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
-  .prod-card:hover{ transform:translateY(-3px); box-shadow:0 12px 28px -14px rgba(15,23,42,.25); }
-  .prod-card-featured{ border-color:rgba(79,70,229,.35)!important; box-shadow:0 4px 16px -8px rgba(79,70,229,.25); }
-  .prod-card-featured:hover{ box-shadow:0 14px 30px -12px rgba(79,70,229,.4); }
-</style>
-@endonce

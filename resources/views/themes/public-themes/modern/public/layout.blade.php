@@ -30,7 +30,7 @@
        bisa berisi kode Blade, jadi variabel ini di-set di sini. --}}
   <style>:root{ --lumora-theme: {{ $themeColor }}; }</style>
 </head>
-<body class="lumora-public d-flex flex-column" style="min-height:100vh">
+<body data-theme="modern" class="lumora-public d-flex flex-column" style="min-height:100vh">
 
   @if ($isImpersonating)
     <div id="impersonateBar" class="d-flex align-items-center justify-content-center gap-3 flex-wrap">

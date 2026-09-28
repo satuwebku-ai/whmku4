@@ -116,7 +116,7 @@
   .list-row:hover{ background:#faf9f6; }
 </style>
 </head>
-<body class="lumora-public">
+<body data-theme="modern" class="lumora-public">
 
   {{-- Pita peringatan impersonasi --}}
   @if (session('impersonator_admin_id'))
