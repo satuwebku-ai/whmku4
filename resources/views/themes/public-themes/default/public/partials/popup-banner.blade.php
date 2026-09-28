@@ -12,11 +12,15 @@
     $popupBtn   = Setting::get('popup_banner_button_text', 'Lihat Sekarang');
     $popupUrl   = Setting::get('popup_banner_link_url');
     $popupFreq  = Setting::get('popup_banner_frequency', 'once_per_day');
+
+    // Lebar maksimum popup -- diatur di Admin -> Banner Popup -> Ukuran.
+    $popupWidths = ['small' => '28rem', 'medium' => '36rem', 'large' => '46rem', 'xlarge' => '60rem'];
+    $popupMaxWidth = $popupWidths[Setting::get('popup_banner_size', 'medium')] ?? $popupWidths['medium'];
   @endphp
 
   @if ($popupImage || $popupTitle || $popupDesc)
     <div id="popupBannerOverlay" class="d-none position-fixed top-0 start-0 end-0 bottom-0 align-items-center justify-content-center p-3" style="background:rgba(15,23,42,.65);z-index:1090">
-      <div class="bg-white rounded-4 shadow position-relative overflow-hidden w-100" style="max-width:28rem;animation:popupBannerIn .25s ease-out">
+      <div class="bg-white rounded-4 shadow position-relative overflow-hidden w-100" style="max-width:{{ $popupMaxWidth }};animation:popupBannerIn .25s ease-out">
         <button type="button" id="popupBannerClose" aria-label="Tutup"
                 class="position-absolute d-flex align-items-center justify-content-center border-0 rounded-circle text-white"
                 style="top:12px;right:12px;width:32px;height:32px;background:rgba(0,0,0,.4);z-index:10">

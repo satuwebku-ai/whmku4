@@ -35,6 +35,7 @@ class PopupBannerController extends Controller
             'popup_banner_button_text' => ['nullable', 'string', 'max:50'],
             'popup_banner_link_url'    => ['nullable', 'string', 'max:255'],
             'popup_banner_frequency'   => ['required', 'in:every_visit,once_per_session,once_per_day'],
+            'popup_banner_size'        => ['required', 'in:small,medium,large,xlarge'],
             'popup_banner_image'       => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
         ], [
             'popup_banner_image.max' => 'Ukuran gambar maksimal 2 MB.',

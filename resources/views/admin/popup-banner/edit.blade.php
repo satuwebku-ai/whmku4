@@ -40,7 +40,7 @@
         @endif
         <input type="file" name="popup_banner_image" accept="image/png,image/jpeg,image/webp" class="form-control form-control-sm">
         @error('popup_banner_image') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
-        <p class="text-muted mt-1 mb-0" style="font-size:11px">PNG/JPG/WEBP, maksimal 2 MB. Gambar ditampilkan apa adanya sesuai rasio aslinya (tidak dipotong), dibatasi tinggi maksimum supaya popup tidak terlalu besar di layar.</p>
+        <p class="text-muted mt-1 mb-0" style="font-size:11px">PNG/JPG/WEBP, maksimal 2 MB. Gambar ditampilkan apa adanya sesuai rasio aslinya (tidak dipotong), tinggi dibatasi 70% tinggi layar. Lebar popup diatur di bagian "Ukuran Popup" di bawah; gunakan gambar berlebar minimal 1000 px agar tetap tajam di ukuran Besar/Sangat Besar.</p>
       </div>
 
       <div class="mb-3">
@@ -66,6 +66,19 @@
           @error('popup_banner_link_url') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
         </div>
       </div>
+    </div>
+
+    <div class="card border rounded-4 p-4 mb-3">
+      <label class="form-label small fw-medium text-dark">Ukuran Popup</label>
+      @php $size = old('popup_banner_size', Setting::get('popup_banner_size', 'medium')); @endphp
+      <select name="popup_banner_size" class="form-select" style="padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem;max-width:16rem">
+        <option value="small" @selected($size === 'small')>Kecil (± 450 px)</option>
+        <option value="medium" @selected($size === 'medium')>Sedang (± 580 px)</option>
+        <option value="large" @selected($size === 'large')>Besar (± 740 px)</option>
+        <option value="xlarge" @selected($size === 'xlarge')>Sangat Besar (± 960 px)</option>
+      </select>
+      @error('popup_banner_size') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      <p class="text-muted mt-1 mb-0" style="font-size:11px">Lebar maksimum popup di desktop. Di ponsel popup otomatis menyesuaikan lebar layar.</p>
     </div>
 
     <div class="card border rounded-4 p-4 mb-3">
