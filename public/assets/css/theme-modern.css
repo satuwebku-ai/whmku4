@@ -1,0 +1,165 @@
+/* ══════════════════════════════════════════════════════════════
+   theme-modern.css — tema "Modern" untuk halaman Publik & panel
+   Client (dipilih lewat Admin > Pengaturan > Umum > Template
+   Tampilan). Setara fungsinya dengan lumora-public.css milik tema
+   Default, tapi dengan arah visual yang lebih tenang & elegan:
+   tipografi Plus Jakarta Sans, palet netral hangat, kartu datar
+   dengan hairline border (bukan shadow tebal), aksen warna tetap
+   mengikuti Warna Tema di Pengaturan (variabel --lumora-theme).
+
+   Chrome khusus panel Client (topbar/sidebar) ada di <style> inline
+   di layout.blade.php masing-masing tema -- sama seperti pola tema
+   Default -- supaya file ini isinya cuma komponen yang dipakai
+   BERSAMA oleh Publik & Client (tombol, kartu, badge, form, tipografi).
+   ══════════════════════════════════════════════════════════════ */
+
+html{ font-family:'Plus Jakarta Sans', -apple-system, sans-serif; }
+
+.text-capitalize{ text-transform:capitalize!important; }
+body.lumora-public{ background:#faf9f6; color:#18181b; }
+
+/* ── Tombol mengikuti Warna Tema, tapi versi Modern: pill, datar,
+   tanpa shadow berat -- cuma terangkat tipis saat hover. ── */
+.btn-theme{
+  --bs-btn-color:#fff; --bs-btn-bg:var(--lumora-theme); --bs-btn-border-color:var(--lumora-theme);
+  --bs-btn-hover-color:#fff; --bs-btn-hover-bg:var(--lumora-theme); --bs-btn-hover-border-color:var(--lumora-theme);
+  --bs-btn-active-color:#fff; --bs-btn-active-bg:var(--lumora-theme); --bs-btn-active-border-color:var(--lumora-theme);
+  --bs-btn-disabled-bg:var(--lumora-theme); --bs-btn-disabled-border-color:var(--lumora-theme);
+  background:var(--lumora-theme); color:#fff; border-color:var(--lumora-theme);
+  border-radius:999px!important; font-weight:600; box-shadow:none; transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.btn-theme:hover{ filter:brightness(.94); color:#fff; box-shadow:0 8px 20px -8px var(--lumora-theme); transform:translateY(-1px); }
+.btn-theme:active{ transform:translateY(0) scale(.98); }
+.text-theme{ color:var(--lumora-theme)!important; }
+
+/* Tombol lain ikut dirapikan jadi pill supaya seragam dengan .btn-theme */
+.btn{ border-radius:999px; font-weight:600; }
+.btn-sm{ border-radius:999px; }
+.btn-lg{ border-radius:999px; }
+.btn-outline-secondary{ border-color:#e4e1d8; color:#3f3f46; }
+.btn-outline-secondary:hover{ background:#f0efe9; border-color:#e4e1d8; color:#18181b; }
+.btn-link{ font-weight:600; }
+
+/* ── Header publik: putih bening + blur, garis tipis, huruf lega ── */
+#publicHeader{
+  background:rgba(250,249,246,.85); backdrop-filter:saturate(180%) blur(10px); -webkit-backdrop-filter:saturate(180%) blur(10px);
+  border-bottom:1px solid #ece9e2; position:sticky; top:0; z-index:1030;
+}
+#publicHeader .nav-link{ color:#52525b; font-size:13.5px; font-weight:500; letter-spacing:.01em; position:relative; padding-bottom:.35rem!important; }
+#publicHeader .nav-link::after{
+  content:''; position:absolute; left:0; right:100%; bottom:0; height:2px; background:var(--lumora-theme);
+  transition:right .18s ease;
+}
+#publicHeader .nav-link:hover::after, #publicHeader .nav-link.active::after{ right:0; }
+#publicHeader .nav-link:hover, #publicHeader .nav-link.active{ color:#18181b; }
+#publicHeader .nav-link.active{ font-weight:700; }
+
+.public-menu-item{ position:relative; }
+.public-menu-item .public-submenu{
+  position:absolute; left:0; top:100%; padding-top:.6rem; display:none; z-index:1040; min-width:210px;
+}
+.public-menu-item:hover .public-submenu,
+.public-menu-item.open .public-submenu{ display:block; }
+.public-menu-item button .fa-chevron-down{ transition:transform .15s ease; }
+.public-menu-item.open button .fa-chevron-down{ transform:rotate(180deg); }
+.public-submenu-inner{ background:#fff; border-radius:1rem; box-shadow:0 20px 40px -12px rgba(24,24,27,.14); border:1px solid #ece9e2; padding:.4rem 0; }
+.public-submenu-inner a{ display:block; padding:.55rem 1.1rem; font-size:13.5px; color:#52525b; text-decoration:none; }
+.public-submenu-inner a:hover{ background:#faf9f6; color:var(--lumora-theme); }
+
+#cartBadge{
+  position:absolute; top:-2px; right:-2px; width:16px; height:16px; border-radius:50%;
+  background:var(--lumora-theme); color:#fff; font-size:10px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ── Kartu produk & konten -- datar dengan hairline, terangkat halus
+   saat hover (bukan shadow tebal permanen seperti tema Default). ── */
+.card-public{ background:#fff; border-radius:1.25rem; border:1px solid #ece9e2; box-shadow:none; transition:box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
+a.card-public:hover{ box-shadow:0 20px 40px -18px rgba(24,24,27,.16); border-color:color-mix(in srgb, var(--lumora-theme) 35%, #ece9e2); transform:translateY(-3px); }
+
+body.lumora-public h1, body.lumora-public h2, body.lumora-public h3{ letter-spacing:-.02em; font-weight:700; }
+body.lumora-public p{ line-height:1.7; color:#3f3f46; }
+.badge-public-active{ background:#e7f5ec; color:#1a7a43; font-size:11px; font-weight:700; padding:.2rem .65rem; border-radius:999px; letter-spacing:.02em; }
+.badge-public-inactive{ background:#efeee9; color:#52525b; font-size:11px; font-weight:700; padding:.2rem .65rem; border-radius:999px; letter-spacing:.02em; }
+.badge-soft-success{ background:#e7f5ec; color:#1a7a43; font-weight:700; padding:.28rem .7rem; border-radius:999px; letter-spacing:.02em; }
+.badge-soft-warning{ background:#fbf0dd; color:#a8620a; font-weight:700; padding:.28rem .7rem; border-radius:999px; font-size:11px; letter-spacing:.02em; }
+.badge-soft-danger{ background:#fbe9e7; color:#b3401f; font-weight:700; padding:.28rem .7rem; border-radius:999px; font-size:11px; letter-spacing:.02em; }
+.badge-soft-secondary{ background:#efeee9; color:#52525b; font-weight:700; padding:.28rem .7rem; border-radius:999px; font-size:11px; letter-spacing:.02em; }
+
+.form-check-input{ margin-left:0!important; }
+
+.p-5{ padding:3rem!important; }
+.px-5{ padding-left:3rem!important; padding-right:3rem!important; }
+.py-5{ padding-top:3rem!important; padding-bottom:3rem!important; }
+.pt-5{ padding-top:3rem!important; }
+.pb-5{ padding-bottom:3rem!important; }
+.m-5{ margin:3rem!important; }
+.mt-5{ margin-top:3rem!important; }
+.mb-5{ margin-bottom:3rem!important; }
+.my-5{ margin-top:3rem!important; margin-bottom:3rem!important; }
+
+.g-2{ --bs-gutter-x:.5rem; --bs-gutter-y:.5rem; }
+
+.h1{ font-size:2.75rem!important; }
+.h2{ font-size:2.1rem!important; }
+.h3{ font-size:1.75rem!important; }
+.h4{ font-size:1.5rem!important; }
+.h5{ font-size:1.25rem!important; }
+.h6{ font-size:1rem!important; }
+
+@media (min-width:576px){
+  .flex-sm-row{ flex-direction:row!important; }
+  .d-sm-inline-flex{ display:inline-flex!important; }
+  .d-sm-block{ display:block!important; }
+}
+
+/* ── Form: lega, radius besar, ring fokus tipis mengikuti aksen ── */
+.form-control, .form-select{
+  font-size:14px!important; padding:.6rem .9rem!important; border-radius:.85rem!important;
+  border-color:#e4e1d8!important; background-color:#fff!important;
+}
+.form-control:focus, .form-select:focus{
+  border-color:var(--lumora-theme)!important;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--lumora-theme) 16%, transparent)!important;
+}
+.form-check-input:checked{
+  background-color:var(--lumora-theme)!important; border-color:var(--lumora-theme)!important;
+}
+.form-label{ font-weight:600; font-size:12.5px; color:#3f3f46; letter-spacing:.01em; }
+
+.form-select-sm{
+  padding:.32rem 2rem .32rem .7rem!important; font-size:13px!important; border-radius:.7rem!important;
+  background-position:right .65rem center!important; background-size:13px 10px!important;
+}
+
+.fw-normal{ font-weight:400!important; }
+.text-decoration-underline{ text-decoration:underline!important; }
+.min-w-0{ min-width:0!important; }
+.my-1{ margin-top:.25rem!important; margin-bottom:.25rem!important; }
+.pb-3{ padding-bottom:1rem!important; }
+
+.prose-content h2{ font-size:1.3rem; font-weight:700; color:#18181b; margin-top:2rem; margin-bottom:.75rem; letter-spacing:-.01em; }
+.prose-content h3{ font-size:1.1rem; font-weight:700; color:#18181b; margin-top:1.5rem; margin-bottom:.5rem; }
+.prose-content p{ color:#3f3f46; line-height:1.75; margin-bottom:1rem; }
+.prose-content ul{ list-style:disc; padding-left:1.5rem; color:#3f3f46; margin-bottom:1rem; }
+.prose-content ol{ list-style:decimal; padding-left:1.5rem; color:#3f3f46; margin-bottom:1rem; }
+.prose-content li{ margin-bottom:.25rem; }
+.prose-content a{ color:var(--lumora-theme); text-decoration:underline; }
+.prose-content img{ border-radius:1rem; margin:1rem 0; max-width:100%; }
+.prose-content table{ width:100%; font-size:14px; border:1px solid #ece9e2; border-radius:.75rem; margin:1rem 0; border-collapse:collapse; }
+.prose-content th, .prose-content td{ border:1px solid #ece9e2; padding:.6rem .8rem; }
+
+/* ── Footer: menyatu dengan warna latar, garis tipis di atas ── */
+#publicFooter{ background:#faf9f6; border-top:1px solid #ece9e2; padding:2.5rem 0; }
+#publicFooter a{ color:#71717a; text-decoration:none; font-size:14px; }
+#publicFooter a:hover{ color:var(--lumora-theme); }
+
+#impersonateBar{ background:#18181b; color:#fff; font-size:14px; padding:.6rem 1rem; position:sticky; top:0; z-index:1040; }
+
+@media (max-width:575.98px){
+  #publicHeaderNav{ display:none!important; }
+  #publicMobileNav{ display:flex!important; }
+}
+@media (min-width:576px){
+  #publicMobileNav{ display:none!important; }
+}

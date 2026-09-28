@@ -12,19 +12,32 @@ use Illuminate\Support\ServiceProvider;
  * lewat Admin > Pengaturan > Umum, tanpa perlu ubah satupun pemanggilan
  * view('public.xxx') / view('client.xxx') yang sudah ada di controller.
  *
- * Caranya: menambahkan folder tema terpilih sebagai lokasi pencarian
- * view tambahan (View::addLocation). Laravel akan coba tiap lokasi
- * urut dari prioritas TERTINGGI ke terendah untuk file
- * "public/xxx.blade.php" atau "client/xxx.blade.php" yang diminta.
+ * STRUKTUR FOLDER (SENGAJA dipisah total per scope -- lihat catatan
+ * penting di bawah):
+ *   resources/views/themes/public-themes/{key}/public/...
+ *   resources/views/themes/client-themes/{key}/client/...
  *
- * Urutan prioritas yang dibentuk (tinggi -> rendah):
- *   1. Tema Publik yang dipilih admin (kalau bukan "default")
- *   2. Tema Client yang dipilih admin (kalau bukan "default")
- *   3. Tema "default" (fallback tetap -- kalau tema pilihan cuma
+ * Cara kerjanya: folder tema Publik yang aktif & folder tema Client
+ * yang aktif ditambahkan sebagai lokasi pencarian view tambahan
+ * (View::addLocation). Laravel akan coba tiap lokasi urut dari
+ * prioritas TERTINGGI ke terendah untuk file yang diminta, mis.
+ * "public/catalog/index.blade.php" untuk view('public.catalog.index').
+ *
+ * PENTING -- kenapa "public-themes" dan "client-themes" dipisah jadi
+ * dua pohon folder sendiri (BUKAN satu folder tema berisi sub-folder
+ * public/ + client/ sekaligus): kalau satu folder tema dipakai untuk
+ * KEDUA scope, memilih tema itu untuk Publik SAJA akan otomatis ikut
+ * "membocorkan" tampilan Client-nya juga (dan sebaliknya) begitu kedua
+ * scope kebetulan pakai key yang sama -- karena View::addLocation()
+ * sifatnya global, bukan per-prefix. Dengan folder digabung total per
+ * scope seperti sekarang, root yang ditambahkan untuk tema Publik
+ * SECARA FISIK tidak punya folder "client/" di dalamnya (begitu juga
+ * sebaliknya), jadi tidak mungkin ada kebocoran lintas-scope.
+ *
+ * Urutan prioritas yang dibentuk per scope (tinggi -> rendah):
+ *   1. Tema yang dipilih admin untuk scope itu (kalau bukan "default")
+ *   2. Tema "default" (fallback tetap -- kalau tema pilihan cuma
  *      override sebagian file, sisanya jatuh balik ke sini)
- *
- * Ini SENGAJA dipisah dari AppServiceProvider supaya gampang
- * dinonaktifkan/diutak-atik sendiri tanpa menyentuh provider inti.
  */
 class ThemeServiceProvider extends ServiceProvider
 {
@@ -35,14 +48,15 @@ class ThemeServiceProvider extends ServiceProvider
         // Lokasi ditambahkan dari prioritas RENDAH ke TINGGI, karena
         // View::addLocation() menaruh path baru di paling depan
         // (jadi yang ditambahkan PALING TERAKHIR = dicek PALING DULU).
-        View::addLocation(resource_path('views/themes/default'));
+        View::addLocation(resource_path('views/themes/client-themes/default'));
+        View::addLocation(resource_path('views/themes/public-themes/default'));
 
         if ($clientTheme !== 'default') {
-            View::addLocation(resource_path("views/themes/{$clientTheme}"));
+            View::addLocation(resource_path("views/themes/client-themes/{$clientTheme}"));
         }
 
         if ($publicTheme !== 'default') {
-            View::addLocation(resource_path("views/themes/{$publicTheme}"));
+            View::addLocation(resource_path("views/themes/public-themes/{$publicTheme}"));
         }
     }
 
