@@ -29,7 +29,7 @@ use Illuminate\Support\ServiceProvider;
  * public/ + client/ sekaligus): kalau satu folder tema dipakai untuk
  * KEDUA scope, memilih tema itu untuk Publik SAJA akan otomatis ikut
  * "membocorkan" tampilan Client-nya juga (dan sebaliknya) begitu kedua
- * scope kebetulan pakai key yang sama -- karena View::addLocation()
+ * scope kebetulan pakai key yang sama -- karena $finder->prependLocation()
  * sifatnya global, bukan per-prefix. Dengan folder digabung total per
  * scope seperti sekarang, root yang ditambahkan untuk tema Publik
  * SECARA FISIK tidak punya folder "client/" di dalamnya (begitu juga
@@ -46,18 +46,26 @@ class ThemeServiceProvider extends ServiceProvider
     {
         [$publicTheme, $clientTheme] = $this->resolveActiveThemes();
 
+        // PENTING: pakai prependLocation(), BUKAN addLocation(). addLocation()
+        // MENAMBAH di BELAKANG daftar (dicek paling akhir), sehingga tema
+        // "default" yang ditambahkan lebih dulu akan selalu menang atas tema
+        // pilihan admin -- itu penyebab tampilan tidak pernah berubah.
+        // prependLocation() menaruh di DEPAN: yang dipanggil terakhir = dicek
+        // pertama.
+        $finder = View::getFinder();
+
         // Lokasi ditambahkan dari prioritas RENDAH ke TINGGI, karena
-        // View::addLocation() menaruh path baru di paling depan
+        // $finder->prependLocation() menaruh path baru di paling depan
         // (jadi yang ditambahkan PALING TERAKHIR = dicek PALING DULU).
-        View::addLocation(resource_path('views/themes/client-themes/default'));
-        View::addLocation(resource_path('views/themes/public-themes/default'));
+        $finder->prependLocation(resource_path('views/themes/client-themes/default'));
+        $finder->prependLocation(resource_path('views/themes/public-themes/default'));
 
         if ($clientTheme !== 'default') {
-            View::addLocation(resource_path("views/themes/client-themes/{$clientTheme}"));
+            $finder->prependLocation(resource_path("views/themes/client-themes/{$clientTheme}"));
         }
 
         if ($publicTheme !== 'default') {
-            View::addLocation(resource_path("views/themes/public-themes/{$publicTheme}"));
+            $finder->prependLocation(resource_path("views/themes/public-themes/{$publicTheme}"));
         }
     }
 
