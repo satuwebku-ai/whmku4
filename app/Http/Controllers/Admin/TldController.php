@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Registrar;
 use App\Models\Tld;
@@ -1597,9 +1598,15 @@ class TldController extends Controller
         return redirect()->route('admin.tlds.index')->with('success', $message);
     }
 
-    public function destroy(Tld $tld): RedirectResponse
+    public function destroy(Tld $tld, DeletionGuard $guard): RedirectResponse
     {
-        $tld->delete();
+        $reason = $guard->deleteLocked($tld, fn ($t) => $guard->forTld($t));
+
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('domain', "TLD {$tld->extension} dihapus");
 
         return redirect()->route('admin.tlds.index')->with('success', 'TLD berhasil dihapus.');
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Models\Client;
@@ -353,7 +354,14 @@ class TicketController extends Controller
 
     public function destroy(Ticket $ticket): RedirectResponse
     {
+        $files = \App\Models\TicketAttachment::query()
+            ->whereHas('reply', fn ($q) => $q->where('ticket_id', $ticket->id))
+            ->pluck('path')->filter()->all();
+
         $ticket->delete();
+
+        // Balasan dan lampiran ikut terhapus lewat cascade; file di disk dibersihkan di sini.
+        \Illuminate\Support\Facades\Storage::disk('local')->delete($files);
 
         return redirect()->route('admin.tickets')->with('success', 'Tiket berhasil dihapus.');
     }

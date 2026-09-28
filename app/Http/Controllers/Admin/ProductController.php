@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductGroup;
@@ -156,9 +157,15 @@ class ProductController extends Controller
         ]);
     }
 
-    public function destroy(Product $product): RedirectResponse
+    public function destroy(Product $product, DeletionGuard $guard): RedirectResponse
     {
-        $product->delete();
+        $reason = $guard->deleteLocked($product, fn ($p) => $guard->forProduct($p));
+
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('service', "Produk {$product->name} dihapus");
 
         return redirect()->route('admin.products.index')->with('success', 'Produk berhasil dihapus.');
     }

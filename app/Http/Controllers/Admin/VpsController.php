@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\HostingAccount;
 use App\Models\Server;
@@ -311,11 +312,18 @@ class VpsController extends Controller
      *                 manual, atau mau dilepas dari billing tanpa merusak
      *                 mesin yang masih dipakai).
      */
-    public function destroy(Request $request, HostingAccount $vps): RedirectResponse
+    public function destroy(Request $request, HostingAccount $vps, DeletionGuard $guard): RedirectResponse
     {
         $hapusVm = $request->boolean('hapus_vm');
+        $akanTerminate = $hapusVm && $vps->serverModel && $vps->username && $vps->provision_status === 'provisioned';
 
-        if ($hapusVm && $vps->serverModel && $vps->username && $vps->provision_status === 'provisioned') {
+        // Cek aturan SEBELUM VM disentuh: VM yang akan dihapus oleh aksi ini
+        // tidak dihitung "aktif", tapi invoice terbuka tetap menahan.
+        if ($reason = $guard->forHosting($vps, terminatingNow: $akanTerminate)) {
+            return back()->with('error', $reason);
+        }
+
+        if ($akanTerminate) {
             try {
                 $result = HostingPanelFactory::make($vps->serverModel)->terminateAccount($vps->username);
 
@@ -329,9 +337,19 @@ class VpsController extends Controller
         }
 
         $nama = $vps->domain;
-        $vps->delete();
+        $clientId = $vps->client_id;
 
-        return redirect()->route('admin.vps')->with('success', $hapusVm
+        // VM sudah terminate di provider, jadi cek ulang di dalam lock hanya
+        // untuk invoice terbuka; status "aktif" tidak lagi dipertimbangkan.
+        $reason = $guard->deleteLocked($vps, fn ($v) => $guard->forHosting($v, terminatingNow: $akanTerminate));
+
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('service', "VPS {$nama} dihapus", $akanTerminate ? 'VM di provider ikut dihapus.' : 'VM di provider TIDAK disentuh.', $clientId);
+
+        return redirect()->route('admin.vps')->with('success', $akanTerminate
             ? "VPS {$nama} dan VM-nya sudah dihapus."
             : "Catatan {$nama} dihapus. VM di provider TIDAK disentuh.");
     }

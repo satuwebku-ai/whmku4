@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Domain;
@@ -662,9 +663,22 @@ class DomainController extends Controller
         return \Illuminate\Support\Facades\Storage::disk('local')->response($document->file_path, $document->original_name);
     }
 
-    public function destroy(Domain $domain): RedirectResponse
+    public function destroy(Domain $domain, DeletionGuard $guard): RedirectResponse
     {
-        $domain->delete();
+        $name = $domain->domain_name;
+        $clientId = $domain->client_id;
+        $files = $domain->documents()->pluck('file_path')->filter()->all();
+
+        $reason = $guard->deleteLocked($domain, fn ($d) => $guard->forDomain($d));
+
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        // Baris dokumen ikut terhapus lewat cascade; file-nya di disk dibersihkan di sini.
+        \Illuminate\Support\Facades\Storage::disk('local')->delete($files);
+
+        $guard->audit('domain', "Domain {$name} dihapus", 'Pendaftaran di registrar TIDAK dibatalkan.', $clientId);
 
         return redirect()->route('admin.domains')->with('success', 'Data domain berhasil dihapus (catatan: pendaftaran di registrar TIDAK ikut dibatalkan).');
     }

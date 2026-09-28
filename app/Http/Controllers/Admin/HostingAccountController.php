@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\HostingAccount;
@@ -333,9 +334,18 @@ class HostingAccountController extends Controller
         return redirect()->route('admin.hosting-accounts')->with('success', 'Hosting account berhasil diperbarui.');
     }
 
-    public function destroy(HostingAccount $hostingAccount): RedirectResponse
+    public function destroy(HostingAccount $hostingAccount, DeletionGuard $guard): RedirectResponse
     {
-        $hostingAccount->delete();
+        $name = $hostingAccount->domain;
+        $clientId = $hostingAccount->client_id;
+
+        $reason = $guard->deleteLocked($hostingAccount, fn ($h) => $guard->forHosting($h));
+
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('service', "Hosting {$name} dihapus", 'Akun di server panel TIDAK ikut terhapus.', $clientId);
 
         return redirect()->route('admin.hosting-accounts')->with('success', 'Hosting account berhasil dihapus (catatan: akun di server panel TIDAK ikut terhapus).');
     }

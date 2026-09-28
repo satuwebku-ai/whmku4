@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Events\Invoice\InvoicePaid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ use App\Models\Transaction;
 
 class Payment extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'reference', 'invoice_id', 'client_id', 'payment_gateway_id',

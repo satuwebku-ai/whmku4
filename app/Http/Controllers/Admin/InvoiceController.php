@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Exceptions\Billing\BillingException;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
@@ -173,11 +174,18 @@ class InvoiceController extends Controller
         return redirect()->route('admin.invoices')->with('success', 'Invoice berhasil diperbarui.');
     }
 
-    public function destroy(Invoice $invoice): RedirectResponse
+    public function destroy(Invoice $invoice, DeletionGuard $guard): RedirectResponse
     {
-        $invoice->delete();
+        $reason = $guard->deleteLocked($invoice, fn ($i) => $guard->forInvoice($i));
 
-        return redirect()->route('admin.invoices')->with('success', 'Invoice berhasil dihapus.');
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('invoice', "Invoice {$invoice->invoice_number} dihapus",
+            "Soft delete, bisa dipulihkan: php artisan records:restore invoice {$invoice->id}", $invoice->client_id);
+
+        return redirect()->route('admin.invoices')->with('success', 'Invoice dihapus (soft delete, bisa dipulihkan lewat php artisan records:restore).');
     }
 
     /**
@@ -233,7 +241,7 @@ class InvoiceController extends Controller
     public function invoiceNotes(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'invoice_id' => ['required', 'exists:invoices,id'],
+            'invoice_id' => ['required', \Illuminate\Validation\Rule::exists('invoices', 'id')->whereNull('deleted_at')],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -247,7 +255,7 @@ class InvoiceController extends Controller
     {
         return $request->validate([
             'client_id'      => ['required', 'exists:clients,id'],
-            'order_id'       => ['nullable', 'exists:orders,id'],
+            'order_id'       => ['nullable', \Illuminate\Validation\Rule::exists('orders', 'id')->whereNull('deleted_at')],
             'amount'         => ['required', 'numeric', 'min:0'],
             'tax'            => ['nullable', 'numeric', 'min:0'],
             'discount'      => ['nullable', 'numeric', 'min:0'],

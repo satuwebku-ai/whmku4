@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use Illuminate\Http\RedirectResponse;
@@ -174,9 +175,23 @@ class ClientController extends Controller
         return redirect()->route('admin.clients')->with('success', 'Data klien berhasil diperbarui.');
     }
 
-    public function destroy(Client $client): RedirectResponse
+    public function destroy(Client $client, DeletionGuard $guard): RedirectResponse
     {
-        $client->delete();
+        $name = $client->name;
+        $files = \App\Models\TicketAttachment::query()
+            ->whereHas('reply.ticket', fn ($q) => $q->where('client_id', $client->id))
+            ->pluck('path')->filter()->all();
+
+        $reason = $guard->deleteLocked($client, fn ($c) => $guard->forClient($c));
+
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        // Tiket ikut terhapus lewat cascade; lampirannya di disk dibersihkan di sini.
+        \Illuminate\Support\Facades\Storage::disk('local')->delete($files);
+
+        $guard->audit('client', "Klien {$name} dihapus");
 
         return redirect()->route('admin.clients')->with('success', 'Klien berhasil dihapus.');
     }

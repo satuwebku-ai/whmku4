@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\HostingAccount;
@@ -151,11 +152,18 @@ class OrderController extends Controller
         return redirect()->route('admin.orders')->with('success', 'Order berhasil diperbarui.');
     }
 
-    public function destroy(Order $order): RedirectResponse
+    public function destroy(Order $order, DeletionGuard $guard): RedirectResponse
     {
-        $order->delete();
+        $reason = $guard->deleteLocked($order, fn ($o) => $guard->forOrder($o));
 
-        return redirect()->route('admin.orders')->with('success', 'Order berhasil dihapus.');
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('order', "Order {$order->order_number} dihapus",
+            "Soft delete, bisa dipulihkan: php artisan records:restore order {$order->id}", $order->client_id);
+
+        return redirect()->route('admin.orders')->with('success', 'Order dihapus (soft delete, bisa dipulihkan lewat php artisan records:restore).');
     }
 
     /**
@@ -197,7 +205,7 @@ class OrderController extends Controller
     public function orderNotes(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'order_id' => ['required', 'exists:orders,id'],
+            'order_id' => ['required', \Illuminate\Validation\Rule::exists('orders', 'id')->whereNull('deleted_at')],
             'internal_notes' => ['nullable', 'string'],
         ]);
 

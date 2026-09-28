@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\Billing\DeletionGuard;
 use App\Exceptions\Billing\BillingException;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
@@ -164,7 +165,7 @@ class PaymentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'invoice_id'         => ['required', 'exists:invoices,id'],
+            'invoice_id'         => ['required', \Illuminate\Validation\Rule::exists('invoices', 'id')->whereNull('deleted_at')],
             'payment_gateway_id' => ['required', 'exists:payment_gateways,id'],
         ]);
 
@@ -326,7 +327,7 @@ class PaymentController extends Controller
     public function reject(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'payment_id' => ['required', 'exists:payments,id'],
+            'payment_id' => ['required', \Illuminate\Validation\Rule::exists('payments', 'id')->whereNull('deleted_at')],
             'admin_note' => ['nullable', 'string'],
         ]);
 
@@ -364,10 +365,17 @@ class PaymentController extends Controller
         return back()->with('success', 'Status di gateway: ' . ($result['status'] ?? 'tidak diketahui'));
     }
 
-    public function destroy(Payment $payment): RedirectResponse
+    public function destroy(Payment $payment, DeletionGuard $guard): RedirectResponse
     {
-        $payment->delete();
+        $reason = $guard->deleteLocked($payment, fn ($p) => $guard->forPayment($p));
 
-        return redirect()->route('admin.payments')->with('success', 'Data pembayaran berhasil dihapus.');
+        if ($reason) {
+            return back()->with('error', $reason);
+        }
+
+        $guard->audit('payment', "Pembayaran {$payment->reference} dihapus",
+            "Soft delete, bisa dipulihkan: php artisan records:restore payment {$payment->id}", $payment->client_id);
+
+        return redirect()->route('admin.payments')->with('success', 'Data pembayaran dihapus (soft delete, bisa dipulihkan lewat php artisan records:restore).');
     }
 }
