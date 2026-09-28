@@ -313,9 +313,9 @@ class SettingController extends Controller
         // menjelaskan kapan section otomatis tersembunyi walau
         // toggle-nya menyala.
         $sectionMeta = [
-            'domain'        => ['label' => 'Pencarian Domain', 'desc' => 'Hero + kotak cek domain & harga TLD populer.', 'empty' => null],
+            'domain'        => ['label' => 'Pencarian Domain', 'desc' => 'Hero utama beranda + kotak cek domain & harga TLD populer.', 'empty' => null],
             'banner'        => ['label' => 'Banner Promo', 'desc' => 'Carousel banner beranda.', 'empty' => 'tidak ada banner aktif untuk Beranda'],
-            'benefits'      => ['label' => 'Keunggulan', 'desc' => '4 kartu "Aktif Otomatis", "Aman & Terjaga", dst.', 'empty' => null],
+            'benefits'      => ['label' => 'Keunggulan', 'desc' => 'Keunggulan layanan. Tampilannya mengikuti tema aktif.', 'empty' => null],
             'hosting'       => ['label' => 'Paket Hosting', 'desc' => 'Paket hosting unggulan (non-VPS).', 'empty' => 'belum ada produk hosting'],
             'vps'           => ['label' => 'VPS & Cloud Server', 'desc' => 'Paket VPS (produk yang memakai server cloud).', 'empty' => 'belum ada produk VPS'],
             'categories'    => ['label' => 'Layanan Kami', 'desc' => 'Grid kategori produk.', 'empty' => 'belum ada kategori berisi produk'],
