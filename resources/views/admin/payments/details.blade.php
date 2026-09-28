@@ -19,6 +19,20 @@
   <div class="row g-3">
     <div class="col-12 col-lg-8">
 
+      @php
+        $premiumDomains = $payment->invoice
+          ? \App\Models\Domain::where('is_premium', true)->whereIn('order_id', $payment->invoice->items()->pluck('order_id')->filter())->get()
+          : collect();
+      @endphp
+      @foreach ($premiumDomains as $pd)
+        <div class="alert alert-warning small mb-3">
+          <i class="fa-solid fa-crown"></i>
+          Invoice ini berisi domain premium <strong>{{ $pd->domain_name }}</strong>. Menyetujui pembayaran hanya menandai invoice lunas —
+          registrasi domainnya diselesaikan manual di
+          <a href="{{ route('admin.domains.details', $pd) }}" class="alert-link">halaman detail domain</a>.
+        </div>
+      @endforeach
+
       <div class="card border rounded-4 p-4 mb-3">
         <h2 class="small fw-bold text-dark mb-3">Informasi Pembayaran</h2>
         <div class="row g-3 small">

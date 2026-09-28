@@ -30,6 +30,19 @@
     </div>
   </div>
 
+  @if ($domain->is_premium && $domain->provision_status !== 'registered' && $domain->provision_status !== 'needs_documents')
+    <div class="card-public p-4 mb-4" style="border-color:#fde68a!important;background:#fffbeb">
+      <p class="mb-0" style="font-size:14px;color:#92400e">
+        <i class="fa-solid fa-crown"></i>
+        @if ($domain->status === 'pending' && $domain->provision_status === 'manual' && $domain->provision_message)
+          Domain premium ini sudah dibayar dan sedang didaftarkan manual oleh tim kami. Anda akan diberi tahu setelah aktif.
+        @else
+          Domain premium ini diproses manual oleh tim kami setelah pembayaran terverifikasi.
+        @endif
+      </p>
+    </div>
+  @endif
+
   @if ($domain->provision_status === 'needs_documents')
     <div class="card-public p-4 mb-4" style="border-color:#fde68a!important;background:#fffbeb">
       <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">

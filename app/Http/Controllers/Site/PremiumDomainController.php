@@ -78,6 +78,7 @@ class PremiumDomainController extends Controller
 
         $rows = TldPremium::where('registrar_id', $registrar->id)
             ->where('is_generic', false)
+            ->where('is_active', true)
             ->get();
 
         return ['rows' => $this->groupIdFamilyRows($rows), 'error' => null];
@@ -98,12 +99,18 @@ class PremiumDomainController extends Controller
                 continue;
             }
 
+            // Harga jual register kosong = belum dijual: tidak ditampilkan
+            // (sebelumnya jatuh ke harga modal, jadi terjual tanpa margin).
+            if (! ((float) $row->sell_register_price > 0)) {
+                continue;
+            }
+
             $out[$ext][] = [
                 'id' => $row->id,
                 'label' => $row->label,
                 'is_premium' => $row->is_premium,
                 'max_premium_character' => $row->max_premium_character,
-                'register' => $row->sell_register_price ?? $row->cost_register,
+                'register' => $row->sell_register_price,
                 'renew' => $row->sell_renew_price ?? $row->cost_renew,
                 'transfer' => $row->sell_transfer_price ?? $row->cost_transfer,
                 'currency' => $row->cost_currency ?? 'IDR',
@@ -187,6 +194,23 @@ class PremiumDomainController extends Controller
         $premium = $this->resolvePremiumTier($registrar, $ext, strlen($label));
 
         if (! $premium) {
+            // Baris reguler keluarga .id sengaja tidak disimpan di
+            // tld_premiums, jadi nama yang lebih panjang dari SEMUA tingkat
+            // premium ekstensi ini bukan domain premium -- arahkan ke Cek
+            // Domain biasa, jangan bilang "harga belum tersedia".
+            $maxTier = TldPremium::where('registrar_id', $registrar->id)
+                ->where('extension', $ext)
+                ->where('is_active', true)
+                ->where('is_premium', true)
+                ->max('max_premium_character');
+
+            if ($maxTier) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "{$domainName} bukan domain premium — premium {$ext} hanya untuk nama maksimal {$maxTier} karakter. Untuk nama ini, pesan lewat halaman Cek Domain biasa.",
+                ]);
+            }
+
             return response()->json(['success' => false, 'message' => 'Harga untuk ekstensi ini belum tersedia. Silakan hubungi kami.']);
         }
 
@@ -221,7 +245,7 @@ class PremiumDomainController extends Controller
             $premiumVerifiedByRegistry = true;
         }
 
-        $price = (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0);
+        $price = (float) ($premium->sell_register_price ?? 0);
 
         if ($price <= 0) {
             return response()->json(['success' => false, 'message' => 'Harga domain ini belum diisi admin. Silakan hubungi kami lewat tiket.']);

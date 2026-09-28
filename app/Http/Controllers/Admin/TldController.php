@@ -538,6 +538,34 @@ class TldController extends Controller
             ->get()
             ->keyBy('id');
 
+        // Tahap 1: harga jual TIDAK boleh di bawah modal. Kalau ada satu
+        // saja yang melanggar, tidak ada yang disimpan.
+        $errors = [];
+        $labels = ['sell_register_price' => ['cost_register', 'register'], 'sell_renew_price' => ['cost_renew', 'renew'], 'sell_transfer_price' => ['cost_transfer', 'transfer']];
+
+        foreach ($data['rows'] as $id => $row) {
+            $premium = $premiums->get((int) $id);
+
+            if (! $premium) {
+                continue;
+            }
+
+            foreach ($labels as $sellKey => [$costKey, $name]) {
+                $sell = $row[$sellKey] ?? null;
+                $cost = (float) $premium->{$costKey};
+
+                if ($sell !== null && $sell !== '' && $cost > 0 && (float) $sell < $cost) {
+                    $errors[] = "{$premium->label}: jual {$name} Rp " . number_format((float) $sell, 0, ',', '.') . ' di bawah modal Rp ' . number_format($cost, 0, ',', '.');
+                }
+            }
+        }
+
+        if ($errors) {
+            return redirect()->route('admin.tlds.premium-pricing', ['registrar' => $data['registrar_id']])
+                ->withInput()
+                ->with('error', 'Tidak disimpan. ' . implode('; ', $errors));
+        }
+
         $changed = 0;
 
         foreach ($data['rows'] as $id => $row) {

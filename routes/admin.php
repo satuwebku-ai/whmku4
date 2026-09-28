@@ -176,6 +176,8 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::post('domain/{domain}/transfer-complete', 'markTransferComplete')->name('domains.transfer-complete');
             Route::post('domain/{domain}/restore', 'restore')->name('domains.restore');
             Route::post('domain/{domain}/retry', 'retryProvisioning')->name('domains.retry');
+            Route::post('domain/{domain}/complete-manual', 'completeManualRegistration')->name('domains.complete-manual');
+            Route::post('domain/{domain}/sync-premium', 'syncPremiumFromRegistrar')->name('domains.sync-premium');
             Route::post('domain/{domain}/apply-default-ns', 'applyDefaultNameservers')->name('domains.apply-default-ns');
             Route::post('domain/{domain}/eligibility', 'submitEligibility')->name('domains.eligibility');
             Route::post('domain/{domain}/verify-documents', 'verifyDomainDocuments')->name('domains.verify-documents');

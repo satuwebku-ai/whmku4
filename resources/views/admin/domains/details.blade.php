@@ -7,7 +7,11 @@
   <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div>
       <a href="{{ route('admin.domains') }}" class="text-decoration-none text-muted" style="font-size:12px"><i class="fa-solid fa-arrow-left"></i> Kembali ke Domain</a>
-      <h1 class="h4 fw-bold text-dark mt-1 mb-0">{{ $domain->domain_name }}</h1>
+      <h1 class="h4 fw-bold text-dark mt-1 mb-0">{{ $domain->domain_name }}
+        @if ($domain->is_premium)
+          <span class="badge ms-1 align-middle" style="background:#fef3c7;color:#92400e;font-weight:600;font-size:11px">Premium</span>
+        @endif
+      </h1>
     </div>
     @php
       $badgeMap = ['active' => 'badge-soft-success', 'pending' => 'badge-soft-warning', 'suspended' => 'badge-soft-danger', 'cancelled' => 'badge-soft-secondary'];
@@ -15,6 +19,48 @@
     @endphp
     <span class="badge {{ $badgeMap[$displayStatus] ?? 'badge-soft-secondary' }}" style="font-size:13px;padding:.4rem .8rem">{{ ucfirst($domain->status) }}</span>
   </div>
+
+  {{-- Domain premium: registrasi diselesaikan MANUAL oleh admin --}}
+  @if ($domain->is_premium && $domain->provision_status !== 'registered')
+    @php
+      $premiumPaid = $domain->order_id
+        && \App\Models\Invoice::where('status', 'paid')->whereHas('items', fn ($q) => $q->where('order_id', $domain->order_id))->exists();
+    @endphp
+    <div class="card border rounded-4 p-4 mb-3 {{ $premiumPaid ? 'border-warning bg-warning bg-opacity-10' : '' }}">
+      <h2 class="small fw-bold text-dark mb-1"><i class="fa-solid fa-crown text-warning"></i> Registrasi Domain Premium (Manual)</h2>
+      @if ($premiumPaid)
+        <p class="small text-muted mb-3">Invoice sudah lunas. API DNAMA <strong>tidak bisa</strong> mendaftarkan domain premium — daftarkan <strong>{{ $domain->domain_name }}</strong> lewat panel DNAMA (order premium), lalu sinkronkan di sini. Setelah itu domain menjadi Aktif dan klien bisa mengelola DNS-nya.</p>
+        @if ($domain->registrar && $domain->registrar->provider === 'dnama')
+          <form method="POST" action="{{ route('admin.domains.sync-premium', $domain) }}" class="mb-3 pb-3 border-bottom">
+            @csrf
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-cloud-arrow-down" style="font-size:11px"></i> Cek &amp; Sinkron dari DNAMA</button>
+            <span class="text-muted ms-2" style="font-size:11px">Memeriksa lewat API apakah domain sudah ACTIVE di akun DNAMA; tanggal &amp; nameserver diambil otomatis.</span>
+          </form>
+          <p class="small fw-medium text-dark mb-2">Atau isi manual (cadangan):</p>
+        @endif
+        <form method="POST" action="{{ route('admin.domains.complete-manual', $domain) }}" data-confirm="Tandai {{ $domain->domain_name }} sudah terdaftar di registrar? Status domain akan menjadi Aktif." data-confirm-title="Selesaikan Registrasi" data-confirm-style="info" data-confirm-label="Ya, Selesai">
+          @csrf
+          <div class="row g-2 mb-2">
+            <div class="col-sm-4">
+              <label class="form-label small fw-medium text-dark mb-1">Tanggal Registrasi</label>
+              <input type="date" name="register_date" value="{{ old('register_date', now()->format('Y-m-d')) }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-medium text-dark mb-1">Jatuh Tempo</label>
+              <input type="date" name="expiry_date" value="{{ old('expiry_date', now()->addYears(max($domain->years ?: 1, 1))->format('Y-m-d')) }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-medium text-dark mb-1">Catatan (opsional)</label>
+              <input type="text" name="admin_note" maxlength="500" value="{{ old('admin_note') }}" class="form-control form-control-sm" placeholder="mis. didaftarkan via panel DNAMA">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-check" style="font-size:11px"></i> Tandai Sudah Terdaftar</button>
+        </form>
+      @else
+        <p class="small text-muted mb-0">Menunggu pembayaran. Setelah invoice disetujui lunas, form penyelesaian registrasi akan muncul di sini.</p>
+      @endif
+    </div>
+  @endif
 
   {{-- Dokumen persyaratan --}}
   @if ($domain->provision_status === 'needs_documents' || $domain->documents->isNotEmpty())
@@ -262,7 +308,7 @@
         @if ($domain->provision_message)
           <div class="mt-3 pt-3 border-top small">
             <span class="text-muted" style="font-size:11px">STATUS REGISTRASI TERAKHIR</span>
-            <p class="mb-0 mt-1 {{ $domain->provision_status === 'registered' ? 'text-success' : 'text-danger' }}">{{ $domain->provision_message }}</p>
+            <p class="mb-0 mt-1 {{ $domain->provision_status === 'registered' ? 'text-success' : (in_array($domain->provision_status, ['manual', 'needs_documents', 'needs_eligibility'], true) ? 'text-muted' : 'text-danger') }}">{{ $domain->provision_message }}</p>
           </div>
         @endif
       </div>

@@ -306,10 +306,22 @@ class ProvisioningService
         // Edit Domain (set status/tanggal setelah didaftarkan sungguhan
         // di panel registrar).
         if ($domain->is_premium) {
+            // Beri tahu admin cukup SEKALI (saat pertama kali ditahan);
+            // pemicu ulang provisioning tidak boleh membanjiri notifikasi.
+            $firstTime = blank($domain->provision_message);
+
             $domain->update([
                 'provision_status' => 'manual',
                 'provision_message' => 'Domain premium — invoice sudah lunas, registrasi diselesaikan MANUAL oleh admin di panel registrar (bukan otomatis lewat API).',
             ]);
+
+            if ($firstTime) {
+                try {
+                    app(\App\Services\Notification\NotificationService::class)->premiumDomainNeedsManualRegistration($domain);
+                } catch (Throwable $e) {
+                    Log::warning('Gagal kirim notifikasi domain premium: ' . $e->getMessage());
+                }
+            }
 
             return null;
         }

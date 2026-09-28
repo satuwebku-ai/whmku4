@@ -167,6 +167,19 @@ class NotificationService
     }
 
     /**
+     * Domain premium sudah lunas -- admin WAJIB mendaftarkannya manual di
+     * panel registrar (tidak ada registrasi otomatis lewat API).
+     */
+    public function premiumDomainNeedsManualRegistration(\App\Models\Domain $domain): void
+    {
+        $this->alertAdmins('notify_admin_payment', 'Domain premium lunas — daftarkan manual di registrar', [
+            'Domain' => $domain->domain_name,
+            'Klien' => $domain->client->name ?? '—',
+            'Harga' => 'Rp ' . number_format((float) $domain->price, 0, ',', '.'),
+        ], route('admin.domains.details', $domain), 'warning');
+    }
+
+    /**
      * TLD Indonesia (.co.id, .ac.id, dst) — klien perlu diberi tahu
      * untuk upload dokumen (beda dari eligibility di atas yang murni
      * urusan admin, tidak melibatkan klien sama sekali).

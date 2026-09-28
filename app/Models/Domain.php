@@ -135,6 +135,25 @@ class Domain extends Model
 
     public function renewalAmount(): float
     {
+        // Domain PREMIUM: harga perpanjangan mengikuti baris tld_premiums
+        // (sell_renew_price, atau modal DNAMA kalau belum diisi), BUKAN
+        // harga renew TLD reguler. Dan tidak boleh jatuh ke $this->price
+        // di bawah -- itu harga REGISTRASI premium (bisa jutaan rupiah).
+        if ($this->is_premium) {
+            $premium = $this->tldPremium;
+            $price = $premium ? (float) ($premium->sell_renew_price ?? $premium->cost_renew ?? 0) : 0;
+
+            if ($price > 0) {
+                return $price;
+            }
+
+            if ($this->tld) {
+                return $this->tld->priceForYears(1, 'renew');
+            }
+
+            throw new \RuntimeException("Harga perpanjangan domain premium {$this->domain_name} belum tersedia. Isi harga jual renew di Domain Premium (admin).");
+        }
+
         return $this->tld ? $this->tld->priceForYears(1, 'renew') : (float) $this->price;
     }
 

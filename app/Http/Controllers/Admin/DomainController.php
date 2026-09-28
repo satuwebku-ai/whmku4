@@ -331,6 +331,139 @@ class DomainController extends Controller
     }
 
     /**
+     * Selesaikan registrasi domain PREMIUM secara manual.
+     *
+     * Domain premium tidak pernah didaftarkan otomatis lewat API registrar
+     * (lihat ProvisioningService::provisionDomainLocked). Setelah invoice
+     * lunas, admin mendaftarkannya sendiri di panel registrar/registry,
+     * lalu menekan tombol ini supaya domain di sistem ini ikut berubah
+     * menjadi Aktif + 'registered' -- itulah syarat halaman klien
+     * (Kelola DNS, Addons, Perpanjang) baru terbuka.
+     *
+     * Hanya boleh kalau invoice-nya sudah benar-benar lunas, supaya
+     * domain yang belum dibayar tidak bisa diaktifkan tanpa sengaja.
+     */
+    public function completeManualRegistration(Request $request, Domain $domain): RedirectResponse
+    {
+        if (! $domain->is_premium) {
+            return back()->with('error', 'Aksi ini hanya untuk domain premium. Domain biasa didaftarkan otomatis lewat registrar.');
+        }
+
+        if ($domain->provision_status === 'registered') {
+            return back()->with('error', 'Domain ini sudah ditandai terdaftar.');
+        }
+
+        $paid = $domain->order_id
+            && \App\Models\Invoice::where('status', 'paid')
+                ->whereHas('items', fn ($q) => $q->where('order_id', $domain->order_id))
+                ->exists();
+
+        if (! $paid) {
+            return back()->with('error', 'Invoice domain premium ini belum lunas. Setujui pembayarannya dulu sebelum menyelesaikan registrasi.');
+        }
+
+        $data = $request->validate([
+            'register_date' => ['nullable', 'date'],
+            'expiry_date'   => ['nullable', 'date', 'after_or_equal:register_date'],
+            'admin_note'    => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $registerDate = ! empty($data['register_date']) ? \Illuminate\Support\Carbon::parse($data['register_date']) : now();
+        $expiryDate = ! empty($data['expiry_date'])
+            ? \Illuminate\Support\Carbon::parse($data['expiry_date'])
+            : $registerDate->copy()->addYears(max($domain->years ?: 1, 1));
+
+        $domain->update([
+            'status'            => 'active',
+            'provision_status'  => 'registered',
+            'provision_message' => 'Domain premium didaftarkan manual oleh admin pada ' . now()->format('d M Y H:i') . '.'
+                . (! empty($data['admin_note']) ? ' Catatan: ' . $data['admin_note'] : ''),
+            'register_date'     => $registerDate,
+            'expiry_date'       => $expiryDate,
+        ]);
+
+        return back()->with('success', "Domain premium {$domain->domain_name} ditandai aktif dan terdaftar.");
+    }
+
+    /**
+     * Domain premium: cek & sinkron dari DNAMA (GET /domains/{domain_name}).
+     *
+     * API Reseller DNAMA v1.4 TIDAK punya endpoint order premium --
+     * POST /domains menolak domain premium ("Premium domain can only be
+     * ordered in premium domain order flow"), jadi pendaftarannya tetap
+     * dilakukan admin di panel DNAMA. Yang BISA lewat API adalah
+     * memastikan domainnya benar-benar sudah ada di akun reseller kita:
+     * kalau statusnya ACTIVE, tanggal registrasi/jatuh tempo/nameserver
+     * diambil langsung dari DNAMA dan domain di sistem ini diaktifkan
+     * (tanpa admin mengetik tanggal manual).
+     */
+    public function syncPremiumFromRegistrar(Domain $domain): RedirectResponse
+    {
+        if (! $domain->is_premium) {
+            return back()->with('error', 'Aksi ini hanya untuk domain premium.');
+        }
+
+        if ($domain->provision_status === 'registered') {
+            return back()->with('error', 'Domain ini sudah ditandai terdaftar.');
+        }
+
+        $paid = $domain->order_id
+            && \App\Models\Invoice::where('status', 'paid')
+                ->whereHas('items', fn ($q) => $q->where('order_id', $domain->order_id))
+                ->exists();
+
+        if (! $paid) {
+            return back()->with('error', 'Invoice domain premium ini belum lunas. Setujui pembayarannya dulu.');
+        }
+
+        $registrar = $domain->registrar;
+
+        if (! $registrar || $registrar->provider !== 'dnama') {
+            return back()->with('error', 'Sinkron otomatis hanya tersedia untuk domain di registrar DNAMA. Pakai tombol "Tandai Sudah Terdaftar".');
+        }
+
+        $result = (new \App\Services\Domain\DnamaService($registrar))->getDomainInfo($domain->domain_name);
+
+        if (! $result['success']) {
+            return back()->with('error', "Domain {$domain->domain_name} belum ditemukan di akun DNAMA Anda ({$result['message']}). Daftarkan dulu di panel DNAMA (order premium), lalu coba lagi.");
+        }
+
+        $info = $result['raw']['data'] ?? [];
+        $status = strtoupper((string) ($info['status'] ?? ''));
+
+        if ($status !== 'ACTIVE') {
+            $docs = ! empty($info['document_status']) ? ", dokumen: {$info['document_status']}" : '';
+
+            return back()->with('error', "Domain ditemukan di DNAMA tapi statusnya {$status}{$docs}. Belum diaktifkan di sistem — coba lagi setelah statusnya ACTIVE.");
+        }
+
+        $updates = [
+            'status'            => 'active',
+            'provision_status'  => 'registered',
+            'provision_message' => 'Domain premium terverifikasi ACTIVE di DNAMA pada ' . now()->format('d M Y H:i') . '.',
+        ];
+
+        if (! empty($info['registration_date'])) {
+            $updates['register_date'] = \Illuminate\Support\Carbon::parse($info['registration_date']);
+        } else {
+            $updates['register_date'] = $domain->register_date ?: now();
+        }
+
+        $updates['expiry_date'] = ! empty($info['expiry_date'])
+            ? \Illuminate\Support\Carbon::parse($info['expiry_date'])
+            : ($domain->expiry_date ?: $updates['register_date']->copy()->addYears(max($domain->years ?: 1, 1)));
+
+        $nameservers = array_values(array_unique(array_filter((array) ($info['nameservers'] ?? []))));
+        if ($nameservers) {
+            $updates['nameservers'] = $nameservers;
+        }
+
+        $domain->update($updates);
+
+        return back()->with('success', "Domain premium {$domain->domain_name} terverifikasi di DNAMA dan sekarang Aktif (jatuh tempo {$updates['expiry_date']->format('d M Y')}).");
+    }
+
+    /**
      * Tombol umum "Coba Daftarkan Ulang" — dipakai untuk domain yang
      * gagal karena SEBAB APA PUN (bukan cuma kelayakan/dokumen khusus
      * yang sudah punya jalur sendiri), mis. bug yang sudah diperbaiki

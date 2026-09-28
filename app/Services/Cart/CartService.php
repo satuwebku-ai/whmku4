@@ -85,7 +85,7 @@ class CartService
         foreach ($items as &$item) {
             if (($item['type'] ?? null) === 'domain_premium' && ! empty($item['tld_premium_id'])) {
                 $premium = TldPremium::find($item['tld_premium_id']);
-                $newPrice = $premium ? (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0) : 0;
+                $newPrice = $premium ? (float) ($premium->sell_register_price ?? 0) : 0;
 
                 if ($newPrice > 0 && $newPrice != ($item['price'] ?? null)) {
                     $item['base_price'] = $newPrice;
@@ -424,7 +424,9 @@ class CartService
             return ['success' => false, 'message' => "{$domainName} sudah terdaftar dan tidak bisa dipesan lagi."];
         }
 
-        $price = (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0);
+        // Harga JUAL saja -- kosong berarti belum dijual (TIDAK jatuh ke
+        // harga modal, supaya tidak terjual tanpa margin).
+        $price = (float) ($premium->sell_register_price ?? 0);
 
         if ($price <= 0) {
             return ['success' => false, 'message' => 'Harga untuk domain premium ini belum diisi admin. Silakan hubungi kami lewat tiket.'];

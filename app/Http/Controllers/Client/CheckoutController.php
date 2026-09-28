@@ -251,7 +251,7 @@ class CheckoutController extends Controller
 
             if ($item['type'] === 'domain_premium') {
                 $premium = ! empty($item['tld_premium_id']) ? TldPremium::find($item['tld_premium_id']) : null;
-                $price = $premium ? (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0) : 0;
+                $price = $premium ? (float) ($premium->sell_register_price ?? 0) : 0;
 
                 if (! $premium || ! $premium->is_active || $price <= 0) {
                     $issues[] = "Domain premium \"{$item['domain_name']}\" sudah tidak tersedia/belum ada harganya. Hapus item ini dari keranjang.";
@@ -687,7 +687,7 @@ class CheckoutController extends Controller
             throw new \RuntimeException("Domain premium \"{$item['domain_name']}\" sudah tidak tersedia. Silakan hapus item ini dari keranjang.");
         }
 
-        $price = (float) ($premium->sell_register_price ?? $premium->cost_register ?? 0);
+        $price = (float) ($premium->sell_register_price ?? 0);
 
         if ($price <= 0) {
             throw new \RuntimeException("Harga domain premium \"{$item['domain_name']}\" belum diisi admin. Silakan hubungi kami lewat tiket.");

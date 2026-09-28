@@ -12,7 +12,8 @@
       <p class="small text-muted mb-0" style="max-width:48rem">
         Harga MODAL keluarga .id ditarik otomatis dari DNAMA (tingkat harganya ditetapkan PANDI
         berdasarkan jumlah karakter) — harga JUAL diisi manual di sini dan tersimpan permanen,
-        tidak pernah ditimpa oleh sinkronisasi ulang.
+        tidak pernah ditimpa oleh sinkronisasi ulang. Tingkat yang Jual Register-nya masih
+        kosong <strong>tidak dijual</strong> ke publik, dan harga jual tidak boleh di bawah modal.
       </p>
     </div>
 
