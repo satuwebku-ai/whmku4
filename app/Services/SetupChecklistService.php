@@ -143,9 +143,7 @@ class SetupChecklistService
                 'module' => 'system',
                 'skippable' => false,
                 'url' => null,
-                'check' => fn () => (is_link(public_path('storage')) || is_dir(public_path('storage')))
-                    ? [true, null]
-                    : [false, 'Jalankan: php artisan storage:link'],
+                'check' => fn () => $this->checkStorageLink(),
             ],
             'payment_gateway' => [
                 'title' => 'Payment gateway aktif',
@@ -268,6 +266,38 @@ class SetupChecklistService
         }
 
         return [true, null];
+    }
+
+    private function checkStorageLink(): array
+    {
+        $target = realpath(storage_path('app/public'));
+
+        if ($target === false) {
+            return [false, 'Folder storage/app/public belum ada — buat dengan: mkdir -p storage/app/public'];
+        }
+
+        // Di shared hosting, document root sering bukan public/ milik Laravel
+        // (mis. public_html), jadi symlink bisa ada di salah satu lokasi ini.
+        $candidates = array_filter(array_unique([
+            public_path('storage'),
+            ! empty($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/storage' : null,
+            dirname(base_path()) . '/public_html/storage',
+            base_path('public_html/storage'),
+        ]));
+
+        foreach ($candidates as $path) {
+            // Symlink yang menunjuk ke storage/app/public
+            if (is_link($path) && realpath($path) === $target) {
+                return [true, null];
+            }
+
+            // Alternatif tanpa symlink: folder asli (disk public diarahkan ke sini)
+            if (! is_link($path) && is_dir($path)) {
+                return [true, null];
+            }
+        }
+
+        return [false, 'Symlink belum ditemukan. Buat dengan: php artisan storage:link, atau lewat shell: ln -s ' . $target . ' <folder-web>/storage'];
     }
 
     private function checkBackup(): array
