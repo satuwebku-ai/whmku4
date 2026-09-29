@@ -247,7 +247,7 @@ class CartService
         return ['success' => true, 'message' => "{$product->name} ditambahkan ke keranjang."];
     }
 
-    public function addAddon(Addon $addon, string $cycle): array
+    public function addAddon(Addon $addon, string $cycle, ?string $licenseIp = null): array
     {
         if (! $addon->is_active || ! $addon->is_public) {
             return ['success' => false, 'message' => 'Lisensi ini sedang tidak tersedia.'];
@@ -270,6 +270,7 @@ class CartService
             'addon_id' => $addon->id,
             'name' => $addon->name,
             'billing_cycle' => $cycle,
+            'license_ip' => $licenseIp,
             'base_price' => $price,
             'price' => $price,
         ]);

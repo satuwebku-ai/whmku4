@@ -50,7 +50,7 @@
                   @endif
                 @elseif ($item['type'] === 'addon')
                   <p class="fw-medium text-dark mb-0" style="font-size:14px">{{ $item['name'] }}</p>
-                  <p class="text-muted mb-0" style="font-size:11px">Lisensi digital — {{ \App\Models\Addon::CYCLE_LABELS[$item['billing_cycle']] ?? $item['billing_cycle'] }}</p>
+                  <p class="text-muted mb-0" style="font-size:11px">Lisensi digital — {{ \App\Models\Addon::CYCLE_LABELS[$item['billing_cycle']] ?? $item['billing_cycle'] }}@if (! empty($item['license_ip'])) &middot; IP {{ $item['license_ip'] }}@endif</p>
                 @elseif ($item['type'] === 'domain_premium')
                   <p class="fw-medium text-dark mb-0" style="font-size:14px">{{ $item['domain_name'] ?? '-' }}</p>
                   <p class="text-muted mb-0" style="font-size:11px">Domain premium — {{ $item['years'] ?? 1 }} tahun</p>

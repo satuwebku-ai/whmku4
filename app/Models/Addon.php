@@ -81,6 +81,22 @@ class Addon extends Model
         'license' => 'Lisensi Software',
     ];
 
+    /** Lisensi server (cPanel, LiteSpeed, dll.) terikat ke IP publik server; SSL tidak. */
+    public function requiresIp(): bool
+    {
+        return $this->category === 'license';
+    }
+
+    /** IPv4 publik saja: menolak rentang privat (10.x, 172.16-31.x, 192.168.x) dan reserved (127.x, dll.). */
+    public static function isValidPublicIp(?string $ip): bool
+    {
+        return $ip !== null && filter_var(
+            trim($ip),
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) !== false;
+    }
+
     public function getCategoryLabelAttribute(): string
     {
         return self::CATEGORIES[$this->category] ?? 'Lisensi';

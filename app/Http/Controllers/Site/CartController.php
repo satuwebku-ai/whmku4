@@ -82,9 +82,19 @@ class CartController extends Controller
         $data = $request->validate([
             'addon_id' => ['required', 'exists:addons,id'],
             'billing_cycle' => ['required', 'in:monthly,quarterly,semi_annually,annually'],
+            'license_ip' => ['nullable', 'string', 'max:45'],
         ]);
 
-        $result = $cart->addAddon(Addon::findOrFail($data['addon_id']), $data['billing_cycle']);
+        $addon = Addon::findOrFail($data['addon_id']);
+        $ip = isset($data['license_ip']) ? trim($data['license_ip']) : null;
+
+        if ($addon->requiresIp() && ! Addon::isValidPublicIp($ip)) {
+            return back()->withInput()->withErrors([
+                'license_ip' => $ip ? 'IP tidak valid. Gunakan IPv4 publik server Anda (bukan 192.168.x, 10.x, atau 127.x).' : 'IP server wajib diisi.',
+            ]);
+        }
+
+        $result = $cart->addAddon($addon, $data['billing_cycle'], $addon->requiresIp() ? $ip : null);
 
         if (! $result['success']) {
             return back()->withInput()->with('error', $result['message']);

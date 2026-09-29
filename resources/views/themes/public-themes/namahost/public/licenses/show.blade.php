@@ -87,6 +87,13 @@
         <form method="POST" action="{{ route('cart.add-addon') }}">
           @csrf
           <input type="hidden" name="addon_id" value="{{ $license->id }}">
+          @if ($license->requiresIp())
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">IP Server <span class="text-danger fst-italic fw-normal">*required</span></label>
+              <input type="text" name="license_ip" value="{{ old('license_ip') }}" inputmode="decimal" placeholder="Contoh: 103.10.20.30" class="form-control @error('license_ip') is-invalid @enderror" required>
+              @error('license_ip')<div class="invalid-feedback">{{ $message }}</div>@else<div class="form-text">Lisensi terikat ke IP publik server Anda, bukan IP lokal (192.168.x / 10.x).</div>@enderror
+            </div>
+          @endif
           @if (count($cycles) === 1)
             <input type="hidden" name="billing_cycle" value="{{ $only }}">
           @else

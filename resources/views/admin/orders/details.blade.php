@@ -63,6 +63,12 @@
             <p class="text-muted mb-1" style="font-size:11px">PRODUK</p>
             <p class="fw-medium text-dark mb-0">{{ $order->product_name }}</p>
           </div>
+          @if ($order->license_ip)
+            <div class="col-sm-6">
+              <p class="text-muted mb-1" style="font-size:11px">IP SERVER LISENSI</p>
+              <p class="fw-medium text-dark mb-0"><code>{{ $order->license_ip }}</code></p>
+            </div>
+          @endif
           <div class="col-sm-6">
             <p class="text-muted mb-1" style="font-size:11px">TIPE</p>
             <p class="fw-medium text-dark mb-0 text-capitalize">{{ $order->order_type }}</p>

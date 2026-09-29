@@ -60,12 +60,16 @@
 
             <div class="d-flex gap-2">
               <a href="{{ route('license.show', $license->slug) }}" class="btn btn-outline-secondary flex-fill">Detail</a>
-              <form method="POST" action="{{ route('cart.add-addon') }}" class="flex-fill">
-                @csrf
-                <input type="hidden" name="addon_id" value="{{ $license->id }}">
-                <input type="hidden" name="billing_cycle" value="{{ $cheapest['cycle'] }}">
-                <button class="btn btn-theme w-100"><i class="fa-solid fa-cart-plus me-1"></i> Keranjang</button>
-              </form>
+              @if ($license->requiresIp())
+                <a href="{{ route('license.show', $license->slug) }}" class="btn btn-theme flex-fill"><i class="fa-solid fa-cart-plus me-1"></i> Pesan</a>
+              @else
+                <form method="POST" action="{{ route('cart.add-addon') }}" class="flex-fill">
+                  @csrf
+                  <input type="hidden" name="addon_id" value="{{ $license->id }}">
+                  <input type="hidden" name="billing_cycle" value="{{ $cheapest['cycle'] }}">
+                  <button class="btn btn-theme w-100"><i class="fa-solid fa-cart-plus me-1"></i> Keranjang</button>
+                </form>
+              @endif
             </div>
           </article>
         </div>

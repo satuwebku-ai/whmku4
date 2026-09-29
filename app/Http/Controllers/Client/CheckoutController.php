@@ -285,6 +285,8 @@ class CheckoutController extends Controller
 
                 if (! $addon || $price === null) {
                     $issues[] = "Lisensi \"{$item['name']}\" sudah tidak tersedia untuk siklus yang dipilih. Hapus item ini lalu tambahkan ulang.";
+                } elseif ($addon->requiresIp() && ! Addon::isValidPublicIp($item['license_ip'] ?? null)) {
+                    $issues[] = "IP server untuk lisensi \"{$item['name']}\" belum diisi atau tidak valid. Hapus item ini lalu tambahkan ulang dengan IP yang benar.";
                 }
             }
 
@@ -448,6 +450,7 @@ class CheckoutController extends Controller
             'client_id' => $client->id,
             'product_name' => $addon->name,
             'order_type' => 'addon',
+            'license_ip' => $addon->requiresIp() ? ($item['license_ip'] ?? null) : null,
             'amount' => $price,
             'status' => \App\Enums\OrderStatus::PendingPayment,
         ]);
@@ -462,7 +465,7 @@ class CheckoutController extends Controller
         return [
             'order' => $order,
             'amount' => (float) $price,
-            'description' => "Lisensi {$addon->name} ({$cycleLabel})",
+            'description' => "Lisensi {$addon->name} ({$cycleLabel})" . ($addon->requiresIp() && ! empty($item['license_ip']) ? " - IP {$item['license_ip']}" : ''),
         ];
     }
 

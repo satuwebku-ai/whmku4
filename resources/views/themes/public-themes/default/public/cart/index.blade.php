@@ -98,7 +98,7 @@
                       @endif
                     @elseif ($item['type'] === 'addon')
                       <p class="fw-semibold text-dark mb-0">{{ $item['name'] }}</p>
-                      <p class="text-muted mt-1 mb-0" style="font-size:11px">Lisensi digital</p>
+                      <p class="text-muted mt-1 mb-0" style="font-size:11px">Lisensi digital@if (! empty($item['license_ip'])) &middot; IP {{ $item['license_ip'] }}@endif</p>
                       <form method="POST" action="{{ route('cart.update-cycle') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="key" value="{{ $item['key'] }}">

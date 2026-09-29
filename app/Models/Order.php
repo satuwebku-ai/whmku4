@@ -18,7 +18,7 @@ class Order extends Model
 
     protected $fillable = [
         'order_number', 'client_id', 'product_id', 'hosting_account_id',
-        'product_name', 'order_type', 'amount', 'status', 'stock_reservation_status', 'internal_notes',
+        'product_name', 'order_type', 'license_ip', 'amount', 'status', 'stock_reservation_status', 'internal_notes',
     ];
 
     protected function casts(): array
