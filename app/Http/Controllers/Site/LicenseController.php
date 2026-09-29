@@ -52,6 +52,15 @@ class LicenseController extends Controller
             ->take(3)
             ->values();
 
-        return view('public.licenses.show', compact('license', 'related'));
+        // Variabel tampilan disiapkan di sini (bukan di blok @php pada view)
+        // supaya halaman detail tidak bergantung pada urutan direktif Blade.
+        return view('public.licenses.show', [
+            'license' => $license,
+            'related' => $related,
+            'cycles' => $license->availableCycles(),
+            'isSsl' => $license->category === 'ssl',
+            'labels' => Addon::CYCLE_LABELS,
+            'suffix' => Addon::CYCLE_SUFFIX,
+        ]);
     }
 }

@@ -1,14 +1,8 @@
 @extends('public.layout')
 
-@php($seoTitle = $license->name)
+@php $seoTitle = $license->name; @endphp
 
 @section('content')
-  @php
-    $cycles = $license->availableCycles();
-    $isSsl = $license->category === 'ssl';
-    $labels = \App\Models\Addon::CYCLE_LABELS;
-    $suffix = \App\Models\Addon::CYCLE_SUFFIX;
-  @endphp
 
   <div class="row g-4 py-4 py-lg-5">
     <div class="col-12 col-lg-7">
