@@ -82,6 +82,7 @@
       </a>
 
       <nav id="publicHeaderNav" class="d-flex align-items-center gap-4">
+        <a href="{{ route('license.index') }}" class="nav-link text-decoration-none {{ request()->routeIs('license.*') ? 'active' : '' }}">Lisensi</a>
         @foreach ($navMenus as $item)
           @php
             // Kalau Menu Utama ini di-setting langsung menuju satu

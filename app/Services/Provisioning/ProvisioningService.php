@@ -51,7 +51,11 @@ class ProvisioningService
             }
 
             try {
-                if ($order->order_type === 'hosting' && $order->hostingAccount) {
+                if ($order->order_type === 'addon') {
+                    // Lisensi standalone selesai setelah pembayaran; delivery
+                    // atau aktivasi manual dapat ditangani admin tanpa
+                    // memanggil provider hosting/domain.
+                } elseif ($order->order_type === 'hosting' && $order->hostingAccount) {
                     $cred = $this->provisionHosting($order->hostingAccount, $order);
                     if ($cred) {
                         $hostingCredentials[] = $cred;
@@ -69,11 +73,13 @@ class ProvisioningService
             // Order hanya aktif bila fulfillment benar-benar sukses.
             // Pembayaran lunas tidak sama dengan provisioning sukses.
             $order->refresh();
-            $success = $order->order_type === 'hosting'
+            $success = $order->order_type === 'addon'
+                ? true
+                : ($order->order_type === 'hosting'
                 ? $order->hostingAccount?->provision_status === 'provisioned'
                 : ($order->order_type === 'domain' && $order->domain
                     ? in_array($order->domain->provision_status, ['registered', 'manual'], true)
-                    : false);
+                    : false));
             if ($success && $order->status === OrderStatus::Provisioning) {
                 $order->markCompleted('Provisioning berhasil diverifikasi pada provider.');
             } elseif (! $success && $order->status === OrderStatus::Provisioning) {

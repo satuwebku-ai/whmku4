@@ -47,6 +47,11 @@ Route::controller(CatalogController::class)->group(function () {
     Route::get('{section}/{category}/{product}', 'productBootstrap')->name('catalog.product')->where('section', 'hosting|vps');
 });
 
+Route::controller(\App\Http\Controllers\Site\LicenseController::class)->prefix('lisensi')->name('license.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('{slug}', 'show')->name('show');
+});
+
 Route::controller(DomainSearchController::class)->group(function () {
     Route::get('cek-domain', 'searchBootstrap')->name('domain.search');
     Route::post('cek-domain/keranjang', 'addToCart')->name('domain.add-to-cart');
@@ -72,6 +77,7 @@ Route::get('ref/{code}/{campaign?}', [\App\Http\Controllers\Site\ReferralControl
 Route::controller(CartController::class)->prefix('keranjang')->name('cart.')->group(function () {
     Route::get('/', 'indexBootstrap')->name('index');
     Route::post('produk', 'addProduct')->name('add-product');
+    Route::post('lisensi', 'addAddon')->name('add-addon');
     Route::post('domain-premium', 'addPremiumDomain')->name('add-premium-domain');
     Route::post('update-siklus', 'updateProductCycle')->name('update-cycle');
     Route::post('update-tahun', 'updateDomainYears')->name('update-years');

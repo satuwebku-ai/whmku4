@@ -3,6 +3,7 @@
 namespace App\Services\Cart;
 
 use App\Models\Product;
+use App\Models\Addon;
 use App\Models\DomainInterest;
 use App\Models\Tld;
 use App\Models\TldPremium;
@@ -84,6 +85,19 @@ class CartService
         $changed = false;
 
         foreach ($items as &$item) {
+            if (($item['type'] ?? null) === 'addon' && ! empty($item['addon_id'])) {
+                $addon = Addon::query()->whereKey($item['addon_id'])->where('is_active', true)->where('is_public', true)->first();
+                $newPrice = $addon?->priceForCycle($item['billing_cycle'] ?? 'monthly');
+
+                if ($newPrice !== null && (float) $newPrice != (float) ($item['price'] ?? 0)) {
+                    $item['base_price'] = $newPrice;
+                    $item['price'] = $newPrice;
+                    $changed = true;
+                }
+
+                continue;
+            }
+
             if (($item['type'] ?? null) === 'domain_premium' && ! empty($item['tld_premium_id'])) {
                 $premium = TldPremium::find($item['tld_premium_id']);
                 $newPrice = $premium ? (float) ($premium->sell_register_price ?? 0) : 0;
@@ -231,6 +245,36 @@ class CartService
         }
 
         return ['success' => true, 'message' => "{$product->name} ditambahkan ke keranjang."];
+    }
+
+    public function addAddon(Addon $addon, string $cycle): array
+    {
+        if (! $addon->is_active || ! $addon->is_public) {
+            return ['success' => false, 'message' => 'Lisensi ini sedang tidak tersedia.'];
+        }
+
+        $price = $addon->priceForCycle($cycle);
+        if ($price === null) {
+            return ['success' => false, 'message' => 'Siklus pembayaran yang dipilih tidak tersedia untuk lisensi ini.'];
+        }
+
+        foreach ($this->items() as $item) {
+            if (($item['type'] ?? null) === 'addon' && (int) ($item['addon_id'] ?? 0) === $addon->id) {
+                return ['success' => false, 'message' => 'Lisensi ini sudah ada di keranjang Anda.'];
+            }
+        }
+
+        $this->push([
+            'key' => (string) Str::uuid(),
+            'type' => 'addon',
+            'addon_id' => $addon->id,
+            'name' => $addon->name,
+            'billing_cycle' => $cycle,
+            'base_price' => $price,
+            'price' => $price,
+        ]);
+
+        return ['success' => true, 'message' => "{$addon->name} ditambahkan ke keranjang."];
     }
 
     /**
@@ -588,6 +632,15 @@ class CartService
 
                     $item['selected_options'] = $selected;
                     $item['price'] = $price + $optionsTotal;
+                }
+            } elseif ($item['key'] === $key && $item['type'] === 'addon') {
+                $addon = Addon::query()->whereKey($item['addon_id'] ?? null)->where('is_active', true)->where('is_public', true)->first();
+                $price = $addon?->priceForCycle($cycle);
+
+                if ($price !== null) {
+                    $item['billing_cycle'] = $cycle;
+                    $item['base_price'] = $price;
+                    $item['price'] = $price;
                 }
             }
         }

@@ -96,6 +96,18 @@
                           @endforeach
                         </ul>
                       @endif
+                    @elseif ($item['type'] === 'addon')
+                      <p class="fw-semibold text-dark mb-0">{{ $item['name'] }}</p>
+                      <p class="text-muted mt-1 mb-0" style="font-size:11px">Lisensi digital</p>
+                      <form method="POST" action="{{ route('cart.update-cycle') }}" class="mt-2">
+                        @csrf
+                        <input type="hidden" name="key" value="{{ $item['key'] }}">
+                        <select name="billing_cycle" onchange="this.form.submit()" class="form-select form-select-sm" style="width:auto">
+                          @foreach (['monthly' => 'Bulanan', 'quarterly' => '3 Bulan', 'semi_annually' => '6 Bulan', 'annually' => 'Tahunan'] as $ck => $label)
+                            <option value="{{ $ck }}" @selected($item['billing_cycle'] === $ck)>{{ $label }}</option>
+                          @endforeach
+                        </select>
+                      </form>
                     @else
                       <p class="fw-semibold text-dark mb-0">{{ $item['domain_name'] }}</p>
                       <form method="POST" action="{{ route('cart.update-years') }}" class="mt-2">

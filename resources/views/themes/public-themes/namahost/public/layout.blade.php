@@ -10,6 +10,12 @@
   $brandingDisplay = Setting::get('branding_display', 'logo_and_text');
   $footerPages = \App\Models\CmsPage::published()->where('show_in_footer', true)->orderBy('sort_order')->get();
   $navMenus    = \App\Models\NavMenu::active()->whereNull('parent_id')->with(['page', 'children.page', 'defaultChild.page'])->orderBy('sort_order')->get();
+  $megaCategories = \App\Models\ProductGroup::active()
+      ->withCount(['products' => fn ($q) => $q->active()])
+      ->orderBy('sort_order')->orderBy('name')->get()
+      ->filter(fn ($category) => $category->products_count > 0)->take(6);
+  $megaLicenses = \App\Models\Addon::active()->where('is_public', true)
+      ->orderBy('sort_order')->orderBy('name')->take(4)->get();
   $cartCount   = app(CartService::class)->count();
   $isImpersonating = session('impersonator_admin_id') && auth('client')->check();
 @endphp
@@ -77,6 +83,48 @@
 
         <div class="collapse navbar-collapse" id="publicMenu">
           <ul id="publicHeaderNav" class="navbar-nav me-auto">
+            <li class="nav-item dropdown mega-menu-item">
+              <a class="nav-link dropdown-toggle {{ request()->routeIs('catalog.*', 'license.*') ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Produk</a>
+              <div class="dropdown-menu mega-menu-panel">
+                <div class="row g-0">
+                  <div class="col-lg-7 p-3 border-end">
+                    <div class="small text-uppercase fw-bold text-muted mb-2">Paket layanan</div>
+                    <div class="row g-2">
+                      <div class="col-12 col-sm-6">
+                        <a class="mega-menu-card" href="{{ route('catalog.index') }}">
+                          <i class="bi bi-hdd-rack"></i><span><strong>Hosting & VPS</strong><small>Lihat semua paket server</small></span>
+                        </a>
+                      </div>
+                      <div class="col-12 col-sm-6">
+                        <a class="mega-menu-card" href="{{ route('domain.search') }}">
+                          <i class="bi bi-globe2"></i><span><strong>Domain</strong><small>Cari dan daftarkan domain</small></span>
+                        </a>
+                      </div>
+                      @foreach ($megaCategories as $category)
+                        <div class="col-12 col-sm-6">
+                          <a class="mega-menu-card" href="{{ $category->publicUrl() }}">
+                            <i class="bi bi-grid-1x2"></i><span><strong>{{ $category->name }}</strong><small>{{ $category->products_count }} paket tersedia</small></span>
+                          </a>
+                        </div>
+                      @endforeach
+                    </div>
+                  </div>
+                  <div class="col-lg-5 p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <div class="small text-uppercase fw-bold text-muted">Lisensi</div>
+                      <a href="{{ route('license.index') }}" class="small text-theme">Semua</a>
+                    </div>
+                    @forelse ($megaLicenses as $license)
+                      <a class="mega-license-link" href="{{ route('license.show', $license->slug) }}">
+                        <span class="rounded-2"><i class="bi bi-key"></i></span><span><strong>{{ $license->name }}</strong><small>{{ \Illuminate\Support\Str::limit($license->description ?: 'Lisensi digital', 42) }}</small></span>
+                      </a>
+                    @empty
+                      <p class="small text-muted mb-0">Lisensi baru akan tampil di sini.</p>
+                    @endforelse
+                  </div>
+                </div>
+              </div>
+            </li>
             @foreach ($navMenus as $item)
               @php
                 $validChildren = $item->direct_child_target ? collect() : $item->children->filter(fn ($c) => $c->resolved_url);
@@ -144,6 +192,7 @@
           <div class="ft-title">Produk</div>
           <ul class="list-unstyled mb-0">
             <li><a href="{{ route('catalog.index') }}">Semua paket</a></li>
+             <li><a href="{{ route('license.index') }}">Lisensi</a></li>
             <li><a href="{{ route('domain.search') }}">Cari domain</a></li>
             <li><a href="{{ route('domains.transfer') }}">Transfer domain</a></li>
           </ul>

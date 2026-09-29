@@ -19,6 +19,7 @@
     ['label' => 'Domain Saya',        'route' => 'client.domains',          'match' => 'client.domains*',   'icon' => 'bi-globe2'],
     ['label' => 'Billing',            'route' => 'client.billing',          'match' => 'client.billing',    'icon' => 'bi-receipt'],
     ['label' => 'Invoice',            'route' => 'client.invoices',         'match' => 'client.invoices*',  'icon' => 'bi-file-earmark-text'],
+    ['label' => 'Lisensi Saya',       'route' => 'client.licenses',          'match' => 'client.licenses*',   'icon' => 'bi-key'],
     ['label' => 'Saldo Saya',         'route' => 'client.balance',          'match' => 'client.balance*',   'icon' => 'bi-wallet2'],
     ['label' => 'Tiket Support',      'route' => 'client.tickets',          'match' => 'client.tickets*',   'icon' => 'bi-life-preserver'],
     ['label' => 'Affiliate',          'route' => 'client.affiliate.index',   'match' => 'client.affiliate*', 'icon' => 'bi-share'],

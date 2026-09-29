@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Addon;
 use App\Models\ProductGroup;
 use App\Models\TldPremium;
 use App\Services\Cart\CartService;
@@ -68,6 +69,22 @@ class CartController extends Controller
             $data['transfer_auth_code'] ?? null,
             $data['options'] ?? [],
         );
+
+        if (! $result['success']) {
+            return back()->withInput()->with('error', $result['message']);
+        }
+
+        return redirect()->route('cart.index')->with('success', $result['message']);
+    }
+
+    public function addAddon(Request $request, CartService $cart): RedirectResponse
+    {
+        $data = $request->validate([
+            'addon_id' => ['required', 'exists:addons,id'],
+            'billing_cycle' => ['required', 'in:monthly,quarterly,semi_annually,annually'],
+        ]);
+
+        $result = $cart->addAddon(Addon::findOrFail($data['addon_id']), $data['billing_cycle']);
 
         if (! $result['success']) {
             return back()->withInput()->with('error', $result['message']);

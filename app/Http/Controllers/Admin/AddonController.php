@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Addon;
+use App\Services\SupplierPricingSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -28,6 +29,7 @@ class AddonController extends Controller
         $data = $this->validated($request);
         $data['slug'] = $data['slug'] ?: Str::slug($data['name']);
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['is_public'] = $request->boolean('is_public', true);
 
         Addon::create($data);
 
@@ -44,6 +46,13 @@ class AddonController extends Controller
         $data = $this->validated($request, $addon->id);
         $data['slug'] = $data['slug'] ?: Str::slug($data['name']);
         $data['is_active'] = $request->boolean('is_active');
+        $data['is_public'] = $request->boolean('is_public');
+
+        // Token terenkripsi yang sudah tersimpan tidak boleh terhapus hanya
+        // karena admin mengosongkan input password pada form edit.
+        if (! $request->filled('supplier_api_token')) {
+            unset($data['supplier_api_token']);
+        }
 
         $addon->update($data);
 
@@ -69,6 +78,21 @@ class AddonController extends Controller
         return back()->with('success', "Addon {$addon->name} berhasil " . ($addon->is_active ? 'diaktifkan.' : 'dinonaktifkan.'));
     }
 
+    public function sync(Addon $addon, SupplierPricingSyncService $syncer): RedirectResponse
+    {
+        if (! $addon->isApiPricing()) {
+            return back()->with('error', 'Addon ini masih memakai harga modal manual.');
+        }
+
+        try {
+            $result = $syncer->sync($addon);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $result['message']);
+    }
+
     private function validated(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
@@ -79,6 +103,19 @@ class AddonController extends Controller
             'price_quarterly'      => ['nullable', 'numeric', 'min:0'],
             'price_semi_annually'  => ['nullable', 'numeric', 'min:0'],
             'price_annually'       => ['nullable', 'numeric', 'min:0'],
+            'cost_price_monthly'       => ['nullable', 'numeric', 'min:0'],
+            'cost_price_quarterly'     => ['nullable', 'numeric', 'min:0'],
+            'cost_price_semi_annually' => ['nullable', 'numeric', 'min:0'],
+            'cost_price_annually'      => ['nullable', 'numeric', 'min:0'],
+            'pricing_source'           => ['required', 'in:manual,api'],
+            'is_public'                => ['nullable', 'boolean'],
+            'supplier_api_url'         => ['nullable', 'url', 'max:1000'],
+            'supplier_http_method'     => ['nullable', 'in:GET,POST'],
+            'supplier_api_token'       => ['nullable', 'string', 'max:5000'],
+            'supplier_price_path_monthly'       => ['nullable', 'string', 'max:255'],
+            'supplier_price_path_quarterly'     => ['nullable', 'string', 'max:255'],
+            'supplier_price_path_semi_annually' => ['nullable', 'string', 'max:255'],
+            'supplier_price_path_annually'      => ['nullable', 'string', 'max:255'],
             'sort_order'           => ['nullable', 'integer', 'min:0'],
             'is_active'            => ['nullable', 'boolean'],
         ]);

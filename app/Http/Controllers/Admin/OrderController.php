@@ -221,7 +221,7 @@ class OrderController extends Controller
             'client_id'           => ['required', 'exists:clients,id'],
             'hosting_account_id'  => ['nullable', 'exists:hosting_accounts,id'],
             'product_name'        => ['required', 'string', 'max:255'],
-            'order_type'          => ['required', 'in:hosting,domain,vps,other'],
+            'order_type'          => ['required', 'in:hosting,domain,vps,addon,other'],
             'amount'              => ['required', 'numeric', 'min:0'],
             'status'              => ['required', 'in:draft,requirements_pending,requirements_review,requirements_rejected,requirements_approved,pending_payment,paid,provisioning,completed,failed,cancelled,expired'],
         ]);

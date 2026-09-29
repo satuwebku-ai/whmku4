@@ -79,6 +79,7 @@ Route::middleware('client')->group(function () {
 
     // ── Billing Portal ──
     Route::get('billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('licenses', [\App\Http\Controllers\Client\LicenseController::class, 'index'])->name('licenses');
 
     // ── Layanan & Domain ──
     Route::controller(ServiceController::class)->group(function () {

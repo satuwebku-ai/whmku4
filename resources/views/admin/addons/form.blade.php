@@ -30,7 +30,7 @@
     </div>
 
     <div class="card border rounded-4 p-4 mb-3">
-      <label class="form-label small fw-medium text-dark mb-3">Harga per Siklus <span class="text-muted fw-normal">(kosongkan kalau tidak ditawarkan untuk siklus itu)</span></label>
+      <label class="form-label small fw-medium text-dark mb-3">Harga Jual per Siklus <span class="text-muted fw-normal">(kosongkan kalau tidak ditawarkan untuk siklus itu)</span></label>
       <div class="row g-3">
         <div class="col-sm-6">
           <label class="text-muted mb-1 d-block" style="font-size:11px">Bulanan</label>
@@ -57,6 +57,61 @@
     </div>
 
     <div class="card border rounded-4 p-4 mb-3">
+      <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+        <div>
+          <label class="form-label small fw-medium text-dark mb-1">Harga Modal Supplier</label>
+          <p class="text-muted mb-0" style="font-size:11px">Diisi manual sekarang, atau diperbarui dari API supplier. Data ini hanya untuk perhitungan internal dan tidak ditampilkan ke klien.</p>
+        </div>
+        <select name="pricing_source" class="form-select form-select-sm" style="width:130px">
+          <option value="manual" @selected(old('pricing_source', $addon->pricing_source ?: 'manual') === 'manual')>Manual</option>
+          <option value="api" @selected(old('pricing_source', $addon->pricing_source) === 'api')>API Supplier</option>
+        </select>
+      </div>
+      <div class="row g-3">
+        @foreach (['monthly' => 'Bulanan', 'quarterly' => '3 Bulan', 'semi_annually' => '6 Bulan', 'annually' => 'Tahunan'] as $cycle => $label)
+          <div class="col-sm-6">
+            <label class="text-muted mb-1 d-block" style="font-size:11px">{{ $label }}</label>
+            <input type="number" step="1" min="0" name="cost_price_{{ $cycle }}" value="{{ old('cost_price_'.$cycle, $addon->{'cost_price_'.$cycle}) }}" class="form-control form-control-sm" placeholder="Harga modal">
+          </div>
+        @endforeach
+      </div>
+    </div>
+
+    <div class="card border rounded-4 p-4 mb-3">
+      <label class="form-label small fw-medium text-dark mb-1">Konfigurasi API Supplier</label>
+      <p class="text-muted mb-3" style="font-size:11px">Endpoint JSON generik. Isi path JSON, misalnya <code>data.prices.monthly</code>. Token disimpan terenkripsi.</p>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="text-muted mb-1 d-block" style="font-size:11px">URL Endpoint</label>
+          <input type="url" name="supplier_api_url" value="{{ old('supplier_api_url', $addon->supplier_api_url) }}" class="form-control form-control-sm" placeholder="https://supplier.example/api/prices">
+        </div>
+        <div class="col-sm-4">
+          <label class="text-muted mb-1 d-block" style="font-size:11px">Metode</label>
+          <select name="supplier_http_method" class="form-select form-select-sm">
+            <option value="GET" @selected(old('supplier_http_method', $addon->supplier_http_method ?: 'GET') === 'GET')>GET</option>
+            <option value="POST" @selected(old('supplier_http_method', $addon->supplier_http_method) === 'POST')>POST</option>
+          </select>
+        </div>
+        <div class="col-sm-8">
+          <label class="text-muted mb-1 d-block" style="font-size:11px">Bearer Token <span class="fw-normal">(kosongkan saat edit untuk mempertahankan)</span></label>
+          <input type="password" name="supplier_api_token" value="" class="form-control form-control-sm" autocomplete="new-password">
+        </div>
+        @foreach (['monthly' => 'Path harga bulanan', 'quarterly' => 'Path harga 3 bulan', 'semi_annually' => 'Path harga 6 bulan', 'annually' => 'Path harga tahunan'] as $cycle => $label)
+          <div class="col-sm-6">
+            <label class="text-muted mb-1 d-block" style="font-size:11px">{{ $label }}</label>
+            <input type="text" name="supplier_price_path_{{ $cycle }}" value="{{ old('supplier_price_path_'.$cycle, $addon->{'supplier_price_path_'.$cycle}) }}" class="form-control form-control-sm" placeholder="data.prices.{{ $cycle }}">
+          </div>
+        @endforeach
+      </div>
+      @if ($addon->supplier_last_synced_at)
+        <p class="text-muted mt-3 mb-0" style="font-size:11px">Sync terakhir: {{ $addon->supplier_last_synced_at->format('d M Y H:i') }}</p>
+      @endif
+      @if ($addon->supplier_last_error)
+        <p class="text-danger mt-2 mb-0" style="font-size:11px">{{ $addon->supplier_last_error }}</p>
+      @endif
+    </div>
+
+    <div class="card border rounded-4 p-4 mb-3">
       <div class="row g-3 align-items-end">
         <div class="col-sm-6">
           <label class="form-label small fw-medium text-dark">Urutan Tampil</label>
@@ -67,15 +122,25 @@
             <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $addon->is_active ?? true)) class="form-check-input" style="margin-top:0">
             Aktif (bisa dipasang klien)
           </label>
+          <label class="d-flex align-items-center gap-2 small text-dark mb-2">
+            <input type="checkbox" name="is_public" value="1" @checked(old('is_public', $addon->is_public ?? true)) class="form-check-input" style="margin-top:0">
+            Tampilkan di katalog Lisensi publik
+          </label>
         </div>
       </div>
     </div>
 
     <div class="d-flex align-items-center gap-2">
       <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+      @if ($addon->exists && $addon->isApiPricing())
+        <button type="submit" form="sync-addon-form" class="btn btn-outline-primary btn-sm">Sync Harga Modal</button>
+      @endif
       <a href="{{ route('admin.addons.index') }}" class="btn btn-outline-secondary btn-sm">Batal</a>
     </div>
   </form>
+  @if ($addon->exists && $addon->isApiPricing())
+    <form id="sync-addon-form" method="POST" action="{{ route('admin.addons.sync', $addon) }}" class="d-none">@csrf</form>
+  @endif
 
   <script>
     (function () {

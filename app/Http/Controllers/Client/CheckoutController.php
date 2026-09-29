@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Addon;
 use App\Models\Tld;
 use App\Models\TldPremium;
 use App\Services\Billing\CouponService;
@@ -277,6 +278,16 @@ class CheckoutController extends Controller
                 }
             }
 
+            if ($item['type'] === 'addon') {
+                $addon = Addon::query()->whereKey($item['addon_id'] ?? null)
+                    ->where('is_active', true)->where('is_public', true)->first();
+                $price = $addon?->priceForCycle($item['billing_cycle'] ?? 'monthly');
+
+                if (! $addon || $price === null) {
+                    $issues[] = "Lisensi \"{$item['name']}\" sudah tidak tersedia untuk siklus yang dipilih. Hapus item ini lalu tambahkan ulang.";
+                }
+            }
+
             if ($item['type'] === 'product' && ! empty($item['product_id'])) {
                 $product = Product::with('server')->find($item['product_id']);
 
@@ -391,6 +402,10 @@ class CheckoutController extends Controller
      */
     private function buildLinesForItem(Client $client, array $item): array
     {
+        if ($item['type'] === 'addon') {
+            return [$this->buildLicenseLine($client, $item)];
+        }
+
         if ($item['type'] === 'domain') {
             return [$this->buildStandaloneDomainLine($client, $item)];
         }
@@ -416,6 +431,39 @@ class CheckoutController extends Controller
         }
 
         return $lines;
+    }
+
+    private function buildLicenseLine(Client $client, array $item): array
+    {
+        $addon = Addon::query()->whereKey($item['addon_id'] ?? null)
+            ->where('is_active', true)->where('is_public', true)->first();
+        $cycle = $item['billing_cycle'] ?? 'monthly';
+        $price = $addon?->priceForCycle($cycle);
+
+        if (! $addon || $price === null) {
+            throw new \RuntimeException('Lisensi yang dipilih sudah tidak tersedia. Silakan tambahkan kembali dari katalog lisensi.');
+        }
+
+        $order = Order::create([
+            'client_id' => $client->id,
+            'product_name' => $addon->name,
+            'order_type' => 'addon',
+            'amount' => $price,
+            'status' => \App\Enums\OrderStatus::PendingPayment,
+        ]);
+
+        $cycleLabel = [
+            'monthly' => 'bulanan',
+            'quarterly' => '3 bulanan',
+            'semi_annually' => '6 bulanan',
+            'annually' => 'tahunan',
+        ][$cycle] ?? $cycle;
+
+        return [
+            'order' => $order,
+            'amount' => (float) $price,
+            'description' => "Lisensi {$addon->name} ({$cycleLabel})",
+        ];
     }
 
     /**

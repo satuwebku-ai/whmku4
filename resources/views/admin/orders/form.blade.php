@@ -56,6 +56,7 @@
           <option value="hosting" @selected(old('order_type', $order->order_type) === 'hosting')>Hosting</option>
           <option value="domain" @selected(old('order_type', $order->order_type) === 'domain')>Domain</option>
           <option value="vps" @selected(old('order_type', $order->order_type) === 'vps')>VPS</option>
+          <option value="addon" @selected(old('order_type', $order->order_type) === 'addon')>Lisensi / Addon</option>
           <option value="other" @selected(old('order_type', $order->order_type) === 'other')>Lainnya</option>
         </select>
       </div>
