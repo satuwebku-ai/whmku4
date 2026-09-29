@@ -88,7 +88,7 @@
                 {{-- Mega Menu: isi kartu 100% dari admin/nav-submenus (urutan, status aktif, tautan, tab baru). --}}
                 <li class="nav-item dropdown mega-menu-item">
                   <a class="nav-link dropdown-toggle {{ $isActive ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">{{ $item->label }}</a>
-                  <div class="dropdown-menu mega-menu-panel" style="--mega-cols: {{ $cols }}">
+                  <div class="dropdown-menu mega-menu-panel" data-bs-theme="light" style="--mega-cols: {{ $cols }}">
                     <div class="p-3">
                       <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
                         <div class="small text-uppercase fw-bold text-muted">{{ $item->label }}</div>

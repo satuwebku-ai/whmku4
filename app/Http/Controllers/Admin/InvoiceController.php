@@ -147,6 +147,7 @@ class InvoiceController extends Controller
 
     public function edit(Invoice $invoice): View
     {
+        $invoice->load('items.order');
         $clients = Client::orderBy('name')->get();
         $orders = Order::orderBy('order_number')->get();
 
@@ -155,6 +156,7 @@ class InvoiceController extends Controller
 
     public function editBootstrap(Invoice $invoice): View
     {
+        $invoice->load('items.order');
         $clients = Client::orderBy('name')->get();
         $orders = Order::orderBy('order_number')->get();
 

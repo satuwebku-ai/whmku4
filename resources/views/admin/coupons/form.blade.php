@@ -12,7 +12,6 @@
 
   <form method="POST" action="{{ $coupon->exists ? route('admin.coupon.update', $coupon) : route('admin.coupon.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
-    @if ($coupon->exists) @method('PUT') @endif
 
     <div class="row g-3 mb-3">
       <div class="col-sm-6">

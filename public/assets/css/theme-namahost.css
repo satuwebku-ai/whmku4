@@ -226,3 +226,13 @@ header.hero .row{animation:rise .8s ease both}
 @keyframes nhOut{to{opacity:0;transform:translateX(1.5rem)}}
 @keyframes nhBar{to{transform:scaleX(0)}}
 @media(max-width:575.98px){.nh-toasts{right:1rem;left:1rem;width:auto;top:76px}}
+
+/* Mega menu: panel selalu terang & teks kontras, walau navbar memakai data-bs-theme="dark" */
+#publicHeader .mega-menu-panel{background:#fff!important;color:#16323a!important;--bs-body-color:#16323a;--bs-secondary-color:#5b7078;--bs-emphasis-color:#0b2a33}
+#publicHeader .mega-menu-panel .text-muted{color:#5b7078!important}
+#publicHeader .mega-menu-panel .text-theme{color:#0e7c86!important}
+#publicHeader .mega-menu-card,#publicHeader .mega-license-link{color:#16323a!important}
+#publicHeader .mega-menu-card strong,#publicHeader .mega-license-link strong{color:#0b2a33!important;font-weight:700}
+#publicHeader .mega-menu-card small,#publicHeader .mega-license-link small{color:#5b7078!important}
+#publicHeader .mega-menu-card:hover,#publicHeader .mega-license-link:hover,#publicHeader .mega-menu-card.active{color:#0e7c86!important}
+#publicHeader .mega-menu-card:hover strong,#publicHeader .mega-menu-card.active strong{color:#0e7c86!important}

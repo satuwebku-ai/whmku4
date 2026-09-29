@@ -22,7 +22,6 @@
 
   <form method="POST" action="{{ $account->exists ? route('admin.hosting-account.update', $account) : route('admin.hosting-account.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
-    @if ($account->exists) @method('PUT') @endif
 
     <div class="mb-3">
       <label class="form-label small fw-medium text-dark">Klien</label>

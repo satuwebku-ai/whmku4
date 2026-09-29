@@ -11,7 +11,6 @@
 
   <form method="POST" action="{{ $client->exists ? route('admin.client.update', $client) : route('admin.client.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
-    @if ($client->exists) @method('PUT') @endif
 
     <div class="row g-3 mb-3">
       <div class="col-sm-6">

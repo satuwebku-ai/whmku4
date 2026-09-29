@@ -20,7 +20,6 @@
 
   <form method="POST" action="{{ $domain->exists ? route('admin.domain.update', $domain) : route('admin.domain.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
-    @if ($domain->exists) @method('PUT') @endif
 
     @php $selectStyle = 'padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem'; @endphp
 

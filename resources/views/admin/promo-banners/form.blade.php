@@ -10,7 +10,6 @@
   <form method="POST" action="{{ $banner->exists ? route('admin.promo-banners.update', $banner) : route('admin.promo-banners.store') }}"
         enctype="multipart/form-data" style="max-width:42rem">
     @csrf
-    @if ($banner->exists) @method('PUT') @endif
 
     <div class="card border rounded-4 p-4 mb-3">
       <div class="mb-3">

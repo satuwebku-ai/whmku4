@@ -15,7 +15,6 @@
 
   <form method="POST" action="{{ $invoice->exists ? route('admin.invoice.update', $invoice) : route('admin.invoice.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
-    @if ($invoice->exists) @method('PUT') @endif
 
     @php $selectStyle = 'padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem'; @endphp
 
@@ -32,12 +31,28 @@
       </div>
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Order Terkait (opsional)</label>
+        @php
+          // Invoice dari checkout menautkan order lewat item invoice
+          // (invoice_items.order_id), sedangkan kolom invoices.order_id
+          // sering kosong. Pakai keduanya supaya dropdown terisi otomatis.
+          $linkedOrders = $invoice->exists
+            ? $invoice->items->pluck('order')->filter()->unique('id')->values()
+            : collect();
+          $defaultOrderId = $invoice->order_id
+            ?? ($linkedOrders->count() === 1 ? $linkedOrders->first()->id : null);
+        @endphp
         <select name="order_id" class="form-select" style="{{ $selectStyle }}">
           <option value="">— Tidak terkait —</option>
           @foreach ($orders as $order)
-            <option value="{{ $order->id }}" @selected(old('order_id', $invoice->order_id) == $order->id)>#{{ $order->order_number }} — {{ $order->product_name }}</option>
+            <option value="{{ $order->id }}" @selected((string) old('order_id', $defaultOrderId) === (string) $order->id)>#{{ $order->order_number }} — {{ $order->product_name }}</option>
           @endforeach
         </select>
+        @if ($linkedOrders->isNotEmpty())
+          <p class="text-muted mt-1 mb-0" style="font-size:11px">
+            Order pada item invoice: {{ $linkedOrders->map(fn ($o) => '#' . $o->order_number)->implode(', ') }}
+          </p>
+        @endif
+        @error('order_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
 

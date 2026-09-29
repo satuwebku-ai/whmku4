@@ -20,7 +20,6 @@
 
   <form method="POST" action="{{ $order->exists ? route('admin.order.update', $order) : route('admin.order.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
-    @if ($order->exists) @method('PUT') @endif
 
     <div class="row g-3 mb-3">
       <div class="col-sm-6">
