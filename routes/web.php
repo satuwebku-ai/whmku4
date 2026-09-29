@@ -79,6 +79,7 @@ Route::controller(CartController::class)->prefix('keranjang')->name('cart.')->gr
     Route::post('produk', 'addProduct')->name('add-product');
     Route::post('lisensi', 'addAddon')->name('add-addon');
     Route::post('domain-premium', 'addPremiumDomain')->name('add-premium-domain');
+    Route::post('domain-premium-custom', 'addCustomPremium')->name('add-custom-premium');
     Route::post('update-siklus', 'updateProductCycle')->name('update-cycle');
     Route::post('update-tahun', 'updateDomainYears')->name('update-years');
     Route::post('privacy', 'toggleWhoisPrivacy')->name('toggle-privacy');

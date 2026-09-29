@@ -137,6 +137,21 @@ class CartController extends Controller
         return redirect()->route('cart.index')->with('success', $result['message']);
     }
 
+    public function addCustomPremium(Request $request, CartService $cart): RedirectResponse
+    {
+        $data = $request->validate([
+            'custom_premium_id' => ['required', 'exists:custom_premium_domains,id'],
+        ]);
+
+        $result = $cart->addCustomPremium(\App\Models\CustomPremiumDomain::findOrFail($data['custom_premium_id']));
+
+        if (! $result['success']) {
+            return back()->withInput()->with('error', $result['message']);
+        }
+
+        return redirect()->route('cart.index')->with('success', $result['message']);
+    }
+
     public function updateDomainYears(Request $request, CartService $cart): RedirectResponse
     {
         $data = $request->validate([

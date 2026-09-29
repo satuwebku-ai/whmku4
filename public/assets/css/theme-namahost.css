@@ -71,7 +71,7 @@ a.card-public{color:inherit}
 #publicHeader .navbar-brand{color:#fff;display:flex;align-items:center;gap:.6rem}
 #publicHeader .nav-link{color:#c9dde1;font-weight:500}
 #publicHeader .nav-link:hover,#publicHeader .nav-link.active{color:#fff}
-#publicHeader .dropdown-menu{border:0;border-radius:.75rem;box-shadow:0 1rem 2rem rgba(11,42,51,.25);padding:.5rem}
+#publicHeader .dropdown-menu{--bs-dropdown-bg:#fff;--bs-dropdown-color:#16323a;--bs-dropdown-link-color:#16323a;--bs-dropdown-link-hover-color:#0e7c86;--bs-dropdown-link-hover-bg:#f0f7f8;--bs-body-color:#16323a;--bs-secondary-color:#789097;background:#fff;color:#16323a;border:0;border-radius:.75rem;box-shadow:0 1rem 2rem rgba(11,42,51,.25);padding:.5rem}
 #publicHeader .dropdown-item{border-radius:.5rem;padding:.5rem .8rem;font-size:14px}
 #publicHeader .mega-menu-panel{--mega-cols:2;width:min(calc(var(--mega-cols) * 250px + 2rem),calc(100vw - 2rem));padding:0;border:0;border-radius:1rem;overflow:hidden;box-shadow:0 1rem 2rem rgba(11,42,51,.25);left:0}
 #publicHeader .mega-menu-card,#publicHeader .mega-license-link{display:flex;align-items:flex-start;gap:.7rem;padding:.65rem;border-radius:.65rem;text-decoration:none;color:#16323a;transition:background .15s,transform .15s}

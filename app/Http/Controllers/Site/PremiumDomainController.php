@@ -52,7 +52,21 @@ class PremiumDomainController extends Controller
         $idFamily = $this->idFamilyPricing();
         $banners = \App\Models\PromoBanner::live()->forPage('domain_premium')->orderBy('sort_order')->get();
 
-        return compact('idFamily', 'banners');
+        $customTotal = \App\Models\CustomPremiumDomain::forSale()->count();
+        $customQuery = trim((string) request()->query('cari', ''));
+        $customSort = in_array(request()->query('urut'), ['murah', 'mahal', 'karakter'], true) ? request()->query('urut') : 'karakter';
+
+        $customDomains = \App\Models\CustomPremiumDomain::forSale()
+            ->when($customQuery !== '', fn ($q) => $q->where('domain_name', 'like', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $customQuery) . '%'))
+            ->when($customSort === 'murah', fn ($q) => $q->orderBy('sell_price'))
+            ->when($customSort === 'mahal', fn ($q) => $q->orderByDesc('sell_price'))
+            ->when($customSort === 'karakter', fn ($q) => $q->orderBy('characters')->orderBy('sell_price'))
+            ->orderBy('domain_name')
+            ->paginate(24)
+            ->withQueryString()
+            ->fragment('custom-premium');
+
+        return compact('idFamily', 'banners', 'customTotal', 'customDomains', 'customQuery', 'customSort');
     }
 
     /**

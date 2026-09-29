@@ -58,6 +58,8 @@
     @endif
   </div>
 
+  @include('public.catalog._custom-premium')
+
   {{-- ══════════ Referensi harga per ekstensi ══════════ --}}
   @if (! $idFamily['error'] && ! empty($idFamily['rows']))
     <div class="card-public p-4 mb-4">

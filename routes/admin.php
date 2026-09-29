@@ -294,6 +294,14 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::get('tld/premium-pricing', [TldController::class, 'premiumPricingBootstrap'])->name('tlds.premium-pricing');
         Route::post('tld/premium-pricing/sync', [TldController::class, 'syncPremiumPricing'])->name('tld.premium-pricing.sync');
         Route::post('tld/premium-pricing', [TldController::class, 'updatePremiumPricing'])->name('tld.premium-pricing.update');
+
+        // Tab "Domain Premium Custom": nama domain tertentu + harga modal, impor Excel/CSV.
+        Route::get('tld/premium-custom', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'index'])->name('tlds.premium-custom');
+        Route::get('tld/premium-custom/template', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'template'])->name('tld.premium-custom.template');
+        Route::post('tld/premium-custom', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'store'])->name('tld.premium-custom.store');
+        Route::post('tld/premium-custom/import', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'import'])->name('tld.premium-custom.import');
+        Route::post('tld/premium-custom/update', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'update'])->name('tld.premium-custom.update');
+        Route::delete('tld/premium-custom/{custom}', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'destroy'])->name('tld.premium-custom.destroy');
     });
 
     // ── Katalog Produk (Fase 7b) — harga jual yang memengaruhi seluruh

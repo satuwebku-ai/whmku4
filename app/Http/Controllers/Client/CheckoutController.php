@@ -266,8 +266,12 @@ class CheckoutController extends Controller
             $mode = $item['domain_mode'] ?? null;
 
             if ($item['type'] === 'domain_premium') {
-                $premium = ! empty($item['tld_premium_id']) ? TldPremium::find($item['tld_premium_id']) : null;
-                $price = $premium ? (float) ($premium->sell_register_price ?? 0) : 0;
+                $premium = ! empty($item['custom_premium_id'])
+                    ? \App\Models\CustomPremiumDomain::find($item['custom_premium_id'])
+                    : (! empty($item['tld_premium_id']) ? TldPremium::find($item['tld_premium_id']) : null);
+                $price = $premium instanceof \App\Models\CustomPremiumDomain
+                    ? (float) ($premium->sell_price ?? 0)
+                    : ($premium ? (float) ($premium->sell_register_price ?? 0) : 0);
 
                 if (! $premium || ! $premium->is_active || $price <= 0) {
                     $issues[] = "Domain premium \"{$item['domain_name']}\" sudah tidak tersedia/belum ada harganya. Hapus item ini dari keranjang.";
@@ -747,13 +751,14 @@ class CheckoutController extends Controller
      */
     private function buildPremiumDomainLine(Client $client, array $item): array
     {
-        $premium = TldPremium::find($item['tld_premium_id'] ?? null);
+        $custom = ! empty($item['custom_premium_id']) ? \App\Models\CustomPremiumDomain::find($item['custom_premium_id']) : null;
+        $premium = $custom ?? TldPremium::find($item['tld_premium_id'] ?? null);
 
         if (! $premium || ! $premium->is_active) {
             throw new \RuntimeException("Domain premium \"{$item['domain_name']}\" sudah tidak tersedia. Silakan hapus item ini dari keranjang.");
         }
 
-        $price = (float) ($premium->sell_register_price ?? 0);
+        $price = $custom ? (float) ($custom->sell_price ?? 0) : (float) ($premium->sell_register_price ?? 0);
 
         if ($price <= 0) {
             throw new \RuntimeException("Harga domain premium \"{$item['domain_name']}\" belum diisi admin. Silakan hubungi kami lewat tiket.");
@@ -764,9 +769,11 @@ class CheckoutController extends Controller
 
         $domain = Domain::create([
             'client_id'         => $client->id,
-            'registrar_id'      => $premium->registrar_id,
+            'registrar_id'      => $custom
+                ? \App\Models\Registrar::where('provider', 'dnama')->where('is_active', true)->value('id')
+                : $premium->registrar_id,
             'tld_id'            => $tld?->id,
-            'tld_premium_id'    => $premium->id,
+            'tld_premium_id'    => $custom ? null : $premium->id,
             'domain_name'       => $item['domain_name'],
             'price'             => $price,
             'years'             => 1,

@@ -141,6 +141,14 @@ class Domain extends Model
         // di bawah -- itu harga REGISTRASI premium (bisa jutaan rupiah).
         if ($this->is_premium) {
             $premium = $this->tldPremium;
+
+            if (! $premium) {
+                $custom = \App\Models\CustomPremiumDomain::whereRaw('LOWER(domain_name) = ?', [strtolower($this->domain_name)])->first();
+                if ($custom && (float) $custom->renew_price > 0) {
+                    return (float) $custom->renew_price;
+                }
+            }
+
             $price = $premium ? (float) ($premium->sell_renew_price ?? $premium->cost_renew ?? 0) : 0;
 
             if ($price > 0) {

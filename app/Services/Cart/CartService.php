@@ -98,6 +98,19 @@ class CartService
                 continue;
             }
 
+            if (($item['type'] ?? null) === 'domain_premium' && ! empty($item['custom_premium_id'])) {
+                $custom = \App\Models\CustomPremiumDomain::find($item['custom_premium_id']);
+                $newPrice = $custom && $custom->is_active ? (float) ($custom->sell_price ?? 0) : 0;
+
+                if ($newPrice > 0 && $newPrice != ($item['price'] ?? null)) {
+                    $item['base_price'] = $newPrice;
+                    $item['price'] = $newPrice;
+                    $changed = true;
+                }
+
+                continue;
+            }
+
             if (($item['type'] ?? null) === 'domain_premium' && ! empty($item['tld_premium_id'])) {
                 $premium = TldPremium::find($item['tld_premium_id']);
                 $newPrice = $premium ? (float) ($premium->sell_register_price ?? 0) : 0;
@@ -452,6 +465,49 @@ class CartService
      *
      * @return array{success: bool, message: string}
      */
+    /** Domain premium CUSTOM (nama tertentu dengan harga sendiri) — masuk keranjang sebagai item domain_premium. */
+    public function addCustomPremium(\App\Models\CustomPremiumDomain $custom): array
+    {
+        if (! $custom->is_active) {
+            return ['success' => false, 'message' => 'Domain premium ini sedang tidak tersedia untuk dipesan.'];
+        }
+
+        $price = (float) ($custom->sell_price ?? 0);
+
+        if ($price <= 0) {
+            return ['success' => false, 'message' => 'Harga untuk domain premium ini belum diisi admin. Silakan hubungi kami lewat tiket.'];
+        }
+
+        $domainName = strtolower($custom->domain_name);
+
+        foreach ($this->items() as $item) {
+            if (in_array($item['type'] ?? null, ['domain_premium', 'domain'], true) && strtolower($item['domain_name'] ?? '') === $domainName) {
+                return ['success' => false, 'message' => "{$domainName} sudah ada di keranjang Anda."];
+            }
+        }
+
+        if (\App\Models\Domain::whereRaw('LOWER(domain_name) = ?', [$domainName])->whereIn('status', ['pending', 'active'])->exists()) {
+            return ['success' => false, 'message' => "{$domainName} sudah dipesan/terdaftar dan tidak bisa dipesan lagi."];
+        }
+
+        $this->push([
+            'key'               => (string) Str::uuid(),
+            'type'              => 'domain_premium',
+            'custom_premium_id' => $custom->id,
+            'tld_premium_id'    => null,
+            'extension'         => $custom->extension,
+            'domain_name'       => $domainName,
+            'label'             => 'Domain Premium Custom',
+            'years'             => 1,
+            'base_price'        => $price,
+            'price'             => $price,
+        ]);
+
+        DomainInterest::recordCart($domainName, null, null, 1, 'premium_custom_cart', ['domain_mode' => 'register']);
+
+        return ['success' => true, 'message' => "{$domainName} (domain premium) ditambahkan ke keranjang."];
+    }
+
     public function addPremiumDomain(string $label, TldPremium $premium): array
     {
         if (! $premium->is_active || $premium->is_generic) {

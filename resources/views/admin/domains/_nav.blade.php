@@ -7,6 +7,7 @@
     ['label' => 'ID Protection', 'route' => 'admin.tlds.privacy'],
     ['label' => 'Harga Reseller/Sub-Reseller', 'route' => 'admin.tlds.registrar-pricing'],
     ['label' => 'Domain Premium', 'route' => 'admin.tlds.premium-pricing'],
+    ['label' => 'Premium Custom', 'route' => 'admin.tlds.premium-custom'],
     ['label' => 'Registrar', 'route' => 'admin.registrars.index'],
   ];
 @endphp
