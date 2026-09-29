@@ -878,5 +878,8 @@
   })();
 </script>
 
+{{-- Modal checklist setup: muncul sekali per login selama masih ada yang belum jalan --}}
+@include('admin.partials.setup-checklist-modal')
+
 </body>
 </html>

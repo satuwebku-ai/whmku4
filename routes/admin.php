@@ -592,6 +592,9 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::post('test-cpanel', 'testCpanel')->name('test-cpanel');
             Route::post('install-cpanel', 'installCpanel')->name('install-cpanel');
         });
+
+        // ── Checklist setup (modal saat login) — tandai item "tidak dipakai" ──
+        Route::post('setup-checklist/skip', [\App\Http\Controllers\Admin\SetupChecklistController::class, 'skip'])->name('setup-checklist.skip');
     });
 
     // ── Template Notifikasi (isi/kata-kata tiap email & WhatsApp) — satu
