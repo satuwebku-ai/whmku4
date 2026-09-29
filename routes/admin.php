@@ -593,6 +593,13 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::post('install-cpanel', 'installCpanel')->name('install-cpanel');
         });
 
+        // ── Tampilan Notifikasi (toast) ──
+        Route::controller(\App\Http\Controllers\Admin\ToastSettingController::class)->prefix('settings/toast')->name('settings.toast.')->group(function () {
+            Route::get('/', 'edit')->name('edit');
+            Route::post('/', 'update')->name('update');
+            Route::post('reset', 'reset')->name('reset');
+        });
+
         // ── Checklist setup (modal saat login) — tandai item "tidak dipakai" ──
         Route::post('setup-checklist/skip', [\App\Http\Controllers\Admin\SetupChecklistController::class, 'skip'])->name('setup-checklist.skip');
     });

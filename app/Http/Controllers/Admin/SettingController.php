@@ -263,6 +263,7 @@ class SettingController extends Controller
             ['label' => 'Analytics', 'desc' => 'Google Analytics dan skrip pelacakan lain.', 'icon' => 'fa-chart-line', 'route' => 'admin.settings.analytics'],
             ['label' => 'Affiliate', 'desc' => 'Komisi default, jenis komisi, dan minimal payout program affiliate.', 'icon' => 'fa-user-group', 'route' => 'admin.settings.affiliate'],
             ['label' => 'Notifikasi', 'desc' => 'Pengaturan pengiriman email & WhatsApp.', 'icon' => 'fa-bell', 'route' => 'admin.settings.notifications'],
+            ['label' => 'Tampilan Notifikasi', 'desc' => 'Posisi, durasi, ukuran & warna pesan pop-up di panel admin.', 'icon' => 'fa-message', 'route' => 'admin.settings.toast.edit'],
             ['label' => 'Keamanan', 'desc' => 'Autentikasi dua faktor & pembatasan akses.', 'icon' => 'fa-lock', 'route' => 'admin.settings.security'],
             ['label' => 'Live Chat', 'desc' => 'Widget chat, pesan sambutan, bot AI.', 'icon' => 'fa-comments', 'route' => 'admin.settings.livechat'],
             ['label' => 'Trafik AI', 'desc' => 'Pemakaian token & perkiraan biaya AI.', 'icon' => 'fa-robot', 'route' => 'admin.ai-usage.index'],
