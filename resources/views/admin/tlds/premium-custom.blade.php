@@ -11,7 +11,7 @@
     <p class="small text-muted mb-0" style="max-width:48rem">
       Daftar nama domain premium tertentu (mis. <code>abner.id</code>) dengan harga modal masing-masing.
       Impor dari Excel/CSV, lalu isi harga jual. Domain yang harga jualnya kosong <strong>tidak dijual</strong> ke publik,
-      dan harga jual tidak boleh di bawah modal. Domain yang sudah dipesan otomatis hilang dari halaman publik.
+      dan harga jual tidak boleh di bawah modal. Domain yang sudah dipesan atau terjual otomatis hilang dari halaman publik dan tidak bisa dihapus dari daftar.
     </p>
   </div>
 
@@ -20,8 +20,8 @@
   @endif
 
   <div class="row g-3 mb-4">
-    @foreach ([['Total domain', $totals['all']], ['Dijual (tampil di publik)', $totals['for_sale']], ['Belum ada harga jual', $totals['no_price']]] as [$label, $value])
-      <div class="col-6 col-md-4">
+    @foreach ([['Total domain', $totals['all']], ['Dijual (tampil di publik)', $totals['for_sale']], ['Dipesan / terjual', $totals['sold']], ['Belum ada harga jual', $totals['no_price']]] as [$label, $value])
+      <div class="col-6 col-md-3">
         <div class="card border rounded-4 p-3">
           <div class="text-muted" style="font-size:11px">{{ strtoupper($label) }}</div>
           <div class="fw-bold text-dark" style="font-size:20px">{{ number_format($value, 0, ',', '.') }}</div>
@@ -37,7 +37,7 @@
         <h2 class="h6 fw-bold text-dark mb-1">Impor dari Excel / CSV</h2>
         <p class="text-muted mb-3" style="font-size:12px">
           Kolom: <strong>#, Domain Premium, Karakter, Usia, Harga modal</strong>. Teks "Premium" di belakang nama dan format
-          "Rp 6.700.000,00" dikenali otomatis. Domain yang sudah ada diperbarui modalnya; harga jual yang sudah Anda isi tidak ditimpa.
+          "Rp 6.700.000,00" dikenali otomatis. Domain yang sudah ada diperbarui modal, karakter, dan usianya; harga jual yang sudah Anda isi tidak ditimpa (kecuali jadi di bawah modal baru, maka dikosongkan). Domain yang sudah dipesan/terjual dilewati.
           <a href="{{ route('admin.tld.premium-custom.template') }}">Unduh template Excel (.xlsx)</a> · <a href="{{ route('admin.tld.premium-custom.template-csv') }}">CSV (titik koma)</a>
         </p>
         <input type="file" name="file" accept=".xlsx,.csv,.txt" class="form-control form-control-sm mb-2" required>
@@ -128,7 +128,17 @@
                   </td>
                   <td class="small">
                     @if ($isTaken)
-                      <span class="badge text-bg-secondary">Sudah dipesan</span>
+                      @php $t = $takenMap->get(strtolower($d->domain_name)); @endphp
+                      @if ($t && $t->status === 'active')
+                        <span class="badge text-bg-dark">Terjual</span>
+                      @else
+                        <span class="badge text-bg-secondary">Dipesan · menunggu bayar</span>
+                      @endif
+                      @if ($t)
+                        <div class="mt-1" style="font-size:11px">
+                          <a href="{{ route('admin.domain.edit.page', $t->id) }}">{{ $t->client?->name ?? 'Lihat domain' }}</a>
+                        </div>
+                      @endif
                     @elseif ($d->is_active && $d->sell_price !== null && (float) $d->sell_price > 0)
                       <span class="badge text-bg-success">Dijual</span>
                     @else
@@ -136,7 +146,7 @@
                     @endif
                   </td>
                   <td class="pe-3 text-end">
-                    <button type="submit" form="del-{{ $d->id }}" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash" style="font-size:11px"></i></button>
+                    <button type="submit" form="del-{{ $d->id }}" class="btn btn-outline-danger btn-sm" @disabled($isTaken) title="{{ $isTaken ? 'Sudah dipesan/terjual, tidak bisa dihapus' : 'Hapus dari daftar' }}"><i class="fa-solid fa-trash" style="font-size:11px"></i></button>
                   </td>
                 </tr>
               @endforeach
@@ -145,14 +155,10 @@
         </div>
       </div>
 
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-5">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
         <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk" style="font-size:11px"></i> Simpan Perubahan</button>
-        <div class="small text-muted">
-          Halaman {{ $domains->currentPage() }} dari {{ $domains->lastPage() }} ·
-          @if ($domains->previousPageUrl())<a href="{{ $domains->previousPageUrl() }}">‹ Sebelumnya</a>@endif
-          @if ($domains->nextPageUrl())<a href="{{ $domains->nextPageUrl() }}" class="ms-2">Berikutnya ›</a>@endif
-        </div>
       </div>
+      <div class="mb-5">{{ $domains->links('pagination.pager') }}</div>
     </form>
 
     @foreach ($domains as $d)

@@ -30,20 +30,26 @@ class CustomPremiumDomainController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        $taken = Domain::query()
+        // Peta nama domain => Domain (status pending/active) supaya admin bisa
+        // membedakan "Terjual" (sudah aktif) dari "Dipesan" (menunggu bayar).
+        $takenMap = Domain::query()
+            ->with('client:id,name')
             ->whereIn('domain_name', $domains->pluck('domain_name'))
             ->whereIn('status', ['pending', 'active'])
-            ->pluck('domain_name')
-            ->map(fn ($d) => strtolower($d))
-            ->all();
+            ->get(['id', 'client_id', 'domain_name', 'status'])
+            ->keyBy(fn ($d) => strtolower($d->domain_name));
+
+        $soldNames = Domain::query()->whereIn('status', ['pending', 'active'])->select('domain_name');
 
         return view('admin.tlds.premium-custom', [
             'domains' => $domains,
-            'taken' => $taken,
+            'taken' => $takenMap->keys()->all(),
+            'takenMap' => $takenMap,
             'q' => $q,
             'totals' => [
                 'all' => CustomPremiumDomain::count(),
                 'for_sale' => CustomPremiumDomain::forSale()->count(),
+                'sold' => CustomPremiumDomain::query()->whereIn('domain_name', $soldNames)->count(),
                 'no_price' => CustomPremiumDomain::query()->where(fn ($w) => $w->whereNull('sell_price')->orWhere('sell_price', '<=', 0))->count(),
             ],
         ]);
@@ -138,6 +144,11 @@ class CustomPremiumDomainController extends Controller
     public function destroy(CustomPremiumDomain $custom): RedirectResponse
     {
         $name = $custom->domain_name;
+
+        if (Domain::whereRaw('LOWER(domain_name) = ?', [strtolower($name)])->whereIn('status', ['pending', 'active'])->exists()) {
+            return back()->with('error', "{$name} sudah dipesan/terjual, jadi tidak boleh dihapus dari daftar. Ubah status domainnya dulu (Cancelled) kalau pesanannya batal.");
+        }
+
         $custom->delete();
 
         return back()->with('success', "{$name} dihapus dari daftar.");
@@ -174,10 +185,12 @@ class CustomPremiumDomainController extends Controller
 
         $margin = $request->filled('margin_percent') ? (float) $request->input('margin_percent') : null;
         $batch = Str::random(12);
-        $created = $updated = 0;
+        $created = $updated = $sold = $unpriced = $dupes = 0;
         $skipped = [];
+        $seen = [];
+        $soldNames = Domain::query()->whereIn('status', ['pending', 'active'])->pluck('domain_name')->map(fn ($d) => strtolower($d))->flip()->all();
 
-        DB::transaction(function () use ($rows, $map, $margin, $batch, &$created, &$updated, &$skipped) {
+        DB::transaction(function () use ($rows, $map, $margin, $batch, $soldNames, &$created, &$updated, &$sold, &$unpriced, &$dupes, &$skipped, &$seen) {
             foreach ($rows as $i => $row) {
                 if ($i < $map['start']) {
                     continue;
@@ -202,6 +215,19 @@ class CustomPremiumDomainController extends Controller
                     continue;
                 }
 
+                // Nama yang muncul dua kali di file: pakai baris pertama saja.
+                if (isset($seen[$name])) {
+                    $dupes++;
+                    continue;
+                }
+                $seen[$name] = true;
+
+                // Sudah dipesan/terjual: data di daftar dibiarkan apa adanya.
+                if (isset($soldNames[$name])) {
+                    $sold++;
+                    continue;
+                }
+
                 [$label, $extension] = $parts;
                 $ageLabel = isset($map['age']) ? trim((string) ($row[$map['age']] ?? '')) : '';
                 $chars = isset($map['chars']) && is_numeric($row[$map['chars']] ?? null) ? (int) $row[$map['chars']] : strlen($label);
@@ -221,6 +247,7 @@ class CustomPremiumDomainController extends Controller
                     // Harga jual yang sudah diisi admin tidak pernah ditimpa; kalau jadi di bawah modal baru, kosongkan.
                     if ($existing->sell_price !== null && (float) $existing->sell_price < $cost) {
                         $attrs['sell_price'] = null;
+                        $unpriced++;
                     } elseif ($existing->sell_price === null && $margin !== null) {
                         $attrs['sell_price'] = $this->withMargin($cost, $margin);
                     }
@@ -236,14 +263,23 @@ class CustomPremiumDomainController extends Controller
         });
 
         $msg = "Impor selesai: {$created} baru, {$updated} diperbarui.";
+        if ($sold > 0) {
+            $msg .= " {$sold} domain sudah dipesan/terjual, jadi tidak diubah.";
+        }
+        if ($dupes > 0) {
+            $msg .= " {$dupes} baris ganda di file diabaikan.";
+        }
+        if ($unpriced > 0) {
+            $msg .= " {$unpriced} domain harga jualnya dikosongkan (di bawah modal baru), jadi tidak tampil di publik sampai harga jual diisi ulang.";
+        }
         if ($margin === null && $created > 0) {
-            $msg .= ' Harga jual masih kosong, jadi belum tampil di publik. Isi harga jual di tabel.';
+            $msg .= ' Harga jual domain baru masih kosong, jadi belum tampil di publik. Isi harga jual di tabel.';
         }
         if ($skipped) {
             $msg .= ' Dilewati ' . count($skipped) . ': ' . implode('; ', array_slice($skipped, 0, 5)) . (count($skipped) > 5 ? ' …' : '');
         }
 
-        return back()->with($created + $updated > 0 ? 'success' : 'error', $msg);
+        return back()->with($created + $updated + $sold > 0 ? 'success' : 'error', $msg);
     }
 
     /** Template .xlsx asli: tiap kolom terpisah (tidak bergantung pemisah CSV di Excel/WPS). */
