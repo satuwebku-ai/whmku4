@@ -298,6 +298,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         // Tab "Domain Premium Custom": nama domain tertentu + harga modal, impor Excel/CSV.
         Route::get('tld/premium-custom', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'index'])->name('tlds.premium-custom');
         Route::get('tld/premium-custom/template', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'template'])->name('tld.premium-custom.template');
+        Route::get('tld/premium-custom/template-csv', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'templateCsv'])->name('tld.premium-custom.template-csv');
         Route::post('tld/premium-custom', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'store'])->name('tld.premium-custom.store');
         Route::post('tld/premium-custom/import', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'import'])->name('tld.premium-custom.import');
         Route::post('tld/premium-custom/update', [\App\Http\Controllers\Admin\CustomPremiumDomainController::class, 'update'])->name('tld.premium-custom.update');

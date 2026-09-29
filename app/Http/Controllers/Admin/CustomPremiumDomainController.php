@@ -246,14 +246,68 @@ class CustomPremiumDomainController extends Controller
         return back()->with($created + $updated > 0 ? 'success' : 'error', $msg);
     }
 
+    /** Template .xlsx asli: tiap kolom terpisah (tidak bergantung pemisah CSV di Excel/WPS). */
     public function template()
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            return $this->templateCsv();
+        }
+
+        $rows = [
+            ['#', 'Domain Premium', 'Karakter', 'Usia', 'Harga modal'],
+            [1, 'abner.id Premium', 5, '1 tahun', 6700000],
+            [2, 'ached.id Premium', 5, '1 tahun', 1600000],
+            [3, 'added.id Premium', 5, '1 tahun', 4300000],
+        ];
+
+        $sheet = '';
+        foreach ($rows as $r => $row) {
+            $sheet .= '<row r="' . ($r + 1) . '">';
+            foreach ($row as $c => $value) {
+                $ref = chr(65 + $c) . ($r + 1);
+                if ($r === 0) {
+                    $sheet .= '<c r="' . $ref . '" t="inlineStr" s="1"><is><t>' . e($value) . '</t></is></c>';
+                } elseif (is_string($value)) {
+                    $sheet .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . e($value) . '</t></is></c>';
+                } else {
+                    $sheet .= '<c r="' . $ref . '"' . ($c === 4 ? ' s="2"' : '') . '><v>' . $value . '</v></c>';
+                }
+            }
+            $sheet .= '</row>';
+        }
+
+        $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $files = [
+            '[Content_Types].xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+            '_rels/.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+            'xl/workbook.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="' . $ns . '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Domain Premium" sheetId="1" r:id="rId1"/></sheets></workbook>',
+            'xl/_rels/workbook.xml.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+            'xl/styles.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="' . $ns . '"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>',
+            'xl/worksheets/sheet1.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="' . $ns . '"><cols><col min="1" max="1" width="6" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="3" width="10" customWidth="1"/><col min="4" max="4" width="12" customWidth="1"/><col min="5" max="5" width="18" customWidth="1"/></cols><sheetData>' . $sheet . '</sheetData></worksheet>',
+        ];
+
+        $tmp = tempnam(sys_get_temp_dir(), 'tpl');
+        $zip = new \ZipArchive();
+        $zip->open($tmp, \ZipArchive::OVERWRITE);
+        foreach ($files as $name => $content) {
+            $zip->addFromString($name, $content);
+        }
+        $zip->close();
+
+        return response()->download($tmp, 'template-domain-premium-custom.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /** CSV dengan titik koma: terbaca per kolom di Excel/WPS berlokal Indonesia. */
+    public function templateCsv()
     {
         return response()->streamDownload(function () {
             echo "\xEF\xBB\xBF";
-            echo "#,Domain Premium,Karakter,Usia,Harga modal\n";
-            echo "1,abner.id Premium,5,1 tahun,\"Rp 6.700.000,00\"\n";
-            echo "2,ached.id Premium,5,1 tahun,\"Rp 1.600.000,00\"\n";
-            echo "3,added.id Premium,5,1 tahun,\"Rp 4.300.000,00\"\n";
+            echo "#;Domain Premium;Karakter;Usia;Harga modal\n";
+            echo "1;abner.id Premium;5;1 tahun;6700000\n";
+            echo "2;ached.id Premium;5;1 tahun;1600000\n";
+            echo "3;added.id Premium;5;1 tahun;4300000\n";
         }, 'template-domain-premium-custom.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 

@@ -38,7 +38,7 @@
         <p class="text-muted mb-3" style="font-size:12px">
           Kolom: <strong>#, Domain Premium, Karakter, Usia, Harga modal</strong>. Teks "Premium" di belakang nama dan format
           "Rp 6.700.000,00" dikenali otomatis. Domain yang sudah ada diperbarui modalnya; harga jual yang sudah Anda isi tidak ditimpa.
-          <a href="{{ route('admin.tld.premium-custom.template') }}">Unduh template (CSV)</a>
+          <a href="{{ route('admin.tld.premium-custom.template') }}">Unduh template Excel (.xlsx)</a> · <a href="{{ route('admin.tld.premium-custom.template-csv') }}">CSV (titik koma)</a>
         </p>
         <input type="file" name="file" accept=".xlsx,.csv,.txt" class="form-control form-control-sm mb-2" required>
         <label class="form-label small mb-1">Margin otomatis untuk domain baru (%, opsional)</label>
