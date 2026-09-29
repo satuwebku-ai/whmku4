@@ -46,8 +46,58 @@ class AddonCatalogSeeder extends Seeder
                 ]);
             }
 
+            // Lisensi software yang belum punya harga sama sekali diberi harga
+            // pasar awal. Yang sudah pernah diberi harga (mis. diubah di admin)
+            // TIDAK disentuh. Status aktif tidak diubah -- aktifkan manual dari
+            // halaman Addons setelah harganya sesuai.
+            if ($addon->category === 'license' && $addon->availableCycles() === []) {
+                $addon->fill($this->licensePrices()[$item['slug']] ?? []);
+            }
+
             $addon->save();
         }
+    }
+
+    /**
+     * Harga jual awal lisensi software (Rupiah), dikonversi dari harga list
+     * penerbit/distributor dengan kurs sekitar Rp 17.950/USD (akhir Sep 2026):
+     *
+     *  - cPanel & WHM        : cPanel Solo (1 akun) USD 29,99/bln
+     *  - Softaculous         : lisensi per server, ~USD 3,6/bln (distributor USD 1,5-2,5)
+     *  - LiteSpeed           : Web Host Lite (1 worker, domain tak terbatas) USD 26/bln
+     *  - CloudLinux OS       : ~USD 14/bln
+     *  - Imunify360          : paket sampai 30 user, ~USD 23/bln
+     *  - JetBackup           : USD 8,95/bln | USD 89,95/thn
+     *  - Plesk               : Web Admin (10 domain) USD 18/bln
+     *  - DirectAdmin         : Standard USD 29/bln
+     *
+     * Tahunan = 11x bulanan (gratis 1 bulan); JetBackup & Plesk 10x sesuai
+     * diskon tahunan penerbit. 3 bulan = 3x, 6 bulan = 6x bulanan. Semua
+     * siklus diisi karena addon hanya bisa dipasang ke layanan hosting yang
+     * siklus tagihannya punya harga.
+     *
+     * Ini harga list, bukan harga modal Anda -- tambahkan margin sesuai
+     * harga beli dari supplier.
+     */
+    private function licensePrices(): array
+    {
+        $cycles = fn (int $monthly, int $annualMonths = 11) => [
+            'price_monthly' => $monthly,
+            'price_quarterly' => $monthly * 3,
+            'price_semi_annually' => $monthly * 6,
+            'price_annually' => $monthly * $annualMonths,
+        ];
+
+        return [
+            'cpanel-whm' => $cycles(540000),
+            'softaculous' => $cycles(65000),
+            'litespeed-web-server' => $cycles(470000),
+            'cloudlinux-os' => $cycles(250000),
+            'imunify360' => $cycles(410000),
+            'jetbackup' => $cycles(160000, 10),
+            'plesk' => $cycles(325000, 10),
+            'directadmin' => $cycles(520000),
+        ];
     }
 
     private function sslFaqs(string $validation, bool $wildcard): array
