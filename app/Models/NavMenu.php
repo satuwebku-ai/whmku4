@@ -63,7 +63,23 @@ class NavMenu extends Model
         'catalog.index' => 'Katalog Hosting',
         'domain.search' => 'Cek Domain',
         'domain-premium.index' => 'Domain Premium',
+        'license.index' => 'Lisensi',
         'announcements.index' => 'Pengumuman',
+    ];
+
+    /**
+     * Ikon & keterangan singkat untuk kartu di Mega Menu (tema NamaHost).
+     * Tidak butuh kolom baru di database: diturunkan dari tipe/route
+     * tujuan submenu, jadi cukup atur dari admin/nav-submenus.
+     */
+    public const MEGA_ROUTE_META = [
+        '#' => ['bi-link-45deg', 'Tanpa tautan', 'fa-link'],
+        'home' => ['bi-house-door', 'Kembali ke beranda', 'fa-house'],
+        'catalog.index' => ['bi-hdd-rack', 'Lihat semua paket server', 'fa-server'],
+        'domain.search' => ['bi-globe2', 'Cari dan daftarkan domain', 'fa-globe'],
+        'domain-premium.index' => ['bi-gem', 'Nama domain pilihan', 'fa-gem'],
+        'license.index' => ['bi-key', 'Lisensi software resmi', 'fa-key'],
+        'announcements.index' => ['bi-megaphone', 'Kabar dan info terbaru', 'fa-bullhorn'],
     ];
 
     /**
@@ -161,6 +177,37 @@ class NavMenu extends Model
         return ($child && (int) $child->parent_id === (int) $this->id && $child->resolved_url) ? $child : null;
     }
 
+    public function getMegaIconAttribute(): string
+    {
+        return match ($this->type) {
+            'route' => self::MEGA_ROUTE_META[$this->route_name][0] ?? 'bi-grid-1x2',
+            'page' => 'bi-file-earmark-text',
+            default => 'bi-link-45deg',
+        };
+    }
+
+    /** Versi Font Awesome dari mega_icon (dipakai tema default & modern). */
+    public function getMegaFaIconAttribute(): string
+    {
+        return 'fa-solid ' . match ($this->type) {
+            'route' => self::MEGA_ROUTE_META[$this->route_name][2] ?? 'fa-table-cells-large',
+            'page' => 'fa-file-lines',
+            default => 'fa-link',
+        };
+    }
+
+    public function getMegaDescriptionAttribute(): string
+    {
+        return match ($this->type) {
+            'route' => self::MEGA_ROUTE_META[$this->route_name][1] ?? 'Buka halaman',
+            'page' => 'Halaman informasi',
+            'url' => ($host = parse_url((string) $this->url, PHP_URL_HOST))
+                ? preg_replace('/^www\./', '', $host)
+                : 'Tautan',
+            default => '',
+        };
+    }
+
     /**
      * Nama pola route untuk menandai menu yang sedang aktif di navigasi
      * (mis. semua URL /hosting/* menyorot menu "Hosting").
@@ -176,6 +223,7 @@ class NavMenu extends Model
                 'catalog.index' => 'catalog.*',
                 'domain.search' => 'domain.*',
                 'domain-premium.index' => 'domain-premium.*',
+                'license.index' => 'license.*',
                 'announcements.index' => 'announcements.*',
                 default => $this->route_name,
             },

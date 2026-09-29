@@ -82,7 +82,6 @@
       </a>
 
       <nav id="publicHeaderNav" class="d-flex align-items-center gap-4">
-        <a href="{{ route('license.index') }}" class="nav-link text-decoration-none {{ request()->routeIs('license.*') ? 'active' : '' }}">Lisensi</a>
         @foreach ($navMenus as $item)
           @php
             // Kalau Menu Utama ini di-setting langsung menuju satu
@@ -98,15 +97,22 @@
                 {{ $item->label }}
                 <i class="fa-solid fa-chevron-down" style="font-size:9px;opacity:.5"></i>
               </button>
-              <div class="public-submenu">
+              <div class="public-submenu public-mega" style="--mega-cols: {{ min(max($validChildren->count(), 1), 3) }}">
                 <div class="public-submenu-inner">
-                  @if ($item->resolved_url)
-                    <a href="{{ $item->resolved_url }}" @if ($item->open_in_new_tab) target="_blank" rel="noopener noreferrer" @endif>{{ $item->label }}</a>
-                    <div class="border-top my-1"></div>
-                  @endif
-                  @foreach ($validChildren as $child)
-                    <a href="{{ $child->resolved_url }}" @if ($child->open_in_new_tab) target="_blank" rel="noopener noreferrer" @endif>{{ $child->label }}</a>
-                  @endforeach
+                  {{-- Mega Menu: isi kartu 100% dari admin/nav-submenus (urutan, status aktif, tautan, tab baru). --}}
+                  <div class="public-mega-head">
+                    <span>{{ $item->label }}</span>
+                    @if ($item->resolved_url)
+                      <a href="{{ $item->resolved_url }}" class="public-mega-all" @if ($item->open_in_new_tab) target="_blank" rel="noopener noreferrer" @endif>Lihat semua</a>
+                    @endif
+                  </div>
+                  <div class="public-mega-grid">
+                    @foreach ($validChildren as $child)
+                      <a href="{{ $child->resolved_url }}" class="public-mega-card {{ $child->active_pattern && request()->routeIs($child->active_pattern) ? 'active' : '' }}" @if ($child->open_in_new_tab) target="_blank" rel="noopener noreferrer" @endif>
+                        <i class="{{ $child->mega_fa_icon }}"></i><span><strong>{{ $child->label }}</strong><small>{{ $child->mega_description }}</small></span>
+                      </a>
+                    @endforeach
+                  </div>
                 </div>
               </div>
             </div>
