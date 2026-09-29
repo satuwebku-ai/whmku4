@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Addon;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class LicenseController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $licenses = Addon::query()
+        $all = Addon::query()
             ->active()
             ->where('is_public', true)
             ->orderBy('sort_order')
@@ -19,7 +20,15 @@ class LicenseController extends Controller
             ->filter(fn (Addon $addon) => $addon->availableCycles() !== [])
             ->values();
 
-        return view('public.licenses.index', compact('licenses'));
+        // Kategori yang benar-benar punya produk saja yang jadi tab filter.
+        $categories = collect(Addon::CATEGORIES)
+            ->map(fn (string $label, string $key) => ['label' => $label, 'count' => $all->where('category', $key)->count()])
+            ->filter(fn (array $c) => $c['count'] > 0);
+
+        $activeCategory = $categories->has($request->query('kategori')) ? $request->query('kategori') : null;
+        $licenses = $activeCategory ? $all->where('category', $activeCategory)->values() : $all;
+
+        return view('public.licenses.index', compact('licenses', 'categories', 'activeCategory', 'all'));
     }
 
     public function show(string $slug): View
@@ -32,6 +41,17 @@ class LicenseController extends Controller
 
         abort_if($license->availableCycles() === [], 404);
 
-        return view('public.licenses.show', compact('license'));
+        $related = Addon::query()
+            ->active()
+            ->where('is_public', true)
+            ->where('category', $license->category)
+            ->whereKeyNot($license->id)
+            ->orderBy('sort_order')
+            ->get()
+            ->filter(fn (Addon $addon) => $addon->availableCycles() !== [])
+            ->take(3)
+            ->values();
+
+        return view('public.licenses.show', compact('license', 'related'));
     }
 }

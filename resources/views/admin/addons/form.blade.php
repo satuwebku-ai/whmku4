@@ -22,10 +22,52 @@
         <input type="text" name="slug" id="slugInput" value="{{ old('slug', $addon->slug) }}" class="form-control form-control-sm" placeholder="ip-dedicated">
         @error('slug') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label small fw-medium text-dark">Kategori</label>
+          <select name="category" class="form-select form-select-sm">
+            @foreach (\App\Models\Addon::CATEGORIES as $key => $label)
+              <option value="{{ $key }}" @selected(old('category', $addon->category ?: 'license') === $key)>{{ $label }}</option>
+            @endforeach
+          </select>
+          @error('category') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small fw-medium text-dark">Merek</label>
+          <input type="text" name="brand" value="{{ old('brand', $addon->brand) }}" class="form-control form-control-sm" placeholder="mis. Sectigo, GeoTrust, cPanel">
+          @error('brand') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-medium text-dark">Ringkasan <span class="text-muted fw-normal">(satu kalimat, tampil di kartu katalog)</span></label>
+        <input type="text" name="summary" value="{{ old('summary', $addon->summary) }}" class="form-control form-control-sm" maxlength="255">
+        @error('summary') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      </div>
       <div>
         <label class="form-label small fw-medium text-dark">Deskripsi</label>
         <textarea name="description" rows="3" class="form-control form-control-sm" placeholder="Dijelaskan singkat ke klien saat memilih addon ini.">{{ old('description', $addon->description) }}</textarea>
         @error('description') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      </div>
+    </div>
+
+    <div class="card border rounded-4 p-4 mb-3">
+      <label class="form-label small fw-medium text-dark mb-1">Keterangan Produk Lengkap <span class="text-muted fw-normal">(tampil di halaman detail)</span></label>
+      <p class="text-muted mb-3" style="font-size:11px">Semua isian di bawah opsional. Isi satu item per baris.</p>
+      <div class="mb-3">
+        <label class="text-muted mb-1 d-block" style="font-size:11px">Penjelasan panjang</label>
+        <textarea name="long_description" rows="4" class="form-control form-control-sm">{{ old('long_description', $addon->long_description) }}</textarea>
+      </div>
+      <div class="mb-3">
+        <label class="text-muted mb-1 d-block" style="font-size:11px">Fitur / keunggulan (satu per baris)</label>
+        <textarea name="features_text" rows="5" class="form-control form-control-sm" placeholder="Enkripsi 256-bit&#10;Terbit dalam hitungan menit">{{ old('features_text', implode("\n", $addon->features ?? [])) }}</textarea>
+      </div>
+      <div class="mb-3">
+        <label class="text-muted mb-1 d-block" style="font-size:11px">Spesifikasi (format <code>Label: nilai</code>, satu per baris)</label>
+        <textarea name="specs_text" rows="5" class="form-control form-control-sm" placeholder="Tipe validasi: Domain Validation (DV)&#10;Cakupan domain: 1 nama domain">{{ old('specs_text', collect($addon->specs ?? [])->map(fn ($v, $k) => "$k: $v")->implode("\n")) }}</textarea>
+      </div>
+      <div>
+        <label class="text-muted mb-1 d-block" style="font-size:11px">FAQ (format <code>Pertanyaan | Jawaban</code>, satu per baris)</label>
+        <textarea name="faqs_text" rows="5" class="form-control form-control-sm">{{ old('faqs_text', collect($addon->faqs ?? [])->map(fn ($x) => $x['q'].' | '.$x['a'])->implode("\n")) }}</textarea>
       </div>
     </div>
 

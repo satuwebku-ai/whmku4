@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Addon extends Model
 {
     protected $fillable = [
-        'name', 'slug', 'description',
+        'name', 'slug', 'category', 'brand', 'summary', 'description', 'long_description',
+        'features', 'specs', 'faqs',
         'price_monthly', 'price_quarterly', 'price_semi_annually', 'price_annually',
         'cost_price_monthly', 'cost_price_quarterly', 'cost_price_semi_annually', 'cost_price_annually',
         'pricing_source', 'is_public', 'supplier_api_url', 'supplier_http_method', 'supplier_api_token',
@@ -29,6 +30,9 @@ class Addon extends Model
             'cost_price_quarterly' => 'decimal:2',
             'cost_price_semi_annually' => 'decimal:2',
             'cost_price_annually' => 'decimal:2',
+            'features' => 'array',
+            'specs' => 'array',
+            'faqs' => 'array',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
             'supplier_api_token' => 'encrypted',
@@ -66,6 +70,32 @@ class Addon extends Model
     public function isApiPricing(): bool
     {
         return $this->pricing_source === 'api';
+    }
+
+    public const CYCLE_LABELS = ['monthly' => 'Bulanan', 'quarterly' => '3 Bulan', 'semi_annually' => '6 Bulan', 'annually' => 'Tahunan'];
+
+    public const CYCLE_SUFFIX = ['monthly' => '/bulan', 'quarterly' => '/3 bulan', 'semi_annually' => '/6 bulan', 'annually' => '/tahun'];
+
+    public const CATEGORIES = [
+        'ssl' => 'Sertifikat SSL',
+        'license' => 'Lisensi Software',
+    ];
+
+    public function getCategoryLabelAttribute(): string
+    {
+        return self::CATEGORIES[$this->category] ?? 'Lisensi';
+    }
+
+    /** Siklus termurah, dipakai untuk label "mulai dari" & tombol Tambah ke Keranjang di katalog. */
+    public function cheapestCycle(): ?array
+    {
+        $cycles = $this->availableCycles();
+        if ($cycles === []) {
+            return null;
+        }
+        asort($cycles);
+
+        return ['cycle' => array_key_first($cycles), 'price' => reset($cycles)];
     }
 
     public function scopeActive($query)

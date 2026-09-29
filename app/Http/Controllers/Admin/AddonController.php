@@ -26,7 +26,7 @@ class AddonController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validated($request);
+        $data = $this->withCatalogDetails($this->validated($request));
         $data['slug'] = $data['slug'] ?: Str::slug($data['name']);
         $data['is_active'] = $request->boolean('is_active', true);
         $data['is_public'] = $request->boolean('is_public', true);
@@ -43,7 +43,7 @@ class AddonController extends Controller
 
     public function update(Request $request, Addon $addon): RedirectResponse
     {
-        $data = $this->validated($request, $addon->id);
+        $data = $this->withCatalogDetails($this->validated($request, $addon->id));
         $data['slug'] = $data['slug'] ?: Str::slug($data['name']);
         $data['is_active'] = $request->boolean('is_active');
         $data['is_public'] = $request->boolean('is_public');
@@ -99,6 +99,13 @@ class AddonController extends Controller
             'name'                 => ['required', 'string', 'max:255'],
             'slug'                 => ['nullable', 'string', 'max:255', 'unique:addons,slug' . ($ignoreId ? ",{$ignoreId}" : '')],
             'description'          => ['nullable', 'string', 'max:1000'],
+            'category'             => ['required', 'in:' . implode(',', array_keys(Addon::CATEGORIES))],
+            'brand'                => ['nullable', 'string', 'max:100'],
+            'summary'              => ['nullable', 'string', 'max:255'],
+            'long_description'     => ['nullable', 'string', 'max:10000'],
+            'features_text'        => ['nullable', 'string', 'max:5000'],
+            'specs_text'           => ['nullable', 'string', 'max:5000'],
+            'faqs_text'            => ['nullable', 'string', 'max:10000'],
             'price_monthly'        => ['nullable', 'numeric', 'min:0'],
             'price_quarterly'      => ['nullable', 'numeric', 'min:0'],
             'price_semi_annually'  => ['nullable', 'numeric', 'min:0'],
@@ -119,5 +126,37 @@ class AddonController extends Controller
             'sort_order'           => ['nullable', 'integer', 'min:0'],
             'is_active'            => ['nullable', 'boolean'],
         ]);
+    }
+
+    /**
+     * Ubah isian teks form (satu baris per item) menjadi kolom JSON:
+     *  - fitur      : satu fitur per baris
+     *  - spesifikasi: "Label: nilai" per baris
+     *  - FAQ        : "Pertanyaan | Jawaban" per baris
+     */
+    private function withCatalogDetails(array $data): array
+    {
+        $lines = fn (?string $text) => collect(preg_split('/\R/', (string) $text))
+            ->map(fn ($l) => trim($l))->filter()->values();
+
+        $data['features'] = $lines($data['features_text'] ?? null)->all() ?: null;
+
+        $data['specs'] = $lines($data['specs_text'] ?? null)
+            ->mapWithKeys(function ($l) {
+                [$k, $v] = array_pad(explode(':', $l, 2), 2, '');
+
+                return trim($k) !== '' && trim($v) !== '' ? [trim($k) => trim($v)] : [];
+            })->all() ?: null;
+
+        $data['faqs'] = $lines($data['faqs_text'] ?? null)
+            ->map(function ($l) {
+                [$q, $a] = array_pad(explode('|', $l, 2), 2, '');
+
+                return trim($q) !== '' && trim($a) !== '' ? ['q' => trim($q), 'a' => trim($a)] : null;
+            })->filter()->values()->all() ?: null;
+
+        unset($data['features_text'], $data['specs_text'], $data['faqs_text']);
+
+        return $data;
     }
 }
