@@ -6,6 +6,8 @@
   $cycles = $product->availableCycles();
   $firstCycleKey = array_key_first($cycles);
   $featuredCard = $product->is_featured && $product->isInStock();
+  // Promo hanya ada bila controller mengirim $productPromos dan produk ini kena kupon.
+  $promo = ($productPromos ?? [])[$product->id] ?? null;
 @endphp
 
 <a href="{{ $product->category->productUrl($product) }}" class="plan {{ $featuredCard ? 'featured' : '' }}">
@@ -34,6 +36,12 @@
         <div class="price" style="font-size:1.4rem">Sesuai Pemakaian</div>
         <p class="small text-body-secondary mb-0 mt-1">Dipotong otomatis dari saldo, per jam</p>
       @endif
+    @elseif ($promo)
+      <div class="mb-1">
+        <span class="badge text-bg-danger">Diskon {{ $promo['label'] }}</span>
+        <s class="small text-body-secondary ms-1">Rp {{ number_format($promo['before'], 0, ',', '.') }}</s>
+      </div>
+      <div class="price">Rp {{ number_format($promo['after'], 0, ',', '.') }} <small>{{ $unit[$firstCycleKey] ?? '' }}</small></div>
     @elseif ($product->starting_price !== null)
       <div class="price">Rp {{ number_format($product->starting_price, 0, ',', '.') }} <small>{{ $unit[$firstCycleKey] ?? '' }}</small></div>
     @else

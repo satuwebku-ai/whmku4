@@ -97,6 +97,11 @@ class CatalogController extends Controller
         // tertentu. Bila ada beberapa, dipakai yang harganya paling murah.
         $tldPromos = $this->homeTldPromos($popularTlds);
 
+        // Promo per-produk (hosting & VPS) untuk kartu paket di beranda:
+        // nilai diskon tampil dan harga jual dikurangi -- hanya bila ada
+        // kupon publik yang berlaku untuk produk itu.
+        $productPromos = $this->homeProductPromos($featured->concat($vpsProducts));
+
         $announcements = Announcement::live()
             ->orderByDesc('is_pinned')
             ->orderByDesc('published_at')
@@ -148,7 +153,7 @@ class CatalogController extends Controller
         $homeOrder = $order;
 
         return compact(
-            'categories', 'featured', 'vpsProducts', 'popularTlds', 'tldPromos',
+            'categories', 'featured', 'vpsProducts', 'popularTlds', 'tldPromos', 'productPromos',
             'announcements', 'banners', 'homeSections', 'homeOrder'
         );
     }
@@ -200,6 +205,82 @@ class CatalogController extends Controller
         } catch (\Throwable $e) {
             // Promo hanyalah pemanis; beranda tidak boleh gagal karenanya
             // (mis. kolom kupon baru belum dimigrasi).
+            report($e);
+
+            return [];
+        }
+
+        return $found;
+    }
+
+    /**
+     * Promo per-produk untuk kartu paket hosting/VPS di beranda. Kupon yang
+     * dipakai: publik, aktif, dalam rentang tanggal, dan menyasar produk
+     * itu (langsung, lewat kategorinya, atau kupon "semua produk").
+     * Harga dasar = harga mulai dari (starting_price); bila ada beberapa
+     * kupon, dipakai yang harga akhirnya paling murah. Produk yang ditagih
+     * per jam (deposit) dilewati karena tidak punya harga siklus tetap.
+     *
+     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @return array<int, array{code: string, label: string, discount: float, before: float, after: float, ends: ?string}>
+     */
+    private function homeProductPromos($products): array
+    {
+        $found = [];
+
+        try {
+            $coupons = Coupon::publicPromo()->with(['products:products.id', 'categories:product_groups.id'])->get();
+
+            foreach ($coupons as $coupon) {
+                // Kupon khusus TLD (domain) tidak berlaku untuk paket.
+                if ($coupon->applies_to === 'specific' && $coupon->targetsTlds()
+                    && $coupon->products->isEmpty() && $coupon->categories->isEmpty()) {
+                    continue;
+                }
+
+                $productIds  = $coupon->products->pluck('id')->all();
+                $categoryIds = $coupon->categories->pluck('id')->all();
+
+                foreach ($products as $product) {
+                    if ($product->isDepositBilled()) {
+                        continue;
+                    }
+
+                    if ($coupon->applies_to === 'specific'
+                        && ! in_array($product->id, $productIds, true)
+                        && ! in_array($product->product_category_id, $categoryIds, true)) {
+                        continue;
+                    }
+
+                    $before = (float) $product->starting_price;
+
+                    if ($before <= 0 || $before < (float) $coupon->min_order) {
+                        continue;
+                    }
+
+                    $discount = $coupon->calculateDiscount($before);
+
+                    if ($discount <= 0) {
+                        continue;
+                    }
+
+                    $after = $before - $discount;
+
+                    if (isset($found[$product->id]) && $found[$product->id]['after'] <= $after) {
+                        continue;
+                    }
+
+                    $found[$product->id] = [
+                        'code'     => $coupon->code,
+                        'label'    => $coupon->value_label,
+                        'discount' => $discount,
+                        'before'   => $before,
+                        'after'    => $after,
+                        'ends'     => $coupon->expires_at?->format('d M Y'),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
             report($e);
 
             return [];

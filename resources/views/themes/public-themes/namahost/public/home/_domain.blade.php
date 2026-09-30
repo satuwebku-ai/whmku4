@@ -128,11 +128,6 @@
                         <td class="small">
                           @if ($promo)
                             <span class="badge text-bg-danger">Diskon {{ $promo['label'] }}</span>
-                            <div class="mt-1">Kode <code class="fw-bold">{{ $promo['code'] }}</code></div>
-                            <div class="text-body-secondary">
-                              jadi <strong class="text-success">Rp {{ number_format($promo['after'], 0, ',', '.') }}</strong> ({{ $promo['years'] }} thn)
-                              @if ($promo['ends'])<br>s/d {{ $promo['ends'] }}@endif
-                            </div>
                           @else
                             <span class="text-body-secondary">—</span>
                           @endif
