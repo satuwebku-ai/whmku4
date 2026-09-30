@@ -221,14 +221,18 @@ class CatalogController extends Controller
 
     private function indexData(): array
     {
+        // Halaman /hosting hanya untuk hosting biasa -- kategori & produk
+        // unggulan VPS ada di /vps (lihat vpsData()).
         $categories = ProductGroup::active()
-            ->withCount(['products' => fn ($q) => $q->active()])
+            ->where(fn ($q) => $q->whereNull('type')->orWhere('type', '!=', 'vps'))
+            ->withCount(['products' => fn ($q) => $q->active()->hostingType()])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
             ->filter(fn ($cat) => $cat->products_count > 0);
 
         $featured = Product::active()
+            ->hostingType()
             ->with('category')
             ->where('is_featured', true)
             ->orderBy('sort_order')

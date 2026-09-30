@@ -226,8 +226,11 @@ class NavMenu extends Model
 
         return match ($this->type) {
             'route' => match ($this->route_name) {
-                'catalog.index' => 'catalog.*',
-                'catalog.vps' => 'catalog.vps',
+                // Hosting & VPS berbagi nama route (catalog.category/product),
+                // jadi dibedakan lewat parameter {section} di URL. Tanpa ini
+                // pola 'catalog.*' menyalakan menu Hosting juga di /vps.
+                'catalog.index' => self::catalogSection() === 'vps' ? 'catalog.index' : 'catalog.*',
+                'catalog.vps' => self::catalogSection() === 'vps' ? 'catalog.*' : 'catalog.vps',
                 'domains.transfer' => 'domains.*',
                 'domain.search' => 'domain.*',
                 'domain-premium.index' => 'domain-premium.*',
@@ -239,5 +242,21 @@ class NavMenu extends Model
             'page' => 'page.show',
             default => null,
         };
+    }
+
+    /**
+     * Section katalog yang sedang dibuka ('hosting' | 'vps'), hanya untuk
+     * halaman kategori/produk yang route-nya dipakai bersama. Null di
+     * halaman lain.
+     */
+    private static function catalogSection(): ?string
+    {
+        $route = request()->route();
+
+        if (! $route || ! in_array($route->getName(), ['catalog.category', 'catalog.product'], true)) {
+            return null;
+        }
+
+        return $route->parameter('section');
     }
 }
