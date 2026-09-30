@@ -70,7 +70,7 @@
           <label class="d-flex align-items-center justify-content-center gap-2 rounded-3 border px-3 py-2 text-center small fw-medium"
                  style="cursor:pointer;{{ ! $appliesAll ? 'border-color:#4f46e5!important;background:rgba(79,70,229,.06);color:#4338ca' : '' }}">
             <input type="radio" name="applies_to" value="specific" @checked(! $appliesAll) class="d-none" data-scope-radio>
-            Produk Tertentu
+            Produk / Domain Tertentu
           </label>
         </div>
       </div>
@@ -105,6 +105,21 @@
             @endforelse
           </div>
         </div>
+
+        <div class="mt-3">
+          <p class="fw-medium text-dark mb-2" style="font-size:12px">Ekstensi domain (registrasi baru; harga ID Protection tidak ikut didiskon)</p>
+          <div class="d-flex flex-wrap gap-2" style="max-height:10rem;overflow-y:auto">
+            @php $checkedTlds = array_map('intval', (array) old('tld_ids', $coupon->tld_ids ?? [])); @endphp
+            @forelse ($tlds as $t)
+              <label class="d-flex align-items-center gap-2 border rounded-pill px-3 py-2" style="font-size:12px;cursor:pointer">
+                <input type="checkbox" name="tld_ids[]" value="{{ $t->id }}" @checked(in_array($t->id, $checkedTlds, true)) class="form-check-input" style="margin-top:0">
+                {{ $t->extension }}
+              </label>
+            @empty
+              <p class="text-muted mb-0" style="font-size:12px">Belum ada TLD aktif.</p>
+            @endforelse
+          </div>
+        </div>
         @error('scope') <p class="text-danger mt-2 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
@@ -122,6 +137,24 @@
         <label class="form-label small fw-medium text-dark">Berlaku Sampai</label>
         <input type="date" name="expires_at" value="{{ old('expires_at', optional($coupon->expires_at)->format('Y-m-d')) }}" class="form-control form-control-sm">
         @error('expires_at') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      </div>
+    </div>
+
+    <div class="rounded-3 border p-3 mb-3">
+      <label class="d-flex align-items-center gap-2 small fw-medium text-dark mb-2">
+        <input type="checkbox" name="is_public" value="1" @checked(old('is_public', $coupon->is_public ?? false)) class="form-check-input" style="margin-top:0">
+        Tampilkan di halaman Promo publik
+      </label>
+      <p class="text-muted mb-3" style="font-size:11px">Kode tetap harus dimasukkan pelanggan di checkout, tidak diterapkan otomatis. Banner halaman Promo diatur di menu Banner Promo (pilih halaman "Halaman Promo").</p>
+      <div class="mb-3">
+        <label class="form-label small fw-medium text-dark">Judul Promo</label>
+        <input type="text" name="title" maxlength="120" value="{{ old('title', $coupon->title) }}" class="form-control form-control-sm" placeholder="Diskon Domain .my.id">
+        @error('title') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      </div>
+      <div>
+        <label class="form-label small fw-medium text-dark">Keterangan</label>
+        <textarea name="description" rows="3" maxlength="600" class="form-control form-control-sm" placeholder="Syarat singkat, mis. berlaku untuk registrasi baru 1 tahun.">{{ old('description', $coupon->description) }}</textarea>
+        @error('description') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
 

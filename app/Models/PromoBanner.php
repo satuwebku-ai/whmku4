@@ -18,6 +18,7 @@ class PromoBanner extends Model
         'catalog' => 'Katalog Hosting',
         'domain_search' => 'Cek Domain',
         'domain_premium' => 'Domain Premium',
+        'promo' => 'Halaman Promo',
         'email' => 'Email Transaksional',
         'pdf_invoice' => 'PDF Invoice',
     ];

@@ -223,7 +223,7 @@ class Client extends Authenticatable
 
     public function getAvatarUrlAttribute(): string
     {
-        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=6366F1&color=fff';
+        return \App\Support\InitialsAvatar::dataUri((string) $this->name);
     }
 
     /**

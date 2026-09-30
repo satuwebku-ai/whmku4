@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Setting;
 use App\Support\CspNonce;
+use App\Support\CspPolicy;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,24 +32,21 @@ class SecurityHeaders
         ];
 
         if (config('security.csp_report_only', true)) {
-            $reportUri = (string) config('security.csp_report_uri', '/csp-report');
-            $headers['Content-Security-Policy-Report-Only'] = implode('; ', [
-                "default-src 'self'",
-                "base-uri 'self'",
-                "object-src 'none'",
-                "frame-ancestors 'self'",
-                "form-action 'self' https:",
-                "script-src 'self' 'nonce-{$nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://www.google.com https://www.gstatic.com https://www.googletagmanager.com",
-                // Event handler inline sudah dimigrasi ke atribut data-* (partials/csp-actions);
-                // CSP_ALLOW_INLINE_HANDLERS=true hanya untuk rollback darurat.
-                'script-src-attr '.(config('security.csp_allow_inline_handlers', false) ? "'unsafe-inline'" : "'none'"),
-                "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
-                "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
-                "img-src 'self' data: blob: https:",
-                "connect-src 'self' https: wss:",
-                "frame-src 'self' https:",
-                'report-uri '.$reportUri,
-            ]);
+            $headers['Content-Security-Policy-Report-Only'] = CspPolicy::build(
+                $nonce,
+                $this->activeIntegrations(),
+                [
+                    'report_uri'            => (string) config('security.csp_report_uri', '/csp-report'),
+                    // Event handler inline sudah dimigrasi ke atribut data-* (partials/csp-actions);
+                    // CSP_ALLOW_INLINE_HANDLERS=true hanya untuk rollback darurat.
+                    'allow_inline_handlers' => (bool) config('security.csp_allow_inline_handlers', false),
+                    // Konten CMS boleh memuat <img> https dari host mana pun (HtmlSanitizer).
+                    // Default: hanya host yang dikenal + CSP_EXTRA_IMG_SRC.
+                    'img_allow_any_https'   => (bool) config('security.csp_img_allow_any_https', false),
+                    'extra_img'             => config('security.csp_extra_img_src'),
+                    'extra_connect'         => config('security.csp_extra_connect_src'),
+                ],
+            );
         }
 
         // HSTS hanya bermakna (dan hanya dikirim) lewat HTTPS.
@@ -62,5 +61,29 @@ class SecurityHeaders
         }
 
         return $response;
+    }
+
+    /**
+     * Integrasi pihak ketiga yang sedang aktif, dibaca dengan syarat yang sama
+     * seperti di view (head.blade.php, livechat.blade.php). Setting di-cache,
+     * jadi murah; kalau database belum siap (instalasi awal) hasilnya kosong.
+     *
+     * @return array{ga: bool, gtm: bool, fb_pixel: bool, livechat: string|null}
+     */
+    private function activeIntegrations(): array
+    {
+        try {
+            $provider = (string) Setting::get('livechat_provider', 'none');
+            $hasChatId = filled(Setting::get('livechat_property_id'));
+
+            return [
+                'ga'       => filled(Setting::get('ga_measurement_id')),
+                'gtm'      => filled(Setting::get('gtm_container_id')),
+                'fb_pixel' => filled(Setting::get('fb_pixel_id')),
+                'livechat' => $hasChatId && in_array($provider, ['tawkto', 'crisp'], true) ? $provider : null,
+            ];
+        } catch (\Throwable) {
+            return ['ga' => false, 'gtm' => false, 'fb_pixel' => false, 'livechat' => null];
+        }
     }
 }

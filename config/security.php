@@ -16,6 +16,15 @@ return [
     // true = izinkan lagi (script-src-attr 'unsafe-inline'); hanya untuk darurat/rollback.
     'csp_allow_inline_handlers' => env('CSP_ALLOW_INLINE_HANDLERS', false),
 
+    // connect-src/img-src tidak lagi membuka "https:" untuk semua host. Host pihak
+    // ketiga (GA/GTM, Facebook Pixel, tawk.to/Crisp) masuk otomatis saat integrasinya aktif.
+    // Host lain dipisah koma, contoh: https://images.example.com,https://*.cdn.example.net
+    'csp_extra_img_src' => env('CSP_EXTRA_IMG_SRC', ''),
+    'csp_extra_connect_src' => env('CSP_EXTRA_CONNECT_SRC', ''),
+    // Darurat/rollback: true = img-src kembali mengizinkan https: dari host mana pun
+    // (mis. konten CMS memuat banyak gambar eksternal).
+    'csp_img_allow_any_https' => env('CSP_IMG_ALLOW_ANY_HTTPS', false),
+
     /*
     |--------------------------------------------------------------------------
     | Backup signing key

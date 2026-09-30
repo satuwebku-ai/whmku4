@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\Tld;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -36,6 +37,7 @@ class CouponController extends Controller
             'coupon' => new Coupon(),
             'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
+            'tlds' => Tld::where('is_active', true)->orderBy('extension')->get(),
         ]);
     }
 
@@ -43,6 +45,7 @@ class CouponController extends Controller
     {
         $data = $this->validated($request);
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['is_public'] = $request->boolean('is_public');
 
         $coupon = Coupon::create($data);
         $this->syncScope($request, $coupon);
@@ -58,6 +61,7 @@ class CouponController extends Controller
             'coupon' => $coupon,
             'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
+            'tlds' => Tld::where('is_active', true)->orderBy('extension')->get(),
         ]);
     }
 
@@ -65,6 +69,7 @@ class CouponController extends Controller
     {
         $data = $this->validated($request, $coupon->id);
         $data['is_active'] = $request->boolean('is_active');
+        $data['is_public'] = $request->boolean('is_public');
 
         $coupon->update($data);
         $this->syncScope($request, $coupon);
@@ -121,6 +126,10 @@ class CouponController extends Controller
             'product_ids.*'           => ['exists:products,id'],
             'category_ids'            => ['nullable', 'array'],
             'category_ids.*'          => ['exists:product_groups,id'],
+            'tld_ids'                 => ['nullable', 'array'],
+            'tld_ids.*'               => ['integer', 'exists:tlds,id'],
+            'title'                   => ['nullable', 'string', 'max:120'],
+            'description'             => ['nullable', 'string', 'max:600'],
             'min_order'               => ['nullable', 'numeric', 'min:0'],
             'max_discount'            => ['nullable', 'numeric', 'min:0'],
             'usage_limit'             => ['nullable', 'integer', 'min:1'],
@@ -132,11 +141,17 @@ class CouponController extends Controller
             'value.min' => 'Nilai kupon harus lebih dari 0.',
         ]);
 
-        if ($data['applies_to'] === 'specific' && empty($data['product_ids']) && empty($data['category_ids'])) {
+        if ($data['applies_to'] === 'specific' && empty($data['product_ids']) && empty($data['category_ids']) && empty($data['tld_ids'])) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'scope' => 'Pilih minimal satu kategori atau produk untuk kupon "Produk Tertentu".',
+                'scope' => 'Pilih minimal satu kategori, produk, atau ekstensi domain untuk kupon "Tertentu".',
             ]);
         }
+
+        // Pilihan TLD hanya berarti untuk kupon "Tertentu"; bila tidak, kosongkan
+        // supaya tidak ada sisa pilihan lama yang mengambang.
+        $data['tld_ids'] = ($data['applies_to'] === 'specific' && ! empty($data['tld_ids']))
+            ? array_values(array_unique(array_map('intval', $data['tld_ids'])))
+            : null;
 
         // product_ids/category_ids bukan kolom di tabel coupons — disimpan
         // terpisah lewat syncScope() ke tabel pivot, bukan ikut mass-assign.

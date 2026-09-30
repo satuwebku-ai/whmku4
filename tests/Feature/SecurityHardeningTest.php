@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Admin;
+use App\Models\Setting;
+use App\Support\CspPolicy;
 use App\Support\UrlGuard;
 use Database\Seeders\AdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -128,6 +130,179 @@ class SecurityHardeningTest extends TestCase
 
         $partial = file_get_contents(resource_path('views/partials/csp-actions.blade.php'));
         $this->assertStringNotContainsString("'[data-confirm]'", $partial);
+    }
+
+    public function test_csp_connect_and_img_src_do_not_allow_any_https_host_by_default(): void
+    {
+        $csp = $this->cspFor('/admin/login');
+
+        $this->assertSame("connect-src 'self'", $this->cspDirective($csp, 'connect-src'));
+
+        foreach (['connect-src', 'img-src'] as $name) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/(^|\s)(https?|wss?):(\s|$)/',
+                $this->cspDirective($csp, $name),
+                "{$name} masih membuka skema bebas",
+            );
+        }
+
+        $this->assertSame("img-src 'self' data: blob:", $this->cspDirective($csp, 'img-src'));
+        $this->assertStringNotContainsString('wss:', $csp);
+        $this->assertDoesNotMatchRegularExpression('/googletagmanager|facebook|tawk|crisp/', $csp);
+    }
+
+    public function test_csp_adds_third_party_hosts_only_when_the_integration_is_enabled(): void
+    {
+        Setting::put('ga_measurement_id', 'G-TEST12345');
+        Setting::put('fb_pixel_id', '123456789');
+        Setting::put('livechat_provider', 'tawkto');
+        Setting::put('livechat_property_id', 'abc123/default');
+
+        $csp = $this->cspFor('/admin/login');
+
+        $this->assertStringContainsString('https://www.googletagmanager.com', $this->cspDirective($csp, 'script-src'));
+        $this->assertStringContainsString('https://connect.facebook.net', $this->cspDirective($csp, 'script-src'));
+        $this->assertStringContainsString('https://embed.tawk.to', $this->cspDirective($csp, 'script-src'));
+        $this->assertStringContainsString('https://*.google-analytics.com', $this->cspDirective($csp, 'connect-src'));
+        $this->assertStringContainsString('wss://*.tawk.to', $this->cspDirective($csp, 'connect-src'));
+        $this->assertStringContainsString('https://www.facebook.com', $this->cspDirective($csp, 'img-src'));
+        $this->assertStringNotContainsString('crisp', $csp);
+    }
+
+    public function test_csp_livechat_hosts_need_a_property_id_like_the_view_does(): void
+    {
+        Setting::put('livechat_provider', 'crisp'); // tanpa property id: widget tidak dirender
+
+        $this->assertStringNotContainsString('crisp', $this->cspFor('/admin/login'));
+
+        Setting::put('livechat_property_id', 'site-id');
+
+        $this->assertStringContainsString('wss://*.crisp.chat', $this->cspDirective($this->cspFor('/admin/login'), 'connect-src'));
+    }
+
+    public function test_csp_extra_hosts_are_configurable_and_cannot_inject_directives(): void
+    {
+        config([
+            'security.csp_extra_img_src' => 'https://images.example.com, https://*.cdn.example.net',
+            'security.csp_extra_connect_src' => "https://api.example.com; script-src *\nhttps://ok.example.com",
+        ]);
+
+        $csp = $this->cspFor('/admin/login');
+
+        $this->assertStringContainsString('https://images.example.com', $this->cspDirective($csp, 'img-src'));
+        $this->assertStringContainsString('https://*.cdn.example.net', $this->cspDirective($csp, 'img-src'));
+        $this->assertStringContainsString('https://ok.example.com', $this->cspDirective($csp, 'connect-src'));
+        $this->assertStringNotContainsString('script-src *', $csp);
+        $this->assertSame(1, substr_count($csp, 'script-src '));
+
+        config(['security.csp_img_allow_any_https' => true]);
+        $this->assertMatchesRegularExpression('/(^|\s)https:(\s|$)/', $this->cspDirective($this->cspFor('/admin/login'), 'img-src'));
+    }
+
+    public function test_every_external_script_and_stylesheet_host_in_views_is_allowed_by_the_csp(): void
+    {
+        $scriptHosts = [];
+        $styleHosts = [];
+
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(resource_path('views')));
+        foreach ($iterator as $file) {
+            if (! $file->isFile() || ! str_ends_with($file->getFilename(), '.blade.php')) {
+                continue;
+            }
+            $source = file_get_contents($file->getPathname());
+
+            foreach ([
+                '#<script\b[^>]*\ssrc=["\']https://([A-Za-z0-9.-]+)#i',   // <script src="https://...">
+                '#\.src\s*=\s*["\']https://([A-Za-z0-9.-]+)#i',           // s.src = 'https://...'
+                '#["\']https://([A-Za-z0-9.-]+)/[^"\'\s]*(?:\.js|/js)\b#i', // URL skrip yang dilempar sebagai argumen
+            ] as $pattern) {
+                preg_match_all($pattern, $source, $m);
+                array_push($scriptHosts, ...$m[1]);
+            }
+
+            preg_match_all('#<link\b[^>]*>#i', $source, $links);
+            foreach ($links[0] as $link) {
+                if (preg_match('#rel=["\']stylesheet["\']#i', $link) && preg_match('#href=["\']https://([A-Za-z0-9.-]+)#i', $link, $h)) {
+                    $styleHosts[] = $h[1];
+                }
+            }
+        }
+
+        $scriptHosts = array_values(array_unique($scriptHosts));
+        $styleHosts = array_values(array_unique($styleHosts));
+        $this->assertNotEmpty($scriptHosts);
+        $this->assertNotEmpty($styleHosts);
+
+        // Semua integrasi aktif; tawk.to dan Crisp tidak bisa aktif bersamaan, jadi digabung.
+        $all = ['ga' => true, 'gtm' => true, 'fb_pixel' => true];
+        $policies = implode('; ', [
+            CspPolicy::build('n', $all + ['livechat' => 'tawkto']),
+            CspPolicy::build('n', $all + ['livechat' => 'crisp']),
+        ]);
+        $scriptSrc = $this->allDirectives($policies, 'script-src');
+        $styleSrc = $this->allDirectives($policies, 'style-src');
+
+        foreach ($scriptHosts as $host) {
+            $this->assertTrue($this->hostMatches($host, $scriptSrc), "Host skrip {$host} dipakai di view tapi tidak ada di script-src");
+        }
+        foreach ($styleHosts as $host) {
+            $this->assertTrue($this->hostMatches($host, $styleSrc), "Host stylesheet {$host} dipakai di view tapi tidak ada di style-src");
+        }
+    }
+
+    public function test_browser_side_fetch_calls_only_target_the_application_itself(): void
+    {
+        // connect-src hanya 'self'; fetch ke host luar akan diblokir saat CSP diberlakukan.
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(resource_path('views')));
+        foreach ($iterator as $file) {
+            if (! $file->isFile() || ! str_ends_with($file->getFilename(), '.blade.php')) {
+                continue;
+            }
+            $this->assertDoesNotMatchRegularExpression(
+                '#\b(?:fetch|axios\.[a-z]+)\s*\(\s*[\'"`](?:https?:)?//#i',
+                file_get_contents($file->getPathname()),
+                "{$file->getPathname()} memanggil fetch/axios ke host eksternal",
+            );
+        }
+    }
+
+    private function cspFor(string $path): string
+    {
+        return (string) $this->get($path)->headers->get('Content-Security-Policy-Report-Only');
+    }
+
+    private function cspDirective(string $csp, string $name): string
+    {
+        foreach (explode('; ', $csp) as $directive) {
+            if ($directive === $name || str_starts_with($directive, $name.' ')) {
+                return $directive;
+            }
+        }
+
+        return '';
+    }
+
+    private function allDirectives(string $csp, string $name): string
+    {
+        return implode(' ', array_filter(array_map(
+            fn (string $d) => str_starts_with($d, $name.' ') ? $d : '',
+            explode('; ', $csp),
+        )));
+    }
+
+    private function hostMatches(string $host, string $directiveValue): bool
+    {
+        foreach (preg_split('/\s+/', $directiveValue) as $token) {
+            if (! str_starts_with($token, 'https://')) {
+                continue;
+            }
+            $allowed = substr($token, strlen('https://'));
+            if ($allowed === $host || (str_starts_with($allowed, '*.') && str_ends_with($host, substr($allowed, 1)))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function test_csp_report_endpoint_accepts_browser_reports(): void

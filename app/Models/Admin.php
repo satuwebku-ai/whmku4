@@ -243,8 +243,8 @@ class Admin extends Authenticatable
             return asset('storage/' . $this->avatar);
         }
 
-        // Fallback: avatar inisial via ui-avatars
-        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=6366F1&color=fff';
+        // Fallback: avatar inisial (SVG lokal, tanpa layanan pihak ketiga)
+        return \App\Support\InitialsAvatar::dataUri((string) $this->name);
     }
 
     /**

@@ -5,6 +5,7 @@ use App\Http\Controllers\Site\CartController;
 use App\Http\Controllers\Site\CatalogController;
 use App\Http\Controllers\Site\DomainSearchController;
 use App\Http\Controllers\Site\PremiumDomainController;
+use App\Http\Controllers\Site\PromoController;
 use App\Http\Controllers\Site\ChatController as SiteChatController;
 use App\Http\Controllers\Site\PageController as SitePageController;
 use Illuminate\Support\Facades\Route;
@@ -62,6 +63,9 @@ Route::controller(DomainSearchController::class)->group(function () {
     Route::get('transfer-domain', 'transferFormBootstrap')->name('domains.transfer');
     Route::post('transfer-domain', 'submitTransfer')->name('domains.transfer.submit');
 });
+
+// Halaman Promo publik (kupon yang ditandai publik + banner halaman "promo").
+Route::get('promo', [PromoController::class, 'index'])->name('promo.index');
 
 // Domain Premium: keluarga .id (harga tetap per karakter, sumber
 // harga dari tabel tld_premiums yang diisi admin -- lihat

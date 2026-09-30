@@ -6,18 +6,32 @@
         <h1 class="display-4 mb-3">{{ $tagline }}</h1>
         <p class="lead mb-4">Hosting SSD NVMe, SSL gratis, dan aktivasi otomatis. Cek nama domain Anda sekarang.</p>
 
-        <form method="GET" action="{{ route('domain.search') }}" class="domain-box d-flex flex-wrap flex-sm-nowrap gap-2" role="search">
+        <form id="heroDomainForm" method="GET" action="{{ route('domain.search') }}" class="domain-box d-flex flex-wrap flex-sm-nowrap gap-2" role="search">
           <label for="heroDomain" class="visually-hidden">Nama domain</label>
           <input id="heroDomain" name="domain" value="{{ request('domain') }}" class="form-control form-control-lg" placeholder="contoh: tokosaya" autocomplete="off" required>
           <button type="submit" class="btn btn-primary btn-lg px-4">Cek domain</button>
         </form>
 
         @if ($popularTlds->isNotEmpty())
-          <p class="small mt-3 mb-3 text-white-50">
-            @foreach ($popularTlds as $tld)
-              {{ $tld->extension }} Rp{{ number_format($tld->register_price, 0, ',', '.') }}/thn @if (! $loop->last) &nbsp;|&nbsp; @endif
-            @endforeach
-          </p>
+          <fieldset class="tld-picks mt-3 mb-2">
+            <legend class="tld-picks-label">
+              Pilih ekstensi <span data-tld-count aria-live="polite">(opsional)</span>
+            </legend>
+            <div class="d-flex flex-wrap gap-2">
+              @foreach ($popularTlds as $tld)
+                @php $canPick = $tld->show_in_search; @endphp
+                <label class="tld-chip {{ $canPick ? '' : 'is-static' }}">
+                  @if ($canPick)
+                    <input type="checkbox" name="extensions[]" value="{{ $tld->extension }}" form="heroDomainForm" @checked(in_array($tld->extension, (array) request('extensions', []), true))>
+                  @endif
+                  <span class="tld-chip-body">
+                    <strong>{{ $tld->extension }}</strong>
+                    <small>Rp{{ number_format($tld->register_price, 0, ',', '.') }}<span class="opacity-75">/thn</span></small>
+                  </span>
+                </label>
+              @endforeach
+            </div>
+          </fieldset>
         @endif
 
         <ul class="list-inline mb-0 mt-3">
@@ -73,14 +87,41 @@
       <div class="row g-4">
         <div class="col-lg-7">
           <div class="card h-100"><div class="card-body p-0">
+            @php $durations = $popularTlds->flatMap(fn ($t) => array_keys($t->durationOptions()))->unique()->sort()->values(); @endphp
+            @if ($durations->count() > 1)
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-4 py-3 border-bottom">
+                <span class="fw-semibold small">Lama registrasi</span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Pilih lama registrasi" data-duration-group>
+                  @foreach ($durations as $y)
+                    <input type="radio" class="btn-check" name="tldDuration" id="tldDur{{ $y }}" value="{{ $y }}" autocomplete="off" @checked($loop->first)>
+                    <label class="btn btn-outline-primary" for="tldDur{{ $y }}">{{ $y }} tahun</label>
+                  @endforeach
+                </div>
+              </div>
+            @endif
             <div class="table-responsive">
-              <table class="table align-middle mb-0">
-                <thead><tr><th class="ps-4">Ekstensi</th><th class="text-end pe-4">Harga / tahun</th></tr></thead>
+              <table class="table align-middle mb-0 tld-table">
+                <thead><tr><th class="ps-4">Ekstensi</th><th class="text-end">Harga</th><th class="text-end pe-4"><span class="visually-hidden">Aksi</span></th></tr></thead>
                 <tbody>
                   @foreach ($popularTlds as $tld)
-                    <tr>
+                    @php
+                      $opts = $tld->durationOptions();
+                      $first = $opts ? reset($opts) : null;
+                    @endphp
+                    <tr data-tld-row data-options="{{ json_encode($opts) }}">
                       <td class="ps-4 fw-bold">{{ $tld->extension }}</td>
-                      <td class="text-end pe-4">Rp {{ number_format($tld->register_price, 0, ',', '.') }}</td>
+                      <td class="text-end">
+                        <div class="fw-semibold" data-price>Rp {{ number_format($first['price'] ?? $tld->register_price, 0, ',', '.') }}</div>
+                        <div class="small text-body-secondary" data-sub>
+                          @if ($first && $first['saving'] > 0)<s>Rp {{ number_format($first['linear'], 0, ',', '.') }}</s>@endif
+                        </div>
+                        <span class="badge text-bg-success {{ $first && $first['saving'] > 0 ? '' : 'd-none' }}" data-save>
+                          @if ($first && $first['saving'] > 0)Hemat {{ $first['percent'] }}%@endif
+                        </span>
+                      </td>
+                      <td class="text-end pe-4">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ route('domain.search', $tld->show_in_search ? ['extensions' => [$tld->extension]] : []) }}" aria-label="Pilih {{ $tld->extension }}">Pilih</a>
+                      </td>
                     </tr>
                   @endforeach
                 </tbody>
@@ -106,6 +147,54 @@
 @endif
 
 <script @nonce>
+  // Pilih ekstensi (chip di hero) + durasi/hemat di tabel harga.
+  (function () {
+    var fmt = function (n) { return 'Rp ' + Math.round(n).toLocaleString('id-ID'); };
+
+    var boxes = document.querySelectorAll('input[name="extensions[]"][form="heroDomainForm"]');
+    var counter = document.querySelector('[data-tld-count]');
+    function updateCount() {
+      if (!counter) return;
+      var n = 0;
+      boxes.forEach(function (b) { if (b.checked) n++; });
+      counter.textContent = n ? '(' + n + ' dipilih)' : '(opsional)';
+    }
+    boxes.forEach(function (b) { b.addEventListener('change', updateCount); });
+    updateCount();
+
+    var group = document.querySelector('[data-duration-group]');
+    var rows = document.querySelectorAll('[data-tld-row]');
+    if (!group || !rows.length) return;
+
+    function render(years) {
+      rows.forEach(function (row) {
+        var opts;
+        try { opts = JSON.parse(row.dataset.options || '{}'); } catch (e) { return; }
+        var o = opts[years];
+        var price = row.querySelector('[data-price]');
+        var sub = row.querySelector('[data-sub]');
+        var save = row.querySelector('[data-save]');
+        sub.textContent = '';
+        save.textContent = '';
+        save.classList.add('d-none');
+        if (!o) { price.textContent = '—'; return; }
+        price.textContent = fmt(o.price);
+        if (o.saving > 0) {
+          var old = document.createElement('s');
+          old.textContent = fmt(o.linear);
+          sub.appendChild(old);
+          save.textContent = 'Hemat ' + o.percent + '%';
+          save.classList.remove('d-none');
+        } else if (years > 1) {
+          sub.textContent = fmt(o.price / years) + '/thn';
+        }
+      });
+    }
+    group.addEventListener('change', function (e) {
+      if (e.target && e.target.name === 'tldDuration') render(e.target.value);
+    });
+  })();
+
   (function () {
     var els = document.querySelectorAll('[data-count]');
     if (!('IntersectionObserver' in window) || !els.length) return;

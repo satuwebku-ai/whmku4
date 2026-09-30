@@ -12,9 +12,10 @@ class Coupon extends Model
     use HasFactory;
 
     protected $fillable = [
-        'code', 'type', 'value', 'min_order', 'max_discount', 'applies_to',
+        'code', 'type', 'value', 'min_order', 'max_discount', 'applies_to', 'tld_ids',
         'usage_limit', 'usage_count', 'usage_limit_per_client',
         'starts_at', 'expires_at', 'is_active',
+        'title', 'description', 'is_public',
     ];
 
     protected function casts(): array
@@ -26,6 +27,8 @@ class Coupon extends Model
             'starts_at' => 'date',
             'expires_at' => 'date',
             'is_active' => 'boolean',
+            'is_public' => 'boolean',
+            'tld_ids' => 'array',
         ];
     }
 
@@ -59,12 +62,52 @@ class Coupon extends Model
     }
 
     /**
+     * TLD sasaran kupon "Tertentu" (kolom JSON tld_ids, bukan tabel pivot baru).
+     * TLD yang sudah dihapus otomatis tidak ikut.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Tld>
+     */
+    public function tlds(): \Illuminate\Database\Eloquent\Collection
+    {
+        $ids = array_values(array_filter((array) $this->tld_ids));
+
+        return $ids === [] ? new \Illuminate\Database\Eloquent\Collection() : Tld::whereIn('id', $ids)->orderBy('extension')->get();
+    }
+
+    public function targetsTlds(): bool
+    {
+        return $this->applies_to === 'specific' && ! empty($this->tld_ids);
+    }
+
+    /**
+     * Kupon yang ditayangkan di halaman Promo publik: aktif, dalam rentang
+     * tanggal, dan belum habis kuotanya. Kodenya tetap harus dimasukkan
+     * pelanggan di checkout -- tidak pernah diterapkan otomatis.
+     */
+    public function scopePublicPromo($query)
+    {
+        return $query->where('is_public', true)
+            ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('starts_at')->orWhereDate('starts_at', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()))
+            ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'));
+    }
+
+    /** Sisa kuota (null = tanpa batas). */
+    public function remainingQuota(): ?int
+    {
+        return $this->usage_limit === null ? null : max((int) $this->usage_limit - (int) $this->usage_count, 0);
+    }
+
+    /**
      * Jumlah dari isi keranjang yang BENAR-BENAR jadi sasaran kupon ini
      * — bukan seluruh subtotal keranjang. Kupon "all" tetap menghitung
      * semuanya (perilaku lama, tidak berubah); kupon "specific" cuma
      * menjumlahkan item produk yang cocok (lewat produk itu sendiri ATAU
-     * kategorinya), dan mengabaikan sisanya — misal registrasi domain di
-     * keranjang yang sama tetap dihitung penuh, tidak ikut didiskon.
+     * kategorinya) dan registrasi domain yang TLD-nya dipilih admin
+     * (hanya harga registrasinya, bukan add-on ID Protection; transfer tidak
+     * ikut), dan mengabaikan sisanya — registrasi domain di luar TLD pilihan
+     * tetap dihitung penuh, tidak ikut didiskon.
      *
      * @param  array<int, array<string, mixed>>  $cartItems  hasil CartService::items()
      */
@@ -77,11 +120,22 @@ class Coupon extends Model
         $productIds = $this->products()->pluck('products.id')->all();
         $categoryIds = $this->categories()->pluck('product_groups.id')->all();
 
+        $tldIds = array_map('intval', array_filter((array) $this->tld_ids));
+
         $eligible = 0.0;
 
         foreach ($cartItems as $item) {
+            if (($item['type'] ?? null) === 'domain') {
+                // Domain hanya ikut bila TLD-nya dipilih admin, dan hanya untuk registrasi baru.
+                if (in_array((int) ($item['tld_id'] ?? 0), $tldIds, true) && ($item['domain_mode'] ?? 'register') !== 'transfer') {
+                    $eligible += (float) ($item['base_price'] ?? $item['price'] ?? 0);
+                }
+
+                continue;
+            }
+
             if (($item['type'] ?? null) !== 'product') {
-                continue; // registrasi domain berdiri sendiri tidak pernah ikut didiskon kupon produk
+                continue;
             }
 
             $productId = $item['product_id'] ?? null;
@@ -125,7 +179,7 @@ class Coupon extends Model
         }
 
         if ($this->applies_to === 'specific' && $subtotal <= 0) {
-            return 'Kupon ini tidak berlaku untuk produk yang ada di keranjang Anda.';
+            return 'Kupon ini tidak berlaku untuk produk atau domain yang ada di keranjang Anda.';
         }
 
         if ($subtotal < (float) $this->min_order) {

@@ -137,6 +137,21 @@ class Tld extends Model
     }
 
     /**
+     * Pilihan durasi (1/2/3/5 tahun) untuk ditampilkan di halaman publik,
+     * lengkap dengan hemat bila ada harga khusus multi-tahun.
+     *
+     * @return array<int, array{price: float, linear: float, saving: float, percent: int}>
+     */
+    public function durationOptions(): array
+    {
+        return \App\Support\TldDurations::build(
+            fn (int $years) => $this->priceForYears($years),
+            (int) $this->min_years,
+            (int) $this->max_years,
+        );
+    }
+
+    /**
      * Apakah durasi ini punya harga khusus (bukan hasil kali linier)?
      */
     public function hasYearOverride(int $years, string $type = 'register'): bool
