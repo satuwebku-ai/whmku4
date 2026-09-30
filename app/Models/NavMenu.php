@@ -61,7 +61,9 @@ class NavMenu extends Model
         '#' => '# (Tanpa Tautan)',
         'home' => 'Beranda',
         'catalog.index' => 'Katalog Hosting',
+        'catalog.vps' => 'Katalog VPS / Cloud Server',
         'domain.search' => 'Cek Domain',
+        'domains.transfer' => 'Transfer Domain',
         'domain-premium.index' => 'Domain Premium',
         'license.index' => 'Lisensi',
         'promo.index' => 'Promo & Diskon',
@@ -77,7 +79,9 @@ class NavMenu extends Model
         '#' => ['bi-link-45deg', 'Tanpa tautan', 'fa-link'],
         'home' => ['bi-house-door', 'Kembali ke beranda', 'fa-house'],
         'catalog.index' => ['bi-hdd-rack', 'Lihat semua paket server', 'fa-server'],
+        'catalog.vps' => ['bi-cloud', 'Cloud server dan VPS', 'fa-cloud'],
         'domain.search' => ['bi-globe2', 'Cari dan daftarkan domain', 'fa-globe'],
+        'domains.transfer' => ['bi-arrow-left-right', 'Pindahkan domain ke sini', 'fa-right-left'],
         'domain-premium.index' => ['bi-gem', 'Nama domain pilihan', 'fa-gem'],
         'license.index' => ['bi-key', 'Lisensi software resmi', 'fa-key'],
         'promo.index' => ['bi-tag', 'Kode promo dan diskon terbaru', 'fa-tags'],
@@ -223,6 +227,8 @@ class NavMenu extends Model
         return match ($this->type) {
             'route' => match ($this->route_name) {
                 'catalog.index' => 'catalog.*',
+                'catalog.vps' => 'catalog.vps',
+                'domains.transfer' => 'domains.*',
                 'domain.search' => 'domain.*',
                 'domain-premium.index' => 'domain-premium.*',
                 'license.index' => 'license.*',
