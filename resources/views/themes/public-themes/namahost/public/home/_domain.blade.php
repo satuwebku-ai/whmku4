@@ -87,6 +87,10 @@
       <div class="row g-4">
         <div class="col-lg-7">
           <div class="card h-100"><div class="card-body p-0">
+            @php
+              $tldPromos = $tldPromos ?? [];
+              $hasTldPromo = $popularTlds->contains(fn ($t) => isset($tldPromos[$t->id]));
+            @endphp
             @php $durations = $popularTlds->flatMap(fn ($t) => array_keys($t->durationOptions()))->unique()->sort()->values(); @endphp
             @if ($durations->count() > 1)
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-4 py-3 border-bottom">
@@ -101,7 +105,7 @@
             @endif
             <div class="table-responsive">
               <table class="table align-middle mb-0 tld-table">
-                <thead><tr><th class="ps-4">Ekstensi</th><th class="text-end">Harga</th><th class="text-end pe-4"><span class="visually-hidden">Aksi</span></th></tr></thead>
+                <thead><tr><th class="ps-4">Ekstensi</th><th class="text-end">Harga</th>@if ($hasTldPromo)<th>Promo</th>@endif<th class="text-end pe-4"><span class="visually-hidden">Aksi</span></th></tr></thead>
                 <tbody>
                   @foreach ($popularTlds as $tld)
                     @php
@@ -119,6 +123,21 @@
                           @if ($first && $first['saving'] > 0)Hemat {{ $first['percent'] }}%@endif
                         </span>
                       </td>
+                      @if ($hasTldPromo)
+                        @php $promo = $tldPromos[$tld->id] ?? null; @endphp
+                        <td class="small">
+                          @if ($promo)
+                            <span class="badge text-bg-danger">Diskon {{ $promo['label'] }}</span>
+                            <div class="mt-1">Kode <code class="fw-bold">{{ $promo['code'] }}</code></div>
+                            <div class="text-body-secondary">
+                              jadi <strong class="text-success">Rp {{ number_format($promo['after'], 0, ',', '.') }}</strong> ({{ $promo['years'] }} thn)
+                              @if ($promo['ends'])<br>s/d {{ $promo['ends'] }}@endif
+                            </div>
+                          @else
+                            <span class="text-body-secondary">—</span>
+                          @endif
+                        </td>
+                      @endif
                       <td class="text-end pe-4">
                         <a class="btn btn-sm btn-outline-primary" href="{{ route('domain.search', $tld->show_in_search ? ['extensions' => [$tld->extension]] : []) }}" aria-label="Pilih {{ $tld->extension }}">Pilih</a>
                       </td>

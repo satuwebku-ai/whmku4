@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\Coupon;
 use App\Models\Tld;
 use Illuminate\View\View;
 
@@ -91,6 +92,11 @@ class CatalogController extends Controller
                 ->get();
         }
 
+        // Promo per-TLD untuk kolom "Promo" di tabel harga domain beranda:
+        // dari kupon yang ditayangkan di halaman Promo dan menyasar TLD
+        // tertentu. Bila ada beberapa, dipakai yang harganya paling murah.
+        $tldPromos = $this->homeTldPromos($popularTlds);
+
         $announcements = Announcement::live()
             ->orderByDesc('is_pinned')
             ->orderByDesc('published_at')
@@ -142,9 +148,64 @@ class CatalogController extends Controller
         $homeOrder = $order;
 
         return compact(
-            'categories', 'featured', 'vpsProducts', 'popularTlds',
+            'categories', 'featured', 'vpsProducts', 'popularTlds', 'tldPromos',
             'announcements', 'banners', 'homeSections', 'homeOrder'
         );
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Tld>  $tlds
+     * @return array<int, array{code: string, label: string, years: int, before: float, after: float, ends: ?string}>
+     */
+    private function homeTldPromos($tlds): array
+    {
+        $found = [];
+
+        try {
+            foreach (Coupon::publicPromo()->get() as $coupon) {
+                if (! $coupon->targetsTlds()) {
+                    continue;
+                }
+
+                $targets = array_map('intval', (array) $coupon->tld_ids);
+
+                foreach ($tlds as $tld) {
+                    if (! in_array((int) $tld->id, $targets, true)) {
+                        continue;
+                    }
+
+                    $years  = max((int) $tld->min_years, 1);
+                    $before = (float) $tld->priceForYears($years);
+
+                    if ($before <= 0 || $before < (float) $coupon->min_order) {
+                        continue;
+                    }
+
+                    $after = $before - $coupon->calculateDiscount($before);
+
+                    if (isset($found[$tld->id]) && $found[$tld->id]['after'] <= $after) {
+                        continue;
+                    }
+
+                    $found[$tld->id] = [
+                        'code'   => $coupon->code,
+                        'label'  => $coupon->value_label,
+                        'years'  => $years,
+                        'before' => $before,
+                        'after'  => $after,
+                        'ends'   => $coupon->expires_at?->format('d M Y'),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Promo hanyalah pemanis; beranda tidak boleh gagal karenanya
+            // (mis. kolom kupon baru belum dimigrasi).
+            report($e);
+
+            return [];
+        }
+
+        return $found;
     }
 
     public function indexBootstrap(): View
