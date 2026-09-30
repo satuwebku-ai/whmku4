@@ -137,15 +137,6 @@ class Tld extends Model
     }
 
     /**
-     * Harga per tahun untuk durasi tertentu — dipakai menampilkan
-     * "Rp x/tahun" saat pelanggan memilih durasi panjang.
-     */
-    public function pricePerYear(int $years, string $type = 'register'): float
-    {
-        return $this->priceForYears($years, $type) / max($years, 1);
-    }
-
-    /**
      * Apakah durasi ini punya harga khusus (bukan hasil kali linier)?
      */
     public function hasYearOverride(int $years, string $type = 'register'): bool
@@ -156,48 +147,12 @@ class Tld extends Model
     }
 
     /**
-     * Harga MODAL untuk durasi tertentu -- versi cost_* dari
-     * priceForYears(), dipakai sebagai referensi di halaman TLD Pricing
-     * supaya admin tahu untung-ruginya per durasi sebelum menetapkan
-     * harga jual. Beda dari priceForYears(): kalau tidak ada data
-     * cost_year_prices untuk durasi itu, hasilnya null (bukan ditebak
-     * dari perkalian linier) -- karena modal itu FAKTA dari registrar,
-     * bukan sesuatu yang aman diasumsikan.
-     */
-    public function costForYears(int $years, string $type = 'register'): ?float
-    {
-        $overrides = match ($type) {
-            'renew' => $this->cost_year_renew_prices,
-            default => $this->cost_year_prices,
-        };
-
-        if (is_array($overrides) && isset($overrides[(string) $years]) && (float) $overrides[(string) $years] > 0) {
-            return (float) $overrides[(string) $years];
-        }
-
-        if ($years === 1) {
-            return match ($type) {
-                'renew' => $this->cost_renew > 0 ? (float) $this->cost_renew : null,
-                'transfer' => $this->cost_transfer > 0 ? (float) $this->cost_transfer : null,
-                default => $this->cost_register > 0 ? (float) $this->cost_register : null,
-            };
-        }
-
-        return null;
-    }
-
-    /**
      * Apakah harga modal sudah terisi? Markup hanya bisa dihitung
      * kalau nilai ini tersedia.
      */
     public function hasCost(): bool
     {
         return (float) $this->cost_register > 0;
-    }
-
-    public function hasSellingPrice(): bool
-    {
-        return (float) $this->register_price > 0;
     }
 
     /**

@@ -97,7 +97,7 @@
         <label class="form-label small fw-medium text-dark">Password {{ $admin->exists ? '(kosongkan jika tidak diganti)' : '' }}</label>
         <div class="d-flex gap-2">
           <input type="password" name="password" id="pwField" class="form-control form-control-sm" {{ $admin->exists ? '' : 'required' }} autocomplete="new-password">
-          <button type="button" onclick="lumoraGeneratePassword('pwField', 'pwConfirmField', 'pwChecklist')" class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
+          <button type="button" data-action="call" data-call="lumoraGeneratePassword" data-args='["pwField","pwConfirmField","pwChecklist"]' class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
             <i class="fa-solid fa-dice" style="font-size:11px"></i> Buatkan Otomatis
           </button>
         </div>
@@ -128,7 +128,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     /**
      * Dipakai bersama di beberapa form (Admin & Akses, Profil, Hosting
      * Account) -- satu-satunya tempat admin BENAR-BENAR membuat password
@@ -176,6 +176,7 @@
       lumoraRenderChecklist(pw, checklistId);
     }
 
+    (window.LumoraActions = window.LumoraActions || {}).lumoraGeneratePassword = lumoraGeneratePassword;
     document.addEventListener('DOMContentLoaded', () => {
       const pwField = document.getElementById('pwField');
       if (pwField) {

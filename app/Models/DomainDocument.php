@@ -158,8 +158,4 @@ class DomainDocument extends Model
         ];
     }
 
-    public static function requiresDocuments(string $extension): bool
-    {
-        return array_key_exists(ltrim($extension, '.'), static::requirements());
-    }
 }

@@ -11,10 +11,6 @@ use Illuminate\View\View;
 
 class PageController extends Controller
 {
-    public function pages(Request $request): View
-    {
-        return view('admin.pages.index', $this->indexData($request));
-    }
 
     public function pagesBootstrap(Request $request): View
     {
@@ -33,11 +29,6 @@ class PageController extends Controller
         return compact('pages');
     }
 
-    public function create(): View
-    {
-        return view('admin.pages.form', ['page' => new CmsPage()]);
-    }
-
     public function createBootstrap(): View
     {
         return view('admin.pages.form', ['page' => new CmsPage()]);
@@ -51,11 +42,6 @@ class PageController extends Controller
         CmsPage::create($data);
 
         return redirect()->route('admin.pages')->with('success', 'Halaman berhasil dibuat.');
-    }
-
-    public function edit(CmsPage $page): View
-    {
-        return view('admin.pages.form', compact('page'));
     }
 
     public function editBootstrap(CmsPage $page): View

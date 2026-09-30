@@ -42,11 +42,6 @@ class TicketReply extends Model
         return $this->hasMany(TicketAttachment::class);
     }
 
-    public function hasAttachments(): bool
-    {
-        return $this->attachments->isNotEmpty();
-    }
-
     public function isFromStaff(): bool
     {
         return ! is_null($this->admin_id);

@@ -69,7 +69,7 @@ class MigrationIntegrityTest extends TestCase
     {
         $ruleIndexes = collect(Schema::getIndexes('affiliate_commission_rules'))->pluck('name');
         $migration = file_get_contents(
-            database_path('migrations/2029_03_01_000008_create_affiliate_wallet_transactions_table.php')
+            database_path('migrations/2026_01_01_000052_create_affiliate_wallet_transactions_table.php')
         );
 
         $this->assertTrue($ruleIndexes->contains('aff_comm_rules_type_event_active_idx'));

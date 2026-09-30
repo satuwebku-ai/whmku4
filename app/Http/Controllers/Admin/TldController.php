@@ -33,8 +33,8 @@ class TldController extends Controller
      * Halaman TLD Pricing (BARU, terpisah dari index()/Status TLD) --
      * sekarang mengharuskan pilih registrar dulu sebelum tabel harga
      * muncul. Ini jadi wajib sejak satu ekstensi (mis. ".com") bisa
-     * dimiliki BEBERAPA registrar sekaligus (lihat migration
-     * 2027_06_01_..._make_tld_extension_unique_per_registrar) -- tanpa
+     * dimiliki BEBERAPA registrar sekaligus (unique per registrar
+     * didefinisikan di migrasi create_tlds_table) -- tanpa
      * pemilihan registrar, tabel gabungan bakal menampilkan beberapa
      * baris ".com" berdampingan tanpa konteks jelas yang mana punya
      * siapa.
@@ -186,38 +186,6 @@ class TldController extends Controller
             'inactive' => Tld::where('is_active', false)->count(),
             // Dipakai untuk memperingatkan bahwa markup tidak akan berpengaruh
             // pada TLD yang harga modalnya belum terisi.
-            'no_cost'  => Tld::where('cost_register', '<=', 0)->count(),
-            'shown'    => Tld::where('show_in_search', true)->count(),
-            'hidden'   => Tld::where('show_in_search', false)->count(),
-            'privacy_eligible' => Tld::where('whois_privacy_eligible', true)->count(),
-        ];
-
-        $registrars = Registrar::where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
-
-        $priceCompare = $this->priceComparison($tlds);
-
-        return view('admin.tlds.index', compact('tlds', 'counts', 'registrars', 'priceCompare'));
-    }
-
-    public function indexBootstrap(Request $request): View
-    {
-        $tlds = Tld::with('registrar')
-            ->when($request->search, fn ($q) => $q->where('extension', 'like', "%{$request->search}%"))
-            ->when($request->status === 'active', fn ($q) => $q->where('is_active', true))
-            ->when($request->status === 'inactive', fn ($q) => $q->where('is_active', false))
-            ->when($request->web === 'shown', fn ($q) => $q->where('show_in_search', true))
-            ->when($request->web === 'hidden', fn ($q) => $q->where('show_in_search', false))
-            ->when($request->registrar === 'none', fn ($q) => $q->whereNull('registrar_id'))
-            ->when($request->registrar && $request->registrar !== 'none', fn ($q) => $q->where('registrar_id', $request->registrar))
-            ->orderByDesc('is_active')
-            ->orderBy('extension')
-            ->paginate(min((int) $request->input('per_page', 25), 200))
-            ->withQueryString();
-
-        $counts = [
-            'all'      => Tld::count(),
-            'active'   => Tld::where('is_active', true)->count(),
-            'inactive' => Tld::where('is_active', false)->count(),
             'no_cost'  => Tld::where('cost_register', '<=', 0)->count(),
             'shown'    => Tld::where('show_in_search', true)->count(),
             'hidden'   => Tld::where('show_in_search', false)->count(),
@@ -1543,13 +1511,6 @@ class TldController extends Controller
         return view('admin.tlds.form', ['tld' => new Tld(), 'registrars' => $registrars]);
     }
 
-    public function createBootstrap(): View
-    {
-        $registrars = Registrar::where('is_active', true)->orderBy('name')->get();
-
-        return view('admin.tlds.form', ['tld' => new Tld(), 'registrars' => $registrars]);
-    }
-
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validated($request);
@@ -1568,13 +1529,6 @@ class TldController extends Controller
     }
 
     public function edit(Tld $tld): View
-    {
-        $registrars = Registrar::where('is_active', true)->orderBy('name')->get();
-
-        return view('admin.tlds.form', ['tld' => $tld, 'registrars' => $registrars]);
-    }
-
-    public function editBootstrap(Tld $tld): View
     {
         $registrars = Registrar::where('is_active', true)->orderBy('name')->get();
 

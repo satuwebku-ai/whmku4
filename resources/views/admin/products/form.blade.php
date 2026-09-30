@@ -61,7 +61,7 @@
             @error('slug') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
           </div>
 
-          <script>
+          <script @nonce>
             (function () {
               const name = document.getElementById('nameInput');
               const slug = document.getElementById('slugInput');
@@ -387,7 +387,7 @@
     </form>
   @endif
 
-  <script>
+  <script @nonce>
     (function () {
       const catSelect = document.getElementById('categorySelect');
       const serverSelect = document.getElementById('serverSelect');
@@ -565,7 +565,7 @@
     })();
   </script>
 
-  <script>
+  <script @nonce>
     (function () {
       const radios = document.querySelectorAll('[data-product-pricing-mode]');
       const markupBox = document.getElementById('productMarkupFields');

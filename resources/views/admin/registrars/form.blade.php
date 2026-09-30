@@ -141,7 +141,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const select        = document.getElementById('providerSelect');
       const fieldApiUrl   = document.getElementById('fieldApiUrl');

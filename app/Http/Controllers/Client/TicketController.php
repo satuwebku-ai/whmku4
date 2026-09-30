@@ -22,11 +22,6 @@ class TicketController extends Controller
         return view('client.tickets.index', $this->ticketsData($request));
     }
 
-    public function ticketsBootstrap(Request $request): View
-    {
-        return view('client.tickets.index', $this->ticketsData($request));
-    }
-
     private function ticketsData(Request $request): array
     {
         $tickets = Auth::guard('client')->user()
@@ -46,11 +41,6 @@ class TicketController extends Controller
         return view('client.tickets.show', $this->ticketData($ticket));
     }
 
-    public function ticketBootstrap(Ticket $ticket): View
-    {
-        return view('client.tickets.show', $this->ticketData($ticket));
-    }
-
     private function ticketData(Ticket $ticket): array
     {
         $this->authorizeOwner($ticket);
@@ -61,11 +51,6 @@ class TicketController extends Controller
     }
 
     public function create(): View
-    {
-        return view('client.tickets.create', $this->createData());
-    }
-
-    public function createBootstrap(): View
     {
         return view('client.tickets.create', $this->createData());
     }

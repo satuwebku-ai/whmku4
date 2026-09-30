@@ -12,84 +12,6 @@
     </p>
   </div>
 
-  {{-- ── Status setup aplikasi (sumber data sama dengan modal login) ── --}}
-  <div class="card border rounded-4 p-4 mb-4">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-      <div>
-        <h2 class="h6 fw-bold text-dark mb-1">Status Setup Aplikasi</h2>
-        <p class="small text-muted mb-0">
-          {{ $setup['done'] }} dari {{ $setup['total'] }} item sudah beres
-          @if ($setup['pending'] > 0)
-            — <span class="text-danger fw-medium">{{ $setup['pending'] }} belum</span>
-          @else
-            — <span class="text-success fw-medium">semua beres 🎉</span>
-          @endif
-        </p>
-      </div>
-      <div style="min-width:10rem">
-        <div class="progress" style="height:6px">
-          <div class="progress-bar {{ $setup['pending'] > 0 ? '' : 'bg-success' }}" style="width:{{ $setup['percent'] }}%"></div>
-        </div>
-        <div class="text-muted text-end" style="font-size:11px">{{ $setup['percent'] }}%</div>
-      </div>
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr class="small text-muted">
-            <th>Item</th>
-            <th style="width:7.5rem">Status</th>
-            <th>Keterangan</th>
-            <th class="text-end" style="width:11rem">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{-- Yang belum beres tampil paling atas --}}
-          @foreach (collect($setup['items'])->sortBy('complete')->values() as $item)
-            <tr>
-              <td>
-                <div class="fw-medium text-dark small">{{ $item['title'] }}</div>
-                <div class="text-muted" style="font-size:11px">{{ $item['description'] }}</div>
-              </td>
-              <td>
-                @if ($item['ok'])
-                  <span class="badge badge-soft-success">Beres</span>
-                @elseif ($item['skipped'])
-                  <span class="badge badge-soft-secondary">Dilewati</span>
-                @else
-                  <span class="badge badge-soft-danger">Belum</span>
-                @endif
-              </td>
-              <td class="small text-muted">{{ $item['detail'] ?? '—' }}</td>
-              <td class="text-end">
-                <div class="d-inline-flex gap-1">
-                  @if (! $item['ok'] && $item['url'])
-                    <a href="{{ $item['url'] }}" class="btn btn-outline-primary btn-sm">Buka</a>
-                  @endif
-
-                  @if ($item['skippable'] && ! $item['ok'])
-                    <form method="POST" action="{{ route('admin.setup-checklist.skip') }}">
-                      @csrf
-                      <input type="hidden" name="key" value="{{ $item['key'] }}">
-                      <input type="hidden" name="stay" value="1">
-                      @if ($item['skipped'])
-                        <input type="hidden" name="restore" value="1">
-                        <button class="btn btn-outline-secondary btn-sm">Batalkan lewati</button>
-                      @else
-                        <button class="btn btn-outline-secondary btn-sm">Lewati</button>
-                      @endif
-                    </form>
-                  @endif
-                </div>
-              </td>
-            </tr>
-          @endforeach
-        </tbody>
-      </table>
-    </div>
-  </div>
-
   @if (session('output'))
     <div class="card border rounded-4 p-3 mb-4" style="background:#0f172a;color:#e2e8f0;font-family:monospace;font-size:12px;white-space:pre-wrap;overflow-x:auto">{{ session('output') ?: '(tidak ada keluaran)' }}</div>
   @endif
@@ -130,7 +52,7 @@
     </form>
   </div>
 
-  <script>
+  <script @nonce>
     const descriptions = @json($commands);
     const dryRunCommands = @json($dryRunCommands);
 

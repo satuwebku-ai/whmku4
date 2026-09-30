@@ -20,19 +20,9 @@ class ServerController extends Controller
         return view('admin.servers.index', compact('servers'));
     }
 
-    public function indexBootstrap(): View
-    {
-        return $this->index();
-    }
-
     public function create(): View
     {
         return view('admin.servers.form', ['server' => new Server()]);
-    }
-
-    public function createBootstrap(): View
-    {
-        return $this->create();
     }
 
     public function store(Request $request): RedirectResponse
@@ -51,11 +41,6 @@ class ServerController extends Controller
     public function edit(Server $server): View
     {
         return view('admin.servers.form', compact('server'));
-    }
-
-    public function editBootstrap(Server $server): View
-    {
-        return $this->edit($server);
     }
 
     public function update(Request $request, Server $server): RedirectResponse

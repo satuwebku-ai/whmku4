@@ -970,33 +970,6 @@ class LiquidService implements DomainRegistrarInterface
     }
 
     /**
-     * Cari nilai harga dari beberapa kemungkinan nama field.
-     * Struktur harga Liqu.id bisa datar (`register`) atau bersarang
-     * (`register` => [`1` => 150000]) untuk harga per tahun.
-     */
-    protected function pickPrice(array $row, array $candidates): ?float
-    {
-        foreach ($candidates as $field) {
-            if (! array_key_exists($field, $row)) {
-                continue;
-            }
-
-            $value = $row[$field];
-
-            // Harga per durasi — ambil tahun ke-1.
-            if (is_array($value)) {
-                $value = $value[1] ?? $value['1'] ?? reset($value);
-            }
-
-            if (is_numeric($value)) {
-                return (float) $value;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Samakan format jadi berawalan titik: "com" → ".com"
      */
     protected function normalizeExtension(string $ext): string

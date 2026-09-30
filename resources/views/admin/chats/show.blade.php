@@ -125,7 +125,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const body   = document.getElementById('adminChatBody');
       const form   = document.getElementById('adminChatForm');

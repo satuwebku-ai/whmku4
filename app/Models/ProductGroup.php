@@ -12,6 +12,13 @@ class ProductGroup extends Model
 {
     use HasFactory;
 
+    /**
+     * Nama tabel dinyatakan eksplisit karena nama file migrasi historisnya
+     * masih menyebut product_categories, sementara tabel aktual adalah
+     * product_groups. Jangan mengganti nama migrasi pada database berjalan.
+     */
+    protected $table = 'product_groups';
+
     protected $fillable = ['name', 'slug', 'type', 'description', 'icon', 'is_active', 'sort_order'];
 
     /**
@@ -65,11 +72,8 @@ class ProductGroup extends Model
 
     public function products(): HasMany
     {
-        // FK disebut eksplisit -- kolomnya TETAP product_category_id
-        // (tidak ikut di-rename saat tabel product_categories jadi
-        // product_groups), jadi tidak boleh mengandalkan tebakan
-        // otomatis Eloquent dari nama class (yang sekarang akan
-        // menebak product_group_id dan salah).
+        // Nama FK lama dipertahankan agar kompatibel dengan data dan relasi
+        // produk yang sudah berjalan.
         return $this->hasMany(Product::class, 'product_category_id');
     }
 

@@ -2,7 +2,6 @@
 
 namespace App\Services\Vps\Contracts;
 
-use App\Models\Server;
 
 interface VpsProviderInterface
 {

@@ -11,15 +11,6 @@ use Illuminate\View\View;
 
 class PaymentGatewayController extends Controller
 {
-    public function gateways(): View
-    {
-        $gateways = PaymentGateway::withCount('payments')
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->paginate(15);
-
-        return view('admin.gateways.index', compact('gateways'));
-    }
 
     public function gatewaysBootstrap(): View
     {
@@ -29,14 +20,6 @@ class PaymentGatewayController extends Controller
             ->paginate(15);
 
         return view('admin.gateways.index', compact('gateways'));
-    }
-
-    public function create(): View
-    {
-        return view('admin.gateways.form', [
-            'gateway' => new PaymentGateway(),
-            'drivers' => PaymentGatewayFactory::DRIVERS,
-        ]);
     }
 
     public function createBootstrap(): View
@@ -55,14 +38,6 @@ class PaymentGatewayController extends Controller
         PaymentGateway::create($data);
 
         return redirect()->route('admin.gateways')->with('success', 'Payment gateway berhasil ditambahkan.');
-    }
-
-    public function edit(PaymentGateway $gateway): View
-    {
-        return view('admin.gateways.form', [
-            'gateway' => $gateway,
-            'drivers' => PaymentGatewayFactory::DRIVERS,
-        ]);
     }
 
     public function editBootstrap(PaymentGateway $gateway): View

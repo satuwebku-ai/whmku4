@@ -43,7 +43,7 @@
               <td><span class="badge {{ $rule->is_active ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $rule->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
               <td class="text-end px-4">
                 <form method="POST" action="{{ route('admin.affiliate.rules.toggle', $rule) }}" class="d-inline">@csrf<button class="btn btn-outline-secondary btn-sm">{{ $rule->is_active ? 'Nonaktifkan' : 'Aktifkan' }}</button></form>
-                <form method="POST" action="{{ route('admin.affiliate.rules.destroy', $rule) }}" class="d-inline" onsubmit="return confirm('Hapus rule ini?')">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm">Hapus</button></form>
+                <form method="POST" action="{{ route('admin.affiliate.rules.destroy', $rule) }}" class="d-inline" data-confirm="Hapus rule ini?">@csrf @method('DELETE')<button class="btn btn-outline-danger btn-sm">Hapus</button></form>
               </td>
             </tr>
           @empty

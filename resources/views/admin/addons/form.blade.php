@@ -314,7 +314,7 @@
     <form id="sync-addon-form" method="POST" action="{{ route('admin.addons.sync', $addon) }}" class="d-none">@csrf</form>
   @endif
 
-  <script>
+  <script @nonce>
     (function () {
       // ---- Slug otomatis dari nama ----
       const name = document.getElementById('nameInput');

@@ -127,7 +127,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     // Kolom prioritas hanya relevan untuk MX.
     (function () {
       const type = document.getElementById('dnsType');

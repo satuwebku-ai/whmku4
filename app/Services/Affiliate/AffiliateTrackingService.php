@@ -97,8 +97,4 @@ class AffiliateTrackingService
         return AffiliateClick::where('cookie_token', $token)->first();
     }
 
-    public function cookieName(): string
-    {
-        return self::COOKIE_NAME;
-    }
 }

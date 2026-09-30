@@ -208,7 +208,7 @@
     </div>
   @endif
 
-  <script>
+  <script @nonce>
     (function () {
       const radios = document.querySelectorAll('.domain-mode-radio');
       const field = document.getElementById('domainNameField');

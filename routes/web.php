@@ -9,6 +9,10 @@ use App\Http\Controllers\Site\ChatController as SiteChatController;
 use App\Http\Controllers\Site\PageController as SitePageController;
 use Illuminate\Support\Facades\Route;
 
+Route::post('csp-report', \App\Http\Controllers\CspReportController::class)
+    ->middleware('throttle:60,1')
+    ->name('csp-report');
+
 Route::get('/', [CatalogController::class, 'homeBootstrap'])->name('home');
 
 Route::prefix('admin')->name('admin.')->group(base_path('routes/admin.php'));

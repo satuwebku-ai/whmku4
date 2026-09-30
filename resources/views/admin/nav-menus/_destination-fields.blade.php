@@ -49,7 +49,7 @@
   Buka di tab baru
 </label>
 
-<script>
+<script @nonce>
 (function () {
   const radios = document.querySelectorAll('[data-type-radio]');
   const fields = document.querySelectorAll('[data-type-field]');

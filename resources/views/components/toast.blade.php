@@ -44,7 +44,7 @@
            style="animation: lumoraToastIn .25s ease-out {{ $i * 0.08 }}s both">
         <i class="fa-solid {{ $style['icon'] }} {{ $style['iconColor'] }} mt-0.5 shrink-0"></i>
         <span class="flex-1 leading-snug">{{ $toast['message'] }}</span>
-        <button type="button" onclick="lumoraDismissToast(this.parentElement)"
+        <button type="button" data-toast-dismiss
                 class="shrink-0 opacity-40 hover:opacity-100 transition-opacity" aria-label="Tutup">
           <i class="fa-solid fa-xmark text-xs"></i>
         </button>
@@ -64,12 +64,17 @@
     }
   </style>
 
-  <script>
+  <script @nonce>
     function lumoraDismissToast(el) {
       if (!el) return;
       el.classList.add('lumora-toast-out');
       setTimeout(() => el.remove(), 200);
     }
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-toast-dismiss]');
+      if (btn) lumoraDismissToast(btn.parentElement);
+    });
 
     // Pesan galat sengaja dibiarkan LEBIH LAMA (8 detik) daripada pesan
     // sukses (4 detik) -- galat biasanya perlu dibaca lebih teliti, dan

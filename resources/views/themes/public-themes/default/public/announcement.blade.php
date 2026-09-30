@@ -17,7 +17,7 @@
     <h1 class="fw-bold text-dark mb-4" style="font-size:1.6rem">{{ $announcement->title }}</h1>
 
     <div class="prose-content">
-      {!! $announcement->content !!}
+      {!! $announcement->safe_content !!}
     </div>
   </article>
 @endsection

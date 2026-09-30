@@ -7,9 +7,10 @@
 
 <style>html{visibility:hidden}</style>
 
-<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" onload="document.documentElement.style.visibility='visible'"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script @nonce>window.addEventListener("load",function(){document.documentElement.style.visibility="visible"});</script>
 
-<script>setTimeout(function(){document.documentElement.style.visibility='visible'},2500)</script>
+<script @nonce>setTimeout(function(){document.documentElement.style.visibility='visible'},2500)</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 

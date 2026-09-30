@@ -14,7 +14,7 @@
     <p class="text-muted mb-4" style="font-size:11px">Diperbarui {{ $page->updated_at->format('d M Y') }}</p>
 
     <div class="prose-content">
-      {!! $page->content !!}
+      {!! $page->safe_content !!}
     </div>
   </article>
 @endsection

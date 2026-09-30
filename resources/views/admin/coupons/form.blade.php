@@ -136,7 +136,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const radios = document.querySelectorAll('[data-scope-radio]');
       const box = document.getElementById('scopeSpecific');

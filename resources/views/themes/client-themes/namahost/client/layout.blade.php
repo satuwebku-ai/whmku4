@@ -151,7 +151,7 @@
 
   <script src="{{ asset('assets/js/vendor/bootstrap-5.3.8.bundle.min.js') }}"></script>
 
-  <script>
+  <script @nonce>
     (function () {
       const modal  = document.getElementById('confirmModal');
       const icon   = document.getElementById('confirmIcon');
@@ -232,5 +232,6 @@
   </script>
 
   @include('public.partials.livechat')
+@include('partials.csp-actions')
 </body>
 </html>

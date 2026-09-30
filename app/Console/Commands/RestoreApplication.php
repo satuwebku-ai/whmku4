@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\Backup\DatabaseRestorer;
+use App\Services\Backup\BackupSignature;
 use Illuminate\Console\Command;
 use ZipArchive;
 
@@ -11,11 +12,12 @@ class RestoreApplication extends Command
     protected $signature = 'lumora:restore
         {file : Path lengkap ke file .zip cadangan}
         {--skip-files : Cuma pulihkan database, jangan timpa storage/app}
-        {--force : Lewati konfirmasi interaktif (WAJIB untuk pemakaian non-interaktif/otomatis)}';
+        {--force : Lewati konfirmasi timpa data (WAJIB untuk pemakaian non-interaktif/otomatis)}
+        {--allow-unsigned : Konfirmasi eksplisit untuk memulihkan backup lama tanpa tanda tangan}';
 
     protected $description = 'Pulihkan database + file upload dari satu file ZIP cadangan (kebalikan dari lumora:backup). MENIMPA seluruh data saat ini.';
 
-    public function handle(DatabaseRestorer $restorer): int
+    public function handle(DatabaseRestorer $restorer, BackupSignature $signature): int
     {
         $zipPath = $this->argument('file');
 
@@ -25,31 +27,64 @@ class RestoreApplication extends Command
             return self::FAILURE;
         }
 
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            $this->error('File ZIP tidak valid atau rusak.');
+
+            return self::FAILURE;
+        }
+
+        $verification = $signature->inspectArchive($zip);
+        if ($verification['status'] === 'invalid') {
+            $zip->close();
+            $this->error('Backup ditolak: ' . $verification['message']);
+
+            return self::FAILURE;
+        }
+
+        if ($verification['status'] === 'unsigned') {
+            $this->warn($verification['message'] . ' Keasliannya tidak dapat diverifikasi.');
+            $unsignedConfirmed = $this->option('allow-unsigned')
+                || (! $this->option('force') && $this->confirm(
+                    'Pulihkan backup tanpa tanda tangan ini? Lanjutkan hanya jika sumber file dapat dipercaya.',
+                    false
+                ));
+
+            if (! $unsignedConfirmed) {
+                $zip->close();
+                $this->error('Restore dibatalkan: konfirmasi --allow-unsigned diperlukan untuk backup lama.');
+
+                return self::FAILURE;
+            }
+        } else {
+            $this->info($verification['message']);
+        }
+
         if (! $this->option('force') && ! $this->confirm(
             'INI AKAN MENIMPA SELURUH DATA SAAT INI (semua tabel di-drop lalu dibuat ulang dari cadangan). Lanjutkan?',
             false
         )) {
+            $zip->close();
             $this->warn('Dibatalkan.');
 
             return self::SUCCESS;
         }
 
-        $tempDir = storage_path('app/backups/restore-tmp-' . now()->timestamp);
-        mkdir($tempDir, 0755, true);
+        $tempDir = storage_path('app/backups/restore-tmp-' . now()->timestamp . '-' . bin2hex(random_bytes(8)));
+        if (! mkdir($tempDir, 0700, true) && ! is_dir($tempDir)) {
+            $zip->close();
+            $this->error('Folder sementara restore tidak dapat dibuat.');
 
+            return self::FAILURE;
+        }
+
+        $zipOpen = true;
         try {
             $this->info('1/3 — Membongkar file ZIP...');
 
-            $zip = new ZipArchive();
-
-            if ($zip->open($zipPath) !== true) {
-                $this->error('File ZIP tidak valid atau rusak.');
-
-                return self::FAILURE;
-            }
-
-            $zip->extractTo($tempDir);
+            $signature->extractSafely($zip, $tempDir);
             $zip->close();
+            $zipOpen = false;
 
             $sqlPath = "{$tempDir}/database.sql";
 
@@ -87,6 +122,9 @@ class RestoreApplication extends Command
 
             return self::FAILURE;
         } finally {
+            if ($zipOpen) {
+                $zip->close();
+            }
             $this->deleteDirectory($tempDir);
         }
     }

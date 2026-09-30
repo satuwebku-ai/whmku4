@@ -79,7 +79,7 @@
             <p class="text-muted mb-2" style="font-size:11px">Link Pembayaran (kirim ke klien)</p>
             <div class="d-flex align-items-center gap-2">
               <input type="text" readonly value="{{ $payment->payment_url }}" class="form-control form-control-sm" style="font-size:11px" id="payUrl">
-              <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('payUrl').value)" class="btn btn-outline-secondary btn-sm flex-shrink-0"><i class="fa-regular fa-copy" style="font-size:11px"></i></button>
+              <button type="button" data-action="copy" data-target="payUrl" class="btn btn-outline-secondary btn-sm flex-shrink-0"><i class="fa-regular fa-copy" style="font-size:11px"></i></button>
             </div>
           </div>
         @endif

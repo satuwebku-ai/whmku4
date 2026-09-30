@@ -19,7 +19,7 @@
         @csrf
         <button type="submit" class="btn btn-success btn-sm">Setujui</button>
       </form>
-      <form method="POST" action="{{ route('admin.affiliate.reject', $affiliate) }}" onsubmit="return confirm('Tolak affiliate ini?')">
+      <form method="POST" action="{{ route('admin.affiliate.reject', $affiliate) }}" data-confirm="Tolak affiliate ini?">
         @csrf
         <input type="hidden" name="reason" value="Ditolak oleh admin">
         <button type="submit" class="btn btn-outline-danger btn-sm">Tolak</button>

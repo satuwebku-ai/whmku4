@@ -123,7 +123,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const modal = document.getElementById('setupChecklistModal');
       const closeBtn = document.getElementById('setupChecklistClose');

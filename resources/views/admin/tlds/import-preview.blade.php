@@ -139,7 +139,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const rupiah = new Intl.NumberFormat('id-ID');
       const rows = Array.from(document.querySelectorAll('[data-row]'));

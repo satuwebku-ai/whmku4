@@ -151,11 +151,6 @@ class Coupon extends Model
         return null;
     }
 
-    public function reservedUsageForInvoice(int $invoiceId): ?CouponUsage
-    {
-        return $this->usages()->where('invoice_id', $invoiceId)->where('status', 'reserved')->first();
-    }
-
     /**
      * Hitung nominal potongan untuk subtotal tertentu.
      */

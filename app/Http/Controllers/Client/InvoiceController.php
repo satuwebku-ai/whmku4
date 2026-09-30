@@ -29,11 +29,6 @@ class InvoiceController extends Controller
         return view('client.invoices.index', $this->invoicesData($request));
     }
 
-    public function invoicesBootstrap(Request $request): View
-    {
-        return view('client.invoices.index', $this->invoicesData($request));
-    }
-
     private function invoicesData(Request $request): array
     {
         $invoices = Auth::guard('client')->user()
@@ -47,11 +42,6 @@ class InvoiceController extends Controller
     }
 
     public function invoice(Invoice $invoice): View
-    {
-        return view('client.invoices.show', $this->invoiceData($invoice));
-    }
-
-    public function invoiceBootstrap(Invoice $invoice): View
     {
         return view('client.invoices.show', $this->invoiceData($invoice));
     }
@@ -181,11 +171,6 @@ class InvoiceController extends Controller
      * (bukan daftar tetap yang bisa ketinggalan zaman).
      */
     public function duitkuMethods(Request $request, Invoice $invoice): View|RedirectResponse
-    {
-        return $this->duitkuMethodsView($request, $invoice, 'client.invoices.duitku-methods', 'client.invoices.show');
-    }
-
-    public function duitkuMethodsBootstrap(Request $request, Invoice $invoice): View|RedirectResponse
     {
         return $this->duitkuMethodsView($request, $invoice, 'client.invoices.duitku-methods', 'client.invoices.show');
     }
@@ -397,11 +382,6 @@ class InvoiceController extends Controller
      * metode QRIS di pengaturan gateway.
      */
     public function payQris(Invoice $invoice, PaymentGateway $gateway): View|RedirectResponse
-    {
-        return $this->payQrisView($invoice, $gateway, 'client.invoices.qris', 'client.invoices.show');
-    }
-
-    public function payQrisBootstrap(Invoice $invoice, PaymentGateway $gateway): View|RedirectResponse
     {
         return $this->payQrisView($invoice, $gateway, 'client.invoices.qris', 'client.invoices.show');
     }

@@ -210,7 +210,7 @@
                 <label class="form-label small fw-medium text-dark">Password</label>
                 <div class="d-flex gap-2">
                   <input type="text" name="password" id="fPass" value="{{ old('password') }}" class="form-control" required minlength="8">
-                  <button type="button" onclick="genPass()" class="btn btn-outline-secondary text-nowrap flex-shrink-0">
+                  <button type="button" data-action="call" data-call="genPass" class="btn btn-outline-secondary text-nowrap flex-shrink-0">
                     <i class="fa-solid fa-dice" style="font-size:11px"></i> Buatkan
                   </button>
                 </div>
@@ -270,7 +270,7 @@
       </div>
     </form>
 
-    <script>
+    <script @nonce>
       // Estimasi tarif langsung berubah saat spek diubah -- supaya admin
       // tahu berapa yang akan ditagihkan SEBELUM VM dibuat.
       // Versi OS mengikuti OS yang dipilih -- daftarnya dari API, jadi
@@ -356,6 +356,7 @@
         document.getElementById('fPass').value = p.sort(() => Math.random() - 0.5).join('');
       }
 
+      (window.LumoraActions = window.LumoraActions || {}).genPass = genPass;
       hitungEstimasi();
     </script>
   @endif

@@ -116,7 +116,11 @@ class AddonController extends Controller
             'cost_price_annually'      => ['nullable', 'numeric', 'min:0'],
             'pricing_source'           => ['required', 'in:manual,api'],
             'is_public'                => ['nullable', 'boolean'],
-            'supplier_api_url'         => ['nullable', 'url', 'max:1000'],
+            'supplier_api_url'         => ['nullable', 'url', 'max:1000', function ($attribute, $value, $fail) {
+                if (filled($value) && ! \App\Support\UrlGuard::isPublicHttpUrl($value)) {
+                    $fail('URL API supplier harus mengarah ke alamat publik (bukan localhost/jaringan internal).');
+                }
+            }],
             'supplier_http_method'     => ['nullable', 'in:GET,POST'],
             'supplier_api_token'       => ['nullable', 'string', 'max:5000'],
             'supplier_price_path_monthly'       => ['nullable', 'string', 'max:255'],

@@ -16,6 +16,24 @@ class Setting extends Model
 
     private const CACHE_KEY = 'app_settings';
 
+    /**
+     * Kunci yang berisi rahasia (token/secret/API key) — SELALU disimpan
+     * terenkripsi, lewat put() maupun putMany(). Semua pembacaan tetap lewat
+     * Setting::get() yang mendekripsi otomatis, jadi pemanggil tidak berubah.
+     */
+    public const SECRET_KEYS = [
+        'wa_token',
+        'recaptcha_secret_key',
+        'ai_chat_api_key',
+        'ai_chat_openai_api_key',
+        'vapid_private_key',
+    ];
+
+    public static function isSecretKey(string $key): bool
+    {
+        return in_array($key, self::SECRET_KEYS, true);
+    }
+
     protected static function booted(): void
     {
         // Cache dibersihkan setiap ada perubahan supaya nilai di frontend
@@ -59,6 +77,8 @@ class Setting extends Model
      */
     public static function put(string $key, mixed $value, string $group = 'general', bool $encrypted = false): void
     {
+        $encrypted = $encrypted || static::isSecretKey($key);
+
         static::updateOrCreate(['key' => $key], [
             'value' => ($encrypted && filled($value)) ? encrypt($value) : $value,
             'group' => $group,
@@ -109,7 +129,15 @@ class Setting extends Model
     public static function putMany(array $values, string $group = 'general'): void
     {
         foreach ($values as $key => $value) {
-            static::updateOrCreate(['key' => $key], ['value' => $value, 'group' => $group]);
+            $encrypted = static::isSecretKey((string) $key);
+
+            static::updateOrCreate(['key' => $key], [
+                'value' => ($encrypted && filled($value)) ? encrypt($value) : $value,
+                'group' => $group,
+                // Sebelumnya kolom ini tidak pernah di-set di sini: kunci yang dulu
+                // terenkripsi lalu ditimpa lewat putMany() akan terbaca sebagai null.
+                'is_encrypted' => $encrypted,
+            ]);
         }
 
         static::flushCache();

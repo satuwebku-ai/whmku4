@@ -7,7 +7,6 @@ use App\Models\Admin;
 use App\Models\Client;
 use App\Models\Credit;
 use App\Models\Invoice;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Titik masuk tunggal (dari sisi Services/Billing) untuk mutasi saldo
@@ -78,11 +77,4 @@ class CreditService
         return $lockedClient->adjustBalance(-1 * $amount, $type, $description, $invoice, $admin, $idempotencyKey);
     }
 
-    public function history(Client $client, int $perPage = 15)
-    {
-        /** @var HasMany $logs */
-        $logs = $client->balanceLogs();
-
-        return $logs->latest()->paginate($perPage);
-    }
 }

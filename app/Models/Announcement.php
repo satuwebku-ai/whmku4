@@ -83,4 +83,13 @@ class Announcement extends Model
             default => 'inactive',
         };
     }
+
+    /**
+     * Isi konten yang aman ditampilkan apa adanya ({!! !!}) — HTML dibersihkan
+     * lewat allowlist supaya tidak bisa menyisipkan script (stored XSS).
+     */
+    public function getSafeContentAttribute(): string
+    {
+        return \App\Support\HtmlSanitizer::clean($this->content);
+    }
 }

@@ -259,7 +259,7 @@
     </a>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const boxes  = Array.from(document.querySelectorAll('[data-ext]'));
       const mirror = document.getElementById('selectedMirror');

@@ -230,7 +230,7 @@
 
   </div>{{-- /#tldTableWrap --}}
 
-<script>
+<script @nonce>
     document.querySelectorAll('[data-mode-radio]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         document.querySelectorAll('[data-mode-panel]').forEach(function (panel) {
@@ -240,13 +240,13 @@
     });
   </script>
 
-  <script>
+  <script @nonce>
     (function () {
       window.initTldMargins = function () {};
     })();
   </script>
 
-  <script>
+  <script @nonce>
     (function () {
       // Panel "Tarik Harga Registrar" & "Markup Massal" sudah PINDAH ke
       // halaman TLD Pricing -- handler-nya ikut pindah ke sana. Yang
@@ -264,7 +264,7 @@
     })();
   </script>
 
-  <script>
+  <script @nonce>
     // Toggle Aktif lewat AJAX -- tidak reload halaman, jadi posisi
     // scroll & filter tetap. Server yang menegakkan aturan "satu
     // ekstensi cuma boleh aktif di satu registrar"; respons-nya memberi
@@ -356,7 +356,7 @@
     })();
   </script>
 
-<script>
+<script @nonce>
   (function () {
     const wrap = document.getElementById('tldTableWrap');
     if (!wrap) return;

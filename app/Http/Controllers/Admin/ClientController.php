@@ -11,24 +11,10 @@ use Illuminate\View\View;
 
 class ClientController extends Controller
 {
-    public function clients(Request $request): View
-    {
-        return $this->renderList($request, null);
-    }
-
-    public function active(Request $request): View
-    {
-        return $this->renderList($request, 'active');
-    }
 
     public function activeBootstrap(Request $request): View
     {
         return view('admin.clients.index', $this->clientListData($request, 'active'));
-    }
-
-    public function inactive(Request $request): View
-    {
-        return $this->renderList($request, 'inactive');
     }
 
     public function inactiveBootstrap(Request $request): View
@@ -43,11 +29,6 @@ class ClientController extends Controller
     public function clientsBootstrap(Request $request): View
     {
         return view('admin.clients.index', $this->clientListData($request, null));
-    }
-
-    private function renderList(Request $request, ?string $status): View
-    {
-        return view('admin.clients.index', $this->clientListData($request, $status));
     }
 
     private function clientListData(Request $request, ?string $status): array
@@ -65,22 +46,6 @@ class ClientController extends Controller
             ->withQueryString();
 
         return ['clients' => $clients, 'activeStatus' => $status];
-    }
-
-    /**
-     * Halaman profil klien — ringkasan order/invoice/hosting/domain milik klien ini.
-     */
-    public function details(Client $client): View
-    {
-        $client->loadCount(['hostingAccounts', 'orders', 'invoices']);
-        $client->load([
-            'orders' => fn ($q) => $q->latest()->limit(5),
-            'invoices' => fn ($q) => $q->latest()->limit(5),
-            'hostingAccounts' => fn ($q) => $q->latest()->limit(5),
-            'balanceLogs' => fn ($q) => $q->latest()->limit(10),
-        ]);
-
-        return view('admin.clients.details', compact('client'));
     }
 
     public function detailsBootstrap(Client $client): View
@@ -137,11 +102,6 @@ class ClientController extends Controller
         return back()->with('success', 'Saldo klien berhasil disesuaikan.');
     }
 
-    public function create(): View
-    {
-        return view('admin.clients.form', ['client' => new Client()]);
-    }
-
     public function createBootstrap(): View
     {
         return view('admin.clients.form', ['client' => new Client()]);
@@ -154,11 +114,6 @@ class ClientController extends Controller
         Client::create($data);
 
         return redirect()->route('admin.clients')->with('success', 'Klien baru berhasil ditambahkan.');
-    }
-
-    public function edit(Client $client): View
-    {
-        return view('admin.clients.form', compact('client'));
     }
 
     public function editBootstrap(Client $client): View

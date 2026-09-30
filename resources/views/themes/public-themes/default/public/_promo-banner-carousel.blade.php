@@ -57,7 +57,7 @@
   </div>
 
   @if ($banners->count() > 1)
-    <script>
+    <script @nonce>
       (function () {
         const slides = document.querySelectorAll('#promoBannerCarousel .promo-slide');
         const dots = document.querySelectorAll('#promoBannerCarousel .promo-dot');

@@ -13,7 +13,7 @@
   }
 @endphp
 <div id="nhToasts" class="nh-toasts in-client" aria-live="polite" aria-atomic="false"></div>
-<script>
+<script @nonce>
   (function () {
     var box = document.getElementById('nhToasts');
     var icons = {success: 'bi-check-lg', error: 'bi-x-lg', warning: 'bi-exclamation-lg', info: 'bi-info-lg'};

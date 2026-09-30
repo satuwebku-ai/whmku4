@@ -14,10 +14,6 @@ use Illuminate\View\View;
 
 class CartController extends Controller
 {
-    public function index(CartService $cart): View
-    {
-        return view('public.cart.index', $this->indexData($cart));
-    }
 
     public function indexBootstrap(CartService $cart): View
     {

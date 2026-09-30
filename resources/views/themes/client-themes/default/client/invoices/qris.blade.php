@@ -46,7 +46,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script>
+  <script @nonce>
     (function () {
       new QRCode(document.getElementById('qrHolder'), {
         text: @json($qrString),

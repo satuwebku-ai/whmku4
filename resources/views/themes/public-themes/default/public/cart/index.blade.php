@@ -71,7 +71,7 @@
                       <form method="POST" action="{{ route('cart.update-cycle') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="key" value="{{ $item['key'] }}">
-                        <select name="billing_cycle" onchange="this.form.submit()" class="form-select form-select-sm" style="width:auto">
+                        <select name="billing_cycle" data-auto-submit class="form-select form-select-sm" style="width:auto">
                           @foreach (\App\Models\Product::CYCLES as $ck => $label)
                             <option value="{{ $ck }}" @selected($item['billing_cycle'] === $ck)>{{ $label }}</option>
                           @endforeach
@@ -102,7 +102,7 @@
                       <form method="POST" action="{{ route('cart.update-cycle') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="key" value="{{ $item['key'] }}">
-                        <select name="billing_cycle" onchange="this.form.submit()" class="form-select form-select-sm" style="width:auto">
+                        <select name="billing_cycle" data-auto-submit class="form-select form-select-sm" style="width:auto">
                           @foreach (['monthly' => 'Bulanan', 'quarterly' => '3 Bulan', 'semi_annually' => '6 Bulan', 'annually' => 'Tahunan'] as $ck => $label)
                             <option value="{{ $ck }}" @selected($item['billing_cycle'] === $ck)>{{ $label }}</option>
                           @endforeach
@@ -113,7 +113,7 @@
                       <form method="POST" action="{{ route('cart.update-years') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="key" value="{{ $item['key'] }}">
-                        <select name="years" onchange="this.form.submit()" class="form-select form-select-sm" style="width:auto">
+                        <select name="years" data-auto-submit class="form-select form-select-sm" style="width:auto">
                           @for ($y = 1; $y <= 10; $y++)
                             <option value="{{ $y }}" @selected($item['years'] == $y)>{{ $y }} Tahun</option>
                           @endfor
@@ -158,7 +158,7 @@
                               <span class="fw-medium flex-shrink-0" style="font-size:11px;{{ ($item['whois_privacy_price'] ?? 0) > 0 ? 'color:#64748b' : 'color:#047857' }}">
                                 {{ ($item['whois_privacy_price'] ?? 0) > 0 ? '+Rp ' . number_format($item['whois_privacy_price'], 0, ',', '.') . '/thn' : 'Gratis' }}
                               </span>
-                              <input type="checkbox" onchange="this.form.submit()" @checked($item['whois_privacy'] ?? false)
+                              <input type="checkbox" data-auto-submit @checked($item['whois_privacy'] ?? false)
                                      class="form-check-input flex-shrink-0" style="margin:0">
                             </label>
                           </form>

@@ -229,7 +229,7 @@
             @csrf
             <div class="d-flex gap-2">
               <input type="password" name="new_password" id="pwField" class="form-control form-control-sm" required minlength="8">
-              <button type="button" onclick="lumoraGeneratePassword('pwField', null, 'pwChecklist')" class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
+              <button type="button" data-action="call" data-call="lumoraGeneratePassword" data-args='["pwField",null,"pwChecklist"]' class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
                 <i class="fa-solid fa-dice" style="font-size:11px"></i> Buatkan
               </button>
             </div>
@@ -274,7 +274,7 @@
                 <p class="mb-0">{{ $service->cancellation_admin_note }}</p>
               @endif
             </div>
-            <button type="button" onclick="document.getElementById('cancelForm').classList.remove('d-none'); this.classList.add('d-none')"
+            <button type="button" data-action="show" data-target="cancelForm" data-hide-self
                     class="btn btn-outline-danger w-100">
               Ajukan Kembali
             </button>
@@ -288,7 +288,7 @@
             <p class="text-muted mb-3" style="font-size:12px">
               Pengajuan akan ditinjau tim kami sebelum layanan benar-benar dihentikan — bukan otomatis.
             </p>
-            <button type="button" onclick="document.getElementById('cancelForm').classList.remove('d-none'); this.classList.add('d-none')"
+            <button type="button" data-action="show" data-target="cancelForm" data-hide-self
                     class="btn btn-outline-danger w-100">
               Ajukan Pembatalan
             </button>
@@ -305,7 +305,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     function lumoraPasswordChecks(pw) {
       return [
         { label: 'Minimal 8 karakter', ok: pw.length >= 8 },
@@ -348,6 +348,7 @@
       lumoraRenderChecklist(pw, checklistId);
     }
 
+    (window.LumoraActions = window.LumoraActions || {}).lumoraGeneratePassword = lumoraGeneratePassword;
     document.addEventListener('DOMContentLoaded', () => {
       const pwField = document.getElementById('pwField');
       if (pwField) {

@@ -23,22 +23,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CheckoutController extends Controller
 {
     public function index(CartService $cart, CouponService $coupons): View|RedirectResponse
-    {
-        if ($cart->isEmpty()) {
-            return redirect()->route('cart.index')->with('error', 'Keranjang Anda masih kosong.');
-        }
-
-        return view('client.checkout.index', $this->checkoutData($cart, $coupons));
-    }
-
-    public function indexBootstrap(CartService $cart, CouponService $coupons): View|RedirectResponse
     {
         if ($cart->isEmpty()) {
             return redirect()->route('cart.index')->with('error', 'Keranjang Anda masih kosong.');

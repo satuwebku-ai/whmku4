@@ -14,10 +14,6 @@ use Throwable;
 
 class CronController extends Controller
 {
-    public function index(CpanelCronService $cpanel): View
-    {
-        return view('admin.cron.index', $this->indexData($cpanel));
-    }
 
     public function indexBootstrap(CpanelCronService $cpanel): View
     {

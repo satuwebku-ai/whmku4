@@ -18,7 +18,7 @@
     </div>
 
     <form method="GET" class="d-flex gap-2">
-      <select name="registrar" class="form-select form-select-sm" style="width:14rem" onchange="this.form.submit()">
+      <select name="registrar" class="form-select form-select-sm" style="width:14rem" data-auto-submit>
         <option value="">— Pilih Registrar —</option>
         @foreach ($registrars as $r)
           <option value="{{ $r->id }}" @selected($selected && $selected->id === $r->id)>{{ $r->name }}</option>

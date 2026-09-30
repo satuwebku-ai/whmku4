@@ -20,11 +20,6 @@ class BalanceController extends Controller
         return view('client.balance.index', $this->indexData());
     }
 
-    public function indexBootstrap(): View
-    {
-        return view('client.balance.index', $this->indexData());
-    }
-
     private function indexData(): array
     {
         $client = Auth::guard('client')->user();

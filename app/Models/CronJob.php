@@ -164,11 +164,6 @@ class CronJob extends Model
             ->where(fn ($q) => $q->whereNull('next_run_at')->orWhere('next_run_at', '<=', now()));
     }
 
-    public function getIntervalLabelAttribute(): string
-    {
-        return self::INTERVALS[$this->interval_minutes] ?? "Tiap {$this->interval_minutes} menit";
-    }
-
     public function getStatusBadgeAttribute(): string
     {
         return match ($this->last_status) {

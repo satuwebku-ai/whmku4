@@ -88,8 +88,9 @@
   @endif
 
   <div class="mx-auto text-center mt-4" style="max-width:32rem">
-    <button onclick="window.close()" class="btn btn-link text-muted p-0" style="font-size:12px;text-decoration:none">Tutup tab ini</button>
+    <button data-action="window-close" class="btn btn-link text-muted p-0" style="font-size:12px;text-decoration:none">Tutup tab ini</button>
   </div>
 
+@include('partials.csp-actions')
 </body>
 </html>

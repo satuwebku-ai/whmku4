@@ -32,6 +32,13 @@
                 <div class="min-w-0">
                   <p class="small text-dark text-truncate mb-0">{{ $backup['name'] }}</p>
                   <p class="text-muted mb-0" style="font-size:12px">{{ $backup['created_at']->format('d M Y H:i') }} — {{ $backup['size'] }} MB</p>
+                  @if ($backup['signature_status'] === 'signed')
+                    <span class="badge bg-success-subtle text-success mt-1" style="font-size:10px">Manifest ditandatangani</span>
+                  @elseif ($backup['signature_status'] === 'unsigned')
+                    <span class="badge bg-warning-subtle text-warning mt-1" style="font-size:10px">Backup lama — tanpa tanda tangan</span>
+                  @else
+                    <span class="badge bg-danger-subtle text-danger mt-1" style="font-size:10px">Tanda tangan tidak valid</span>
+                  @endif
                 </div>
               </div>
               <div class="d-flex align-items-center gap-2 flex-shrink-0">
@@ -39,16 +46,24 @@
                   <i class="fa-solid fa-download" style="font-size:12px"></i>
                 </a>
                 @if (auth('admin')->user()?->role === 'superadmin')
-                  <a href="{{ route('admin.backups.selective', $backup['name']) }}" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Pulihkan sebagian (pilih tabel)">
-                    <i class="fa-solid fa-list-check" style="font-size:12px"></i>
-                  </a>
-                  <form method="POST" action="{{ route('admin.backups.restore', $backup['name']) }}"
-                        data-confirm="PULIHKAN dari cadangan {{ $backup['name'] }}? SELURUH DATA SAAT INI akan DITIMPA dengan isi cadangan ini (yang dibuat {{ $backup['created_at']->format('d M Y H:i') }}). Cadangan pengaman dari keadaan sekarang akan dibuat otomatis dulu sebelum menimpa, tapi proses ini tetap butuh waktu dan TIDAK BOLEH diinterupsi." data-confirm-title="Pulihkan Database" data-confirm-style="danger" data-confirm-label="Ya, Timpa & Pulihkan">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-warning btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Pulihkan dari cadangan ini">
-                      <i class="fa-solid fa-clock-rotate-left" style="font-size:12px"></i>
-                    </button>
-                  </form>
+                  @if ($backup['signature_status'] !== 'invalid')
+                    <a href="{{ route('admin.backups.selective', $backup['name']) }}" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Pulihkan sebagian (pilih tabel)">
+                      <i class="fa-solid fa-list-check" style="font-size:12px"></i>
+                    </a>
+                    <form method="POST" action="{{ route('admin.backups.restore', $backup['name']) }}"
+                          data-confirm="PULIHKAN dari cadangan {{ $backup['name'] }}? SELURUH DATA SAAT INI akan DITIMPA dengan isi cadangan ini (yang dibuat {{ $backup['created_at']->format('d M Y H:i') }}). Cadangan pengaman dari keadaan sekarang akan dibuat otomatis dulu sebelum menimpa, tapi proses ini tetap butuh waktu dan TIDAK BOLEH diinterupsi." data-confirm-title="Pulihkan Database" data-confirm-style="danger" data-confirm-label="Ya, Timpa & Pulihkan">
+                      @csrf
+                      @if ($backup['signature_status'] === 'unsigned')
+                        <label class="d-flex align-items-center gap-1 mb-1" style="font-size:10px;color:#92400e">
+                          <input type="checkbox" name="confirm_unsigned" value="1" @checked(old('confirm_unsigned'))>
+                          Izinkan backup lama
+                        </label>
+                      @endif
+                      <button type="submit" class="btn btn-outline-warning btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Pulihkan dari cadangan ini">
+                        <i class="fa-solid fa-clock-rotate-left" style="font-size:12px"></i>
+                      </button>
+                    </form>
+                  @endif
                 @endif
                 <form method="POST" action="{{ route('admin.backups.destroy', $backup['name']) }}"
                       data-confirm="Hapus cadangan {{ $backup['name'] }}? Tidak bisa dibatalkan." data-confirm-title="Hapus Cadangan" data-confirm-style="danger" data-confirm-label="Ya, Hapus">
@@ -91,12 +106,16 @@
           <p class="mb-3" style="font-size:12px;color:#991b1b">
             Untuk cadangan yang tidak ada di daftar server ini (mis. diunduh dari Google Drive, atau dari server lain).
             <b>Seluruh data saat ini akan ditimpa.</b> Cadangan pengaman dari keadaan sekarang dibuat otomatis dulu
-            sebelum menimpa apa pun.
+            sebelum menimpa apa pun. Backup lama tanpa tanda tangan hanya dipulihkan setelah Anda mengonfirmasi sumbernya tepercaya.
           </p>
           <form method="POST" action="{{ route('admin.backups.restore-upload') }}" enctype="multipart/form-data"
                 data-confirm="PULIHKAN dari file yang diunggah? SELURUH DATA SAAT INI akan DITIMPA. Cadangan pengaman dari keadaan sekarang akan dibuat otomatis dulu, tapi proses ini tetap butuh waktu dan TIDAK BOLEH diinterupsi." data-confirm-title="Pulihkan Database" data-confirm-style="danger" data-confirm-label="Ya, Timpa & Pulihkan">
             @csrf
             <input type="file" name="backup_file" accept=".zip" required class="form-control form-control-sm mb-2">
+            <label class="d-flex align-items-start gap-2 mb-2" style="font-size:11px;color:#7f1d1d">
+              <input type="checkbox" name="confirm_unsigned" value="1" @checked(old('confirm_unsigned')) class="mt-1">
+              Izinkan restore jika file ini backup lama tanpa tanda tangan. Centang hanya jika sumbernya tepercaya.
+            </label>
             @error('backup_file') <p class="text-danger mb-2" style="font-size:12px">{{ $message }}</p> @enderror
             <button type="submit" class="btn btn-outline-danger btn-sm w-100">
               <i class="fa-solid fa-upload" style="font-size:11px"></i> Unggah &amp; Pulihkan

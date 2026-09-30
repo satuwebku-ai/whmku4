@@ -10,7 +10,7 @@ class ClientBillingPortalPhase18Test extends TestCase
     {
         $routes = file_get_contents(base_path('routes/client.php'));
         $controller = file_get_contents(base_path('app/Http/Controllers/Client/BillingController.php'));
-        $view = file_get_contents(base_path('resources/views/client/billing/index.blade.php'));
+        $view = file_get_contents(base_path('resources/views/themes/client-themes/default/client/billing/index.blade.php'));
 
         $this->assertStringContainsString("Route::get('billing', [BillingController::class, 'index'])->name('billing');", $routes);
         $this->assertStringContainsString('class BillingController', $controller);

@@ -106,7 +106,7 @@
                 <form method="POST" action="{{ route('client.domains.auto-renew', $domain) }}">
                   @csrf
                   <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch" @checked($domain->auto_renew) onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" role="switch" @checked($domain->auto_renew) data-auto-submit>
                   </div>
                 </form>
               @endif
@@ -132,7 +132,7 @@
                 <form method="POST" action="{{ route('client.domains.lock', $domain) }}">
                   @csrf
                   <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch" @checked($lockStatus) onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" role="switch" @checked($lockStatus) data-auto-submit>
                   </div>
                 </form>
               </div>
@@ -150,7 +150,7 @@
                 <form method="POST" action="{{ route('client.domains.theft-protection', $domain) }}">
                   @csrf
                   <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch" @checked($theftStatus) onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" role="switch" @checked($theftStatus) data-auto-submit>
                   </div>
                 </form>
               </div>

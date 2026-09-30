@@ -62,7 +62,7 @@
 {{-- Analytics: hanya ID yang disimpan, script-nya dibangun di sini,
      jadi tidak ada HTML mentah dari database yang dieksekusi. --}}
 @if ($gtmId)
-  <script>
+  <script @nonce>
     (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
     var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
     j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
@@ -72,7 +72,7 @@
 
 @if ($gaId)
   <script async src="https://www.googletagmanager.com/gtag/js?id={{ $gaId }}"></script>
-  <script>
+  <script @nonce>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
@@ -81,7 +81,7 @@
 @endif
 
 @if ($fbPixel)
-  <script>
+  <script @nonce>
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
     n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
     n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;

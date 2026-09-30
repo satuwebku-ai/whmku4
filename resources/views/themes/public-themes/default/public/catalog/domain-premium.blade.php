@@ -208,7 +208,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     document.getElementById('premiumOrderForm')?.addEventListener('submit', function (e) {
       e.preventDefault();
 
@@ -282,7 +282,7 @@
     });
   </script>
 
-  <script>
+  <script @nonce>
     (function () {
       const tabs = { karakter: document.getElementById('tabBtnKarakter'), custom: document.getElementById('tabBtnCustom') };
       const panels = { karakter: document.getElementById('panelKarakter'), custom: document.getElementById('panelCustom') };

@@ -76,7 +76,7 @@
   }
 </style>
 
-<script>
+<script @nonce>
   window.lumoraToastConfig = {!! json_encode(\App\Support\ToastStyle::jsConfig($__ts)) !!};
 
   (function () {

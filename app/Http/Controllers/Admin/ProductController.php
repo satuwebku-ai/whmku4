@@ -22,11 +22,6 @@ class ProductController extends Controller
         return view('admin.products.index', $this->indexData($request));
     }
 
-    public function indexBootstrap(Request $request): View
-    {
-        return view('admin.products.index', $this->indexData($request));
-    }
-
     private function indexData(Request $request): array
     {
         // Produk VPS dibedakan dari produk hosting biasa lewat
@@ -63,11 +58,6 @@ class ProductController extends Controller
         return $this->formView(new Product());
     }
 
-    public function createBootstrap(): View
-    {
-        return $this->create();
-    }
-
     public function store(Request $request): RedirectResponse
     {
         [$data, $warnings] = $this->preparedData($request);
@@ -80,11 +70,6 @@ class ProductController extends Controller
     public function edit(Product $product): View
     {
         return $this->formView($product);
-    }
-
-    public function editBootstrap(Product $product): View
-    {
-        return $this->edit($product);
     }
 
     public function update(Request $request, Product $product): RedirectResponse

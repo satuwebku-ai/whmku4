@@ -57,7 +57,7 @@
       <div class="small text-muted mb-1">Link Referral Utama Anda</div>
       <div class="input-group">
         <input type="text" class="form-control" readonly value="{{ url('/ref/' . $affiliate->code) }}" id="refLink">
-        <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('refLink').value)">Salin</button>
+        <button class="btn btn-outline-secondary" type="button" data-action="copy" data-target="refLink">Salin</button>
       </div>
     </div>
 

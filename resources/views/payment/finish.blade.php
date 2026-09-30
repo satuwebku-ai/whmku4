@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Status Pembayaran — {{ config('app.name', 'Lumora Hosting') }}</title>
 <style>html{visibility:hidden}</style>
-<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" onload="document.documentElement.style.visibility='visible'"></script>
-<script>setTimeout(function(){document.documentElement.style.visibility='visible'},2500)</script>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script @nonce>window.addEventListener("load",function(){document.documentElement.style.visibility="visible"});</script>
+<script @nonce>setTimeout(function(){document.documentElement.style.visibility='visible'},2500)</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>body { font-family: 'Inter', sans-serif; }</style>

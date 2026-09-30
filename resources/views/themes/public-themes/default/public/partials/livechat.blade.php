@@ -13,7 +13,7 @@
 @endphp
 
 @if ($provider === 'tawkto' && $propertyId)
-  <script>
+  <script @nonce>
     var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
     (function(){
       var s1 = document.createElement("script"), s0 = document.getElementsByTagName("script")[0];
@@ -26,7 +26,7 @@
   </script>
 
 @elseif ($provider === 'crisp' && $propertyId)
-  <script>
+  <script @nonce>
     window.$crisp = [];
     window.CRISP_WEBSITE_ID = "{{ $propertyId }}";
     (function(){
@@ -200,7 +200,7 @@
     </button>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const panel  = document.getElementById('chatPanel');
       const toggle = document.getElementById('chatToggle');

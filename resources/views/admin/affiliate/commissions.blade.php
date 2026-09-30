@@ -14,7 +14,7 @@
 
   <div class="card border rounded-4 overflow-hidden">
     <form method="GET" class="px-4 py-3 border-bottom d-flex flex-wrap align-items-center gap-2">
-      <select name="status" class="form-select form-select-sm" style="max-width:12rem" onchange="this.form.submit()">
+      <select name="status" class="form-select form-select-sm" style="max-width:12rem" data-auto-submit>
         <option value="">Semua Status</option>
         @foreach (['pending' => 'Pending', 'approved' => 'Disetujui', 'cancelled' => 'Dibatalkan'] as $val => $label)
           <option value="{{ $val }}" @selected(request('status') === $val)>{{ $label }}</option>
@@ -54,18 +54,18 @@
                     @csrf
                     <button type="submit" class="btn btn-success btn-sm">Setujui</button>
                   </form>
-                  <form method="POST" action="{{ route('admin.affiliate.commissions.cancel', $com) }}" class="d-inline" onsubmit="return confirm('Batalkan komisi ini?')">
+                  <form method="POST" action="{{ route('admin.affiliate.commissions.cancel', $com) }}" class="d-inline" data-confirm="Batalkan komisi ini?">
                     @csrf
                     <input type="hidden" name="reason" value="Dibatalkan oleh admin">
                     <button type="submit" class="btn btn-outline-danger btn-sm">Batalkan</button>
                   </form>
-                @endif
                 @elseif ($com->status === 'approved')
-                  <form method="POST" action="{{ route('admin.affiliate.commissions.reverse', $com) }}" class="d-inline" onsubmit="return confirm('Reversal akan mengurangi wallet affiliate. Lanjutkan?')">
+                  <form method="POST" action="{{ route('admin.affiliate.commissions.reverse', $com) }}" class="d-inline" data-confirm="Reversal akan mengurangi wallet affiliate. Lanjutkan?">
                     @csrf
                     <input type="hidden" name="reason" value="Refund atau chargeback">
                     <button type="submit" class="btn btn-outline-danger btn-sm">Reversal</button>
                   </form>
+                @endif
               </td>
             </tr>
           @empty

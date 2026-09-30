@@ -24,31 +24,6 @@ class DomainController extends Controller
      */
     private const MAX_TLD_PER_SEARCH = 20;
 
-    public function domains(Request $request): View
-    {
-        return $this->renderList($request, null);
-    }
-
-    public function pending(Request $request): View
-    {
-        return $this->renderList($request, 'pending');
-    }
-
-    public function active(Request $request): View
-    {
-        return $this->renderList($request, 'active');
-    }
-
-    public function expired(Request $request): View
-    {
-        return $this->renderList($request, 'expired');
-    }
-
-    public function cancelled(Request $request): View
-    {
-        return $this->renderList($request, 'cancelled');
-    }
-
     public function domainsBootstrap(Request $request): View
     {
         return view('admin.domains.index', $this->domainListData($request, null));
@@ -74,11 +49,6 @@ class DomainController extends Controller
         return view('admin.domains.index', $this->domainListData($request, 'cancelled'));
     }
 
-    private function renderList(Request $request, ?string $status): View
-    {
-        return view('admin.domains.index', $this->domainListData($request, $status));
-    }
-
     private function domainListData(Request $request, ?string $status): array
     {
         $domains = Domain::query()
@@ -90,11 +60,6 @@ class DomainController extends Controller
             ->withQueryString();
 
         return ['domains' => $domains, 'activeStatus' => $status];
-    }
-
-    public function details(Domain $domain): View
-    {
-        return view('admin.domains.details', $this->domainDetailsData($domain));
     }
 
     public function detailsBootstrap(Domain $domain): View
@@ -207,20 +172,6 @@ class DomainController extends Controller
         return view('admin.domains.search', compact('results', 'query', 'tldPrices'));
     }
 
-    public function create(): View
-    {
-        $clients = Client::orderBy('name')->get();
-        $registrars = Registrar::where('is_active', true)->orderBy('name')->get();
-        $tlds = Tld::where('is_active', true)->orderBy('extension')->get();
-
-        return view('admin.domains.form', [
-            'domain' => new Domain(),
-            'clients' => $clients,
-            'registrars' => $registrars,
-            'tlds' => $tlds,
-        ]);
-    }
-
     public function createBootstrap(): View
     {
         $clients = Client::orderBy('name')->get();
@@ -300,15 +251,6 @@ class DomainController extends Controller
         Domain::create($data);
 
         return redirect()->route('admin.domains')->with('success', 'Domain berhasil dicatat (manual, tanpa registrasi otomatis).');
-    }
-
-    public function edit(Domain $domain): View
-    {
-        $clients = Client::orderBy('name')->get();
-        $registrars = Registrar::where('is_active', true)->orderBy('name')->get();
-        $tlds = Tld::where('is_active', true)->orderBy('extension')->get();
-
-        return view('admin.domains.form', compact('domain', 'clients', 'registrars', 'tlds'));
     }
 
     public function editBootstrap(Domain $domain): View

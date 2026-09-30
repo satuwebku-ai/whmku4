@@ -15,7 +15,7 @@
       <p class="text-muted mb-0">Daftar akun hosting Anda.</p>
     </div>
     <form method="GET">
-      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+      <select name="status" class="form-select form-select-sm" data-auto-submit>
         <option value="">Semua Status</option>
         <option value="active" @selected(request('status') === 'active')>Aktif</option>
         <option value="pending" @selected(request('status') === 'pending')>Pending</option>

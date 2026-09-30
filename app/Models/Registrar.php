@@ -57,13 +57,4 @@ class Registrar extends Model
         return rtrim((string) $this->api_url, '/');
     }
 
-    /**
-     * Alias supaya lebih jelas saat dipakai provider yang memakai istilah
-     * "Reseller ID" (Liqu.id) alih-alih "API User" (Namecheap).
-     * Keduanya disimpan di kolom yang sama: api_username.
-     */
-    public function getResellerIdAttribute(): ?string
-    {
-        return $this->api_username;
-    }
 }

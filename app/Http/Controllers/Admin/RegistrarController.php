@@ -57,43 +57,7 @@ class RegistrarController extends Controller
         return view('admin.registrars.index', compact('registrars', 'balances', 'supportsSync', 'supportsCustomers'));
     }
 
-    public function indexBootstrap(): View
-    {
-        $registrars = Registrar::withCount(['tlds', 'domains'])->latest()->paginate(10);
-
-        $balances = [];
-        $supportsSync = [];
-        $supportsCustomers = [];
-
-        foreach ($registrars as $registrar) {
-            if (! $registrar->is_active) {
-                continue;
-            }
-
-            $service = \App\Services\Domain\DomainRegistrarFactory::make($registrar);
-
-            $supportsSync[$registrar->id] = method_exists($service, 'listTlds');
-            $supportsCustomers[$registrar->id] = method_exists($service, 'listCustomers');
-
-            if (method_exists($service, 'getAccountBalance')) {
-                try {
-                    $result = $service->getAccountBalance();
-                    $balances[$registrar->id] = $result['success'] ? $result : null;
-                } catch (\Throwable $e) {
-                    $balances[$registrar->id] = null;
-                }
-            }
-        }
-
-        return view('admin.registrars.index', compact('registrars', 'balances', 'supportsSync', 'supportsCustomers'));
-    }
-
     public function create(): View
-    {
-        return view('admin.registrars.form', ['registrar' => new Registrar()]);
-    }
-
-    public function createBootstrap(): View
     {
         return view('admin.registrars.form', ['registrar' => new Registrar()]);
     }
@@ -115,11 +79,6 @@ class RegistrarController extends Controller
     }
 
     public function edit(Registrar $registrar): View
-    {
-        return view('admin.registrars.form', compact('registrar'));
-    }
-
-    public function editBootstrap(Registrar $registrar): View
     {
         return view('admin.registrars.form', compact('registrar'));
     }
@@ -153,17 +112,6 @@ class RegistrarController extends Controller
         $registrar->delete();
 
         return redirect()->route('admin.registrars.index')->with('success', 'Registrar berhasil dihapus.');
-    }
-
-    /**
-     * Halaman diagnosa — memanggil beberapa endpoint GET (cuma baca,
-     * TIDAK mengubah apa pun) untuk memastikan hal-hal yang tidak bisa
-     * disimpulkan dari satu endpoint saja: mata uang akun, saldo, dan
-     * format angka harga yang sebenarnya dikembalikan API.
-     */
-    public function diagnostics(Request $request, Registrar $registrar): View
-    {
-        return view($this->diagnosticsView($registrar), $this->diagnosticsData($registrar, $request));
     }
 
     public function diagnosticsBootstrap(Request $request, Registrar $registrar): View
@@ -341,17 +289,6 @@ class RegistrarController extends Controller
             $result['success'] ? 'success' : 'error',
             $result['success'] ? "Koneksi ke {$label} berhasil." : 'Koneksi gagal: ' . $result['message']
         );
-    }
-
-    /**
-     * Impor daftar TLD dari registrar ke tabel TLD Pricing.
-     *
-     * Harga jual TIDAK ditimpa kalau TLD-nya sudah ada — supaya markup
-     * yang sudah kamu atur tidak hilang saat sinkronisasi ulang.
-     */
-    public function transactions(Request $request, Registrar $registrar): View|RedirectResponse
-    {
-        return $this->transactionsView($request, $registrar, 'admin.registrars.transactions');
     }
 
     public function transactionsBootstrap(Request $request, Registrar $registrar): View|RedirectResponse

@@ -2,7 +2,6 @@
 
 namespace App\Services\Vps;
 
-use App\Models\Server;
 use App\Services\Vps\Contracts\VpsProviderInterface;
 use App\Services\Hosting\IdCloudHostService;
 

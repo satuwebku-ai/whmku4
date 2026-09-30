@@ -46,11 +46,6 @@ class Server extends Model
         return $this->belongsTo(ServerGroup::class, 'server_group_id');
     }
 
-    public function getAccountsCountAttribute(): int
-    {
-        return $this->hostingAccounts()->count();
-    }
-
     /**
      * Server cloud/VPS = jenis panel "vps" + provider di kolom vps_provider
      * (idcloudhost, digitalocean, dst -- daftar lengkapnya di

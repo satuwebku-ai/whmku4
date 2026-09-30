@@ -57,7 +57,7 @@
               <p class="text-muted mb-0" style="font-size:10px">Username</p>
               <p class="fw-medium text-dark mb-0" style="font-family:monospace;font-size:13px">{{ $username }}</p>
             </div>
-            <button type="button" onclick="salinTeks(NAMA_USER_CPANEL, this)" class="btn btn-outline-secondary btn-sm">Salin</button>
+            <button type="button" data-action="call" data-call="salinNamaUser" data-pass-el class="btn btn-outline-secondary btn-sm">Salin</button>
           </div>
 
           @if ($password)
@@ -67,8 +67,8 @@
                 <p class="fw-medium text-dark mb-0" style="font-family:monospace;font-size:13px" id="pwText">••••••••</p>
               </div>
               <div class="d-flex gap-1">
-                <button type="button" onclick="tampilkanPassword()" class="btn btn-outline-secondary btn-sm" id="pwToggleBtn">Lihat</button>
-                <button type="button" onclick="salinPassword(this)" class="btn btn-outline-secondary btn-sm">Salin</button>
+                <button type="button" data-action="call" data-call="tampilkanPassword" class="btn btn-outline-secondary btn-sm" id="pwToggleBtn">Lihat</button>
+                <button type="button" data-action="call" data-call="salinPassword" data-pass-el class="btn btn-outline-secondary btn-sm">Salin</button>
               </div>
             </div>
           @endif
@@ -109,7 +109,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     // Nilai password disisipkan SEKALI di sini lewat direktif json Blade
     // (aman dari karakter kutip/spesial apa pun), lalu dipakai ulang
     // kedua tombol -- bukan disisipkan langsung ke atribut onclick,
@@ -135,6 +135,9 @@
       el.textContent = tersembunyi ? RAHASIA_CPANEL : '••••••••';
       btn.textContent = tersembunyi ? 'Sembunyikan' : 'Lihat';
     }
+    (window.LumoraActions = window.LumoraActions || {}).tampilkanPassword = tampilkanPassword;
+    (window.LumoraActions = window.LumoraActions || {}).salinPassword = salinPassword;
+    (window.LumoraActions = window.LumoraActions || {}).salinNamaUser = function (btn) { salinTeks(NAMA_USER_CPANEL, btn); };
   </script>
 
 @endsection

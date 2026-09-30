@@ -29,7 +29,7 @@ Route::middleware('guest:client')->group(function () {
     Route::post('login', [LoginController::class, 'store'])->name('login.store');
 
     Route::get('register', [RegisterController::class, 'create'])->name('register');
-    Route::post('register', [RegisterController::class, 'store'])->name('register.store');
+    Route::post('register', [RegisterController::class, 'store'])->middleware('throttle:10,10')->name('register.store');
 
     // Tantangan OTP — pengguna belum login di titik ini, jadi tetap di
     // grup guest. Aksesnya dijaga oleh session "otp.client_id".

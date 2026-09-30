@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Services\Backup\BackupSignature;
 use App\Services\Backup\SelectiveDatabaseRestorer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,17 +15,13 @@ use ZipArchive;
 
 class BackupController extends Controller
 {
-    public function index(): View
+
+    public function indexBootstrap(BackupSignature $signature): View
     {
-        return view('admin.backups.index', $this->indexData());
+        return view('admin.backups.index', $this->indexData($signature));
     }
 
-    public function indexBootstrap(): View
-    {
-        return view('admin.backups.index', $this->indexData());
-    }
-
-    private function indexData(): array
+    private function indexData(BackupSignature $signature): array
     {
         $dir = storage_path('app/backups');
         $files = is_dir($dir) ? glob("{$dir}/lumora-backup_*.zip") : [];
@@ -34,6 +31,7 @@ class BackupController extends Controller
                 'name' => basename($path),
                 'size' => round(filesize($path) / 1024 / 1024, 2),
                 'created_at' => \Carbon\Carbon::createFromTimestamp(filemtime($path)),
+                'signature_status' => $signature->inspectPath($path, false)['status'],
             ])
             ->sortByDesc('created_at')
             ->values();
@@ -128,7 +126,7 @@ class BackupController extends Controller
      * di halaman ini). Lihat performRestore() untuk pengaman yang
      * dijalankan sebelum data ditimpa.
      */
-    public function restore(string $filename): RedirectResponse
+    public function restore(Request $request, BackupSignature $signature, string $filename): RedirectResponse
     {
         $this->validateFilename($filename);
 
@@ -136,7 +134,7 @@ class BackupController extends Controller
 
         abort_unless(file_exists($path), 404);
 
-        return $this->performRestore($path);
+        return $this->performRestore($path, $request, $signature);
     }
 
     /**
@@ -144,7 +142,7 @@ class BackupController extends Controller
      * dari Google Drive, atau cadangan dari server lain) -- tidak harus
      * sudah ada di daftar backup server ini.
      */
-    public function restoreUpload(Request $request): RedirectResponse
+    public function restoreUpload(Request $request, BackupSignature $signature): RedirectResponse
     {
         $request->validate([
             'backup_file' => ['required', 'file', 'mimes:zip', 'max:512000'], // maks 500MB
@@ -160,7 +158,7 @@ class BackupController extends Controller
         $request->file('backup_file')->move($uploadDir, basename($tempPath));
 
         try {
-            return $this->performRestore($tempPath);
+            return $this->performRestore($tempPath, $request, $signature);
         } finally {
             // Salinan upload sementara ini SELALU dihapus setelah dipakai
             // (berhasil maupun gagal) -- bukan cadangan resmi yang perlu
@@ -181,8 +179,17 @@ class BackupController extends Controller
      * pengaman ini, sekali restore salah pilih file berarti data
      * sebelumnya hilang permanen tanpa cara kembali.
      */
-    private function performRestore(string $zipPath): RedirectResponse
+    private function performRestore(string $zipPath, Request $request, BackupSignature $signature): RedirectResponse
     {
+        $verification = $signature->inspectPath($zipPath, false);
+        if ($verification['status'] === 'invalid') {
+            return back()->with('error', 'Restore ditolak: ' . $verification['message']);
+        }
+
+        if ($verification['status'] === 'unsigned' && ! $request->boolean('confirm_unsigned')) {
+            return back()->with('error', 'Backup lama tanpa tanda tangan. Centang konfirmasi restore backup lama hanya jika sumber file dapat dipercaya.');
+        }
+
         if (! $this->makeSafetyBackup()) {
             return back()->with('error', 'Restore DIBATALKAN: gagal membuat cadangan pengaman dari data saat ini. Tidak ada data yang diubah.');
         }
@@ -191,6 +198,7 @@ class BackupController extends Controller
             $exitCode = Artisan::call('lumora:restore', [
                 'file' => $zipPath,
                 '--force' => true,
+                '--allow-unsigned' => $verification['status'] === 'unsigned' && $request->boolean('confirm_unsigned'),
             ]);
 
             $output = Artisan::output();
@@ -225,7 +233,7 @@ class BackupController extends Controller
     // ══════════════════════════════════════════════════════════════════
 
     /** Halaman pilihan tabel untuk cadangan yang ada di daftar server. */
-    public function selective(SelectiveDatabaseRestorer $restorer, string $filename): View|RedirectResponse
+    public function selective(BackupSignature $signature, SelectiveDatabaseRestorer $restorer, string $filename): View|RedirectResponse
     {
         $this->validateFilename($filename);
 
@@ -237,11 +245,12 @@ class BackupController extends Controller
             $restorer,
             $path,
             $filename,
-            route('admin.backups.selective.run', $filename)
+            route('admin.backups.selective.run', $filename),
+            $signature
         );
     }
 
-    public function selectiveRestore(Request $request, SelectiveDatabaseRestorer $restorer, string $filename): RedirectResponse
+    public function selectiveRestore(Request $request, BackupSignature $signature, SelectiveDatabaseRestorer $restorer, string $filename): RedirectResponse
     {
         $this->validateFilename($filename);
 
@@ -249,14 +258,14 @@ class BackupController extends Controller
 
         abort_unless(file_exists($path), 404);
 
-        return $this->runSelective($request, $restorer, $path, false);
+        return $this->runSelective($request, $restorer, $path, false, $signature);
     }
 
     /**
      * Langkah 1 untuk file unggahan: simpan sementara ZIP-nya supaya bisa dibuka lagi
      * di halaman pilihan & saat eksekusi (dua request terpisah).
      */
-    public function selectiveUpload(Request $request): RedirectResponse
+    public function selectiveUpload(Request $request, BackupSignature $signature): RedirectResponse
     {
         $request->validate([
             'backup_file' => ['required', 'file', 'mimes:zip', 'max:512000'], // maks 500MB
@@ -274,21 +283,17 @@ class BackupController extends Controller
         $request->file('backup_file')->move($dir, "staged_{$token}.zip");
 
         $path = "{$dir}/staged_{$token}.zip";
-        $zip = new ZipArchive();
-
-        if ($zip->open($path) !== true || $zip->locateName('database.sql') === false) {
-            $zip->close();
+        $verification = $signature->inspectPath($path, false);
+        if ($verification['status'] === 'invalid') {
             unlink($path);
 
-            return back()->with('error', 'File ZIP ini bukan cadangan Lumora yang valid (database.sql tidak ditemukan di dalamnya).');
+            return back()->with('error', 'File ZIP bukan backup Lumora yang valid: ' . $verification['message']);
         }
-
-        $zip->close();
 
         return redirect()->route('admin.backups.selective.staged', $token);
     }
 
-    public function selectiveStaged(SelectiveDatabaseRestorer $restorer, string $token): View|RedirectResponse
+    public function selectiveStaged(BackupSignature $signature, SelectiveDatabaseRestorer $restorer, string $token): View|RedirectResponse
     {
         $path = $this->stagedPath($token);
 
@@ -301,11 +306,12 @@ class BackupController extends Controller
             $restorer,
             $path,
             'File unggahan',
-            route('admin.backups.selective.staged.run', $token)
+            route('admin.backups.selective.staged.run', $token),
+            $signature
         );
     }
 
-    public function selectiveRestoreStaged(Request $request, SelectiveDatabaseRestorer $restorer, string $token): RedirectResponse
+    public function selectiveRestoreStaged(Request $request, BackupSignature $signature, SelectiveDatabaseRestorer $restorer, string $token): RedirectResponse
     {
         $path = $this->stagedPath($token);
 
@@ -314,21 +320,28 @@ class BackupController extends Controller
                 ->with('error', 'File unggahan sudah kedaluwarsa. Unggah ulang cadangannya.');
         }
 
-        return $this->runSelective($request, $restorer, $path, true);
+        return $this->runSelective($request, $restorer, $path, true, $signature);
     }
 
-    private function showSelective(SelectiveDatabaseRestorer $restorer, string $zipPath, string $label, string $action): View|RedirectResponse
+    private function showSelective(SelectiveDatabaseRestorer $restorer, string $zipPath, string $label, string $action, BackupSignature $signature): View|RedirectResponse
     {
         @set_time_limit(0);
+
+        $verification = $signature->inspectPath($zipPath, false);
+        if ($verification['status'] === 'invalid') {
+            return redirect()->route('admin.backups.index')
+                ->with('error', 'Backup ditolak: ' . $verification['message']);
+        }
 
         $sqlPath = null;
 
         try {
-            $sqlPath = $this->extractDatabaseSql($zipPath);
+            $sqlPath = $this->extractDatabaseSql($zipPath, $signature);
 
             return view('admin.backups.selective', [
                 'sourceLabel' => $label,
                 'action' => $action,
+                'signatureStatus' => $verification['status'],
                 'tables' => $restorer->inspect($sqlPath),
                 'modes' => SelectiveDatabaseRestorer::modes(),
             ]);
@@ -347,7 +360,7 @@ class BackupController extends Controller
      * Pilihan yang salah ditolak SEBELUM cadangan pengaman dibuat (yang bisa memakan
      * waktu), dan kalau cadangan pengaman gagal, tidak ada data yang disentuh.
      */
-    private function runSelective(Request $request, SelectiveDatabaseRestorer $restorer, string $zipPath, bool $deleteZipWhenDone): RedirectResponse
+    private function runSelective(Request $request, SelectiveDatabaseRestorer $restorer, string $zipPath, bool $deleteZipWhenDone, BackupSignature $signature): RedirectResponse
     {
         $data = $request->validate([
             'mode' => ['required', Rule::in(SelectiveDatabaseRestorer::modes())],
@@ -364,7 +377,16 @@ class BackupController extends Controller
         $done = false;
 
         try {
-            $sqlPath = $this->extractDatabaseSql($zipPath);
+            $verification = $signature->inspectPath($zipPath, false);
+            if ($verification['status'] === 'invalid') {
+                return back()->withInput()->with('error', 'Restore ditolak: ' . $verification['message']);
+            }
+
+            if ($verification['status'] === 'unsigned' && ! $request->boolean('confirm_unsigned')) {
+                return back()->withInput()->with('error', 'Backup lama tanpa tanda tangan. Konfirmasi restore hanya jika sumber file dapat dipercaya.');
+            }
+
+            $sqlPath = $this->extractDatabaseSql($zipPath, $signature);
 
             $restorer->assertRestorable($sqlPath, $data['tables'], $data['mode']);
 
@@ -421,12 +443,19 @@ class BackupController extends Controller
     }
 
     /** Ambil HANYA database.sql dari ZIP (tanpa membongkar file upload yang bisa sangat besar). */
-    private function extractDatabaseSql(string $zipPath): string
+    private function extractDatabaseSql(string $zipPath, BackupSignature $signature): string
     {
         $zip = new ZipArchive();
 
         if ($zip->open($zipPath) !== true) {
             throw new \RuntimeException('File ZIP tidak valid atau rusak.');
+        }
+
+        $verification = $signature->inspectArchive($zip);
+        if ($verification['status'] === 'invalid') {
+            $zip->close();
+
+            throw new \RuntimeException('Backup ditolak: ' . $verification['message']);
         }
 
         $in = $zip->getStream('database.sql');
@@ -440,20 +469,33 @@ class BackupController extends Controller
         $dir = storage_path('app/backups');
 
         if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            mkdir($dir, 0700, true);
         }
 
         // Sisa file sementara dari proses yang mati di tengah jalan (isinya data klien!).
         $this->pruneOldTemp($dir . '/sel-tmp_*.sql', 3600);
 
         $tmp = $dir . '/sel-tmp_' . bin2hex(random_bytes(8)) . '.sql';
-        $out = fopen($tmp, 'w');
+        $out = false;
 
-        stream_copy_to_stream($in, $out);
-
-        fclose($in);
-        fclose($out);
-        $zip->close();
+        try {
+            $out = fopen($tmp, 'xb');
+            if ($out === false || stream_copy_to_stream($in, $out) === false) {
+                throw new \RuntimeException('File database.sql gagal diekstrak dari backup.');
+            }
+            chmod($tmp, 0600);
+        } catch (\Throwable $e) {
+            if (file_exists($tmp)) {
+                unlink($tmp);
+            }
+            throw $e;
+        } finally {
+            fclose($in);
+            if (is_resource($out)) {
+                fclose($out);
+            }
+            $zip->close();
+        }
 
         return $tmp;
     }

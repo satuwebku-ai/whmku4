@@ -200,7 +200,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const modal  = document.getElementById('confirmModal');
       const icon   = document.getElementById('confirmIcon');
@@ -279,5 +279,6 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) closeModal(); });
     })();
   </script>
+@include('partials.csp-actions')
 </body>
 </html>

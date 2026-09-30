@@ -2,9 +2,7 @@
 
 namespace App\Services\Affiliate;
 
-use App\Models\Affiliate;
 use App\Models\AffiliateClick;
-use App\Models\AffiliateConversion;
 use App\Models\AffiliateFraudFlag;
 use App\Models\AffiliateReferral;
 use App\Models\Client;
@@ -88,23 +86,6 @@ class AffiliateFraudService
             ],
             [
                 'reason' => implode(', ', array_keys($signals)),
-                'signals' => $signals,
-            ],
-        );
-    }
-
-    public function flagConversion(AffiliateConversion $conversion, array $signals, string $reason = 'Fraud review'): AffiliateFraudFlag
-    {
-        return AffiliateFraudFlag::firstOrCreate(
-            [
-                'affiliate_id' => $conversion->affiliate_id,
-                'client_id' => $conversion->client_id,
-                'affiliate_conversion_id' => $conversion->id,
-                'invoice_id' => $conversion->invoice_id,
-                'status' => 'review',
-            ],
-            [
-                'reason' => $reason,
                 'signals' => $signals,
             ],
         );

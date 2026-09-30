@@ -52,13 +52,6 @@ class Addon extends Model
         return $value !== null ? (float) $value : null;
     }
 
-    public function costPriceForCycle(string $cycle): ?float
-    {
-        $value = $this->{"cost_price_{$cycle}"} ?? null;
-
-        return $value !== null ? (float) $value : null;
-    }
-
     public function availableCycles(): array
     {
         return collect(['monthly', 'quarterly', 'semi_annually', 'annually'])

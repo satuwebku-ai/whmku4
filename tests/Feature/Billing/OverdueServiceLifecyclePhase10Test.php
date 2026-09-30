@@ -3,7 +3,6 @@
 namespace Tests\Feature\Billing;
 
 use App\Models\HostingAccount;
-use App\Models\Invoice;
 use App\Services\Billing\OverdueServiceLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

@@ -79,10 +79,18 @@
 
           <div class="d-flex align-items-center gap-2 flex-shrink-0">
             @if ($activity->link)
-              <a href="{{ $activity->link }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Buka">
+              <a href="{{ route('admin.activities.open', $activity) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Buka">
                 <i class="fa-solid fa-arrow-right" style="font-size:12px"></i>
               </a>
             @endif
+            @unless ($activity->read_at)
+              <form method="POST" action="{{ route('admin.activities.read', $activity) }}">
+                @csrf
+                <button type="submit" class="btn btn-outline-success btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Tandai sudah dibaca" aria-label="Tandai sudah dibaca">
+                  <i class="fa-solid fa-check" style="font-size:12px"></i>
+                </button>
+              </form>
+            @endunless
             <form method="POST" action="{{ route('admin.activity.delete', $activity) }}">
               @csrf @method('DELETE')
               <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Hapus">

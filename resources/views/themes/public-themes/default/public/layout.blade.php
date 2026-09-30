@@ -195,7 +195,7 @@
   {{-- Dropdown submenu navbar -- diklik untuk buka/tutup (bukan cuma
        hover), supaya jalan juga di HP/tablet yang tidak punya hover.
        Klik di luar atau tekan Escape akan menutupnya lagi. --}}
-  <script>
+  <script @nonce>
     (function () {
       const items = document.querySelectorAll('[data-menu-item]');
 
@@ -253,7 +253,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const modal  = document.getElementById('confirmModal');
       const icon   = document.getElementById('confirmIcon');
@@ -332,5 +332,6 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) closeModal(); });
     })();
   </script>
+@include('partials.csp-actions')
 </body>
 </html>

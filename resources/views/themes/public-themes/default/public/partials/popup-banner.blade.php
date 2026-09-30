@@ -54,7 +54,7 @@
       }
     </style>
 
-    <script>
+    <script @nonce>
       (function () {
         const STORAGE_KEY = 'lumora_popup_banner_seen';
         const frequency = @json($popupFreq);

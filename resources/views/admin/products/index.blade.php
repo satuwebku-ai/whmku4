@@ -31,7 +31,7 @@
   <div class="card border rounded-4 overflow-hidden">
     <form method="GET" class="px-4 py-3 border-bottom d-flex flex-wrap align-items-center gap-2">
       <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari nama produk..." class="form-control form-control-sm" style="max-width:16rem;flex:1 1 180px">
-      <select name="category_id" class="form-select" style="padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem;max-width:12rem" onchange="this.form.submit()">
+      <select name="category_id" class="form-select" style="padding:.25rem .6rem;font-size:.875rem;border-radius:.375rem;max-width:12rem" data-auto-submit>
         <option value="">Semua Kategori</option>
         @foreach ($categories as $cat)
           <option value="{{ $cat->id }}" @selected(request('category_id') == $cat->id)>{{ $cat->name }}</option>

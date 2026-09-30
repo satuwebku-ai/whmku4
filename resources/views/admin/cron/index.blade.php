@@ -144,7 +144,7 @@
         <div class="d-flex align-items-center gap-2 mb-2">
           <input type="text" readonly value="{{ $cronLine }}" id="cronLine"
                  class="form-control form-control-sm" style="font-size:11px;font-family:monospace">
-          <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('cronLine').value); this.innerHTML='<i class=\'fa-solid fa-check\' style=\'font-size:11px\'></i>'"
+          <button type="button" data-action="copy" data-target="cronLine" data-copied-icon="fa-check"
                   class="btn btn-outline-secondary btn-sm flex-shrink-0" title="Salin">
             <i class="fa-regular fa-copy" style="font-size:11px"></i>
           </button>

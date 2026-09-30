@@ -95,7 +95,7 @@
     <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan</button>
   </form>
 
-  <script>
+  <script @nonce>
     document.querySelector('[name="affiliate_commission_type"]').addEventListener('change', function (e) {
       document.getElementById('affValueLabel').textContent = e.target.value === 'percentage' ? 'Nilai Komisi (%)' : 'Nilai Komisi (Rp)';
     });

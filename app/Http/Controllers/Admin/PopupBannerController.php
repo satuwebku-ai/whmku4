@@ -17,10 +17,6 @@ use Illuminate\View\View;
  */
 class PopupBannerController extends Controller
 {
-    public function edit(): View
-    {
-        return view('admin.popup-banner.edit');
-    }
 
     public function editBootstrap(): View
     {

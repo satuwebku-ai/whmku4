@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Services\SetupChecklistService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -49,22 +48,11 @@ class ConsoleController extends Controller
         'lumora:expire-privacy',
     ];
 
-    public function index(SetupChecklistService $setup): View
-    {
-        return $this->render($setup);
-    }
-
-    public function indexBootstrap(SetupChecklistService $setup): View
-    {
-        return $this->render($setup);
-    }
-
-    private function render(SetupChecklistService $setup): View
+    public function indexBootstrap(): View
     {
         return view('admin.console.index', [
             'commands' => self::ALLOWED_COMMANDS,
             'dryRunCommands' => self::SUPPORTS_DRY_RUN,
-            'setup' => $setup->summary(),
         ]);
     }
 

@@ -64,7 +64,7 @@
           <div class="row g-2">
             @foreach ([50000, 100000, 250000, 500000, 1000000, 2000000] as $preset)
               <div class="col-4">
-                <button type="button" onclick="document.getElementById('topupAmount').value = {{ $preset }}"
+                <button type="button" data-action="set-value" data-target="topupAmount" data-value="{{ $preset }}"
                         class="btn btn-outline-secondary btn-sm w-100">
                   {{ number_format($preset / 1000, 0) }}rb
                 </button>

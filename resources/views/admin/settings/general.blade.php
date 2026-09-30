@@ -216,7 +216,7 @@
     <button type="submit" class="btn btn-primary btn-sm mt-3"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan Pengaturan</button>
   </form>
 
-  <script>
+  <script @nonce>
     document.querySelectorAll('[data-branding-radio]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         document.querySelectorAll('[data-branding-radio]').forEach(function (r) {

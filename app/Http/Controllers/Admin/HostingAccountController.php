@@ -19,19 +19,10 @@ use Throwable;
 
 class HostingAccountController extends Controller
 {
-    public function hostingAccounts(Request $request): View
-    {
-        return $this->renderList($request, null);
-    }
 
     public function hostingAccountsBootstrap(Request $request): View
     {
         return view('admin.hosting-accounts.index', $this->listData($request, null));
-    }
-
-    public function pending(Request $request): View
-    {
-        return $this->renderList($request, 'pending');
     }
 
     public function pendingBootstrap(Request $request): View
@@ -39,19 +30,9 @@ class HostingAccountController extends Controller
         return view('admin.hosting-accounts.index', $this->listData($request, 'pending'));
     }
 
-    public function active(Request $request): View
-    {
-        return $this->renderList($request, 'active');
-    }
-
     public function activeBootstrap(Request $request): View
     {
         return view('admin.hosting-accounts.index', $this->listData($request, 'active'));
-    }
-
-    public function suspended(Request $request): View
-    {
-        return $this->renderList($request, 'suspended');
     }
 
     public function suspendedBootstrap(Request $request): View
@@ -59,24 +40,9 @@ class HostingAccountController extends Controller
         return view('admin.hosting-accounts.index', $this->listData($request, 'suspended'));
     }
 
-    public function terminated(Request $request): View
-    {
-        return $this->renderList($request, 'terminated');
-    }
-
     public function terminatedBootstrap(Request $request): View
     {
         return view('admin.hosting-accounts.index', $this->listData($request, 'terminated'));
-    }
-
-    /**
-     * Layanan aktif yang belum tertaut ke produk manapun — klien tidak
-     * bisa mengajukan upgrade mandiri sampai ini diisi admin. Terpisah
-     * dari renderList() karena filternya bukan status, tapi product_id.
-     */
-    public function unlinked(Request $request): View
-    {
-        return view('admin.hosting-accounts.index', $this->unlinkedData($request));
     }
 
     public function unlinkedBootstrap(Request $request): View
@@ -96,11 +62,6 @@ class HostingAccountController extends Controller
             ->withQueryString();
 
         return ['accounts' => $accounts, 'activeStatus' => 'unlinked'];
-    }
-
-    private function renderList(Request $request, ?string $status): View
-    {
-        return view('admin.hosting-accounts.index', $this->listData($request, $status));
     }
 
     private function listData(Request $request, ?string $status): array
@@ -199,20 +160,6 @@ class HostingAccountController extends Controller
         return response()->json($service->debugSslStatus(), 200, [], JSON_PRETTY_PRINT);
     }
 
-    public function create(): View
-    {
-        $clients = Client::orderBy('name')->get();
-        $servers = Server::where('is_active', true)->orderBy('name')->get();
-        $products = \App\Models\Product::with('category')->where('is_active', true)->orderBy('name')->get();
-
-        return view('admin.hosting-accounts.form', [
-            'account' => new HostingAccount(),
-            'clients' => $clients,
-            'servers' => $servers,
-            'products' => $products,
-        ]);
-    }
-
     public function createBootstrap(): View
     {
         $clients = Client::orderBy('name')->get();
@@ -285,24 +232,6 @@ class HostingAccountController extends Controller
         HostingAccount::create($data);
 
         return redirect()->route('admin.hosting-accounts')->with('success', 'Hosting account berhasil dibuat (manual, tanpa provisioning otomatis).');
-    }
-
-    public function edit(HostingAccount $hostingAccount): View|RedirectResponse
-    {
-        if ($redirect = $this->redirectIfVps($hostingAccount)) {
-            return $redirect;
-        }
-
-        $clients = Client::orderBy('name')->get();
-        $servers = Server::where('is_active', true)->orderBy('name')->get();
-        $products = \App\Models\Product::with('category')->where('is_active', true)->orderBy('name')->get();
-
-        return view('admin.hosting-accounts.form', [
-            'account' => $hostingAccount,
-            'clients' => $clients,
-            'servers' => $servers,
-            'products' => $products,
-        ]);
     }
 
     public function editBootstrap(HostingAccount $hostingAccount): View

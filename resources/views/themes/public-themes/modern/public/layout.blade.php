@@ -180,7 +180,7 @@
   <script src="{{ asset('assets/js/vendor/bootstrap-5.3.8.bundle.min.js') }}"></script>
   @include('public.partials.livechat')
 
-  <script>
+  <script @nonce>
     (function () {
       const items = document.querySelectorAll('[data-menu-item]');
 
@@ -232,7 +232,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const modal  = document.getElementById('confirmModal');
       const icon   = document.getElementById('confirmIcon');
@@ -311,5 +311,6 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) closeModal(); });
     })();
   </script>
+@include('partials.csp-actions')
 </body>
 </html>

@@ -25,13 +25,16 @@
 
   {{-- Aksi cepat --}}
   <div class="d-flex flex-wrap gap-2 mb-4">
-    <a href="{{ route('catalog.index') }}" class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 text-decoration-none fw-medium" style="font-size:13px;background:#fff;border:1px solid #e6e9f7;color:#334155;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--lumora-theme)';this.style.color='var(--lumora-theme)'" onmouseout="this.style.borderColor='#e6e9f7';this.style.color='#334155'">
+<style>
+  .lumora-quick-link:hover { border-color: var(--lumora-theme) !important; color: var(--lumora-theme) !important; }
+</style>
+    <a href="{{ route('catalog.index') }}" class="lumora-quick-link d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 text-decoration-none fw-medium" style="font-size:13px;background:#fff;border:1px solid #e6e9f7;color:#334155;transition:border-color .15s,color .15s">
       <i class="fa-solid fa-cart-plus" style="font-size:12px;color:var(--lumora-theme)"></i> Pesan Layanan Baru
     </a>
-    <a href="{{ route('client.balance') }}" class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 text-decoration-none fw-medium" style="font-size:13px;background:#fff;border:1px solid #e6e9f7;color:#334155;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--lumora-theme)';this.style.color='var(--lumora-theme)'" onmouseout="this.style.borderColor='#e6e9f7';this.style.color='#334155'">
+    <a href="{{ route('client.balance') }}" class="lumora-quick-link d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 text-decoration-none fw-medium" style="font-size:13px;background:#fff;border:1px solid #e6e9f7;color:#334155;transition:border-color .15s,color .15s">
       <i class="fa-solid fa-wallet" style="font-size:12px;color:var(--lumora-theme)"></i> Isi Saldo
     </a>
-    <a href="{{ route('client.tickets.create') }}" class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 text-decoration-none fw-medium" style="font-size:13px;background:#fff;border:1px solid #e6e9f7;color:#334155;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--lumora-theme)';this.style.color='var(--lumora-theme)'" onmouseout="this.style.borderColor='#e6e9f7';this.style.color='#334155'">
+    <a href="{{ route('client.tickets.create') }}" class="lumora-quick-link d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 text-decoration-none fw-medium" style="font-size:13px;background:#fff;border:1px solid #e6e9f7;color:#334155;transition:border-color .15s,color .15s">
       <i class="fa-solid fa-headset" style="font-size:12px;color:var(--lumora-theme)"></i> Buat Tiket Support
     </a>
   </div>

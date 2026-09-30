@@ -41,24 +41,6 @@ class TaxService
     }
 
     /**
-     * Pilih tarif aktif berdasarkan negara. Exact ISO-2 match diprioritaskan;
-     * bila tidak ada, tarif global (country NULL) dipakai.
-     */
-    public function forCountry(?string $country): ?Tax
-    {
-        $country = $country ? strtoupper(substr(trim($country), 0, 2)) : null;
-
-        return Tax::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($country) {
-                $query->where('country', $country)->orWhereNull('country');
-            })
-            ->orderByRaw('CASE WHEN country = ? THEN 0 ELSE 1 END', [$country])
-            ->orderBy('id')
-            ->first();
-    }
-
-    /**
      * Snapshot tax ke invoice: simpan tax_id + rate + nominal agar histori
      * invoice tidak berubah ketika admin mengubah tarif pajak di kemudian hari.
      */

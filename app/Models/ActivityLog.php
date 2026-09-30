@@ -85,13 +85,4 @@ class ActivityLog extends Model
         };
     }
 
-    public function getLevelClassAttribute(): string
-    {
-        return match ($this->level) {
-            'success' => 'bg-emerald-100 text-emerald-600',
-            'warning' => 'bg-amber-100 text-amber-600',
-            'danger' => 'bg-rose-100 text-rose-600',
-            default => 'bg-indigo-100 text-indigo-600',
-        };
-    }
 }

@@ -31,15 +31,6 @@ class DomainSearchController extends Controller
         '.org', '.xyz', '.online', '.site', '.info', '.biz',
     ];
 
-    /**
-     * Halaman cek domain publik. Pengecekan ketersediaan memakai RDAP,
-     * bukan API registrar — lihat AvailabilityService untuk alasannya.
-     */
-    public function search(Request $request, AvailabilityService $checker): View
-    {
-        return view('public.catalog.domain-search', $this->searchData($request, $checker));
-    }
-
     public function searchBootstrap(Request $request, AvailabilityService $checker): View
     {
         return view('public.catalog.domain-search', $this->searchData($request, $checker));
@@ -239,21 +230,6 @@ class DomainSearchController extends Controller
         }
 
         return back()->with($result['success'] ? 'success' : 'error', $result['message']);
-    }
-
-    /**
-     * Halaman transfer domain masuk — untuk klien yang domainnya masih
-     * di registrar lain dan mau dipindahkan ke sini.
-     */
-    public function transferForm(): View
-    {
-        $tlds = Tld::where('is_active', true)
-            ->whereNotNull('transfer_price')
-            ->where('transfer_price', '>', 0)
-            ->orderBy('extension')
-            ->get();
-
-        return view('public.catalog.domain-transfer', compact('tlds'));
     }
 
     public function transferFormBootstrap(): View

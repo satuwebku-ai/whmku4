@@ -11,13 +11,6 @@ use Illuminate\View\View;
 
 class CatalogController extends Controller
 {
-    /**
-     * Halaman depan situs.
-     */
-    public function home(): View
-    {
-        return view('public.home', $this->homeData());
-    }
 
     public function homeBootstrap(): View
     {
@@ -142,11 +135,6 @@ class CatalogController extends Controller
         );
     }
 
-    public function index(): View
-    {
-        return view('public.catalog.index', $this->indexData());
-    }
-
     public function indexBootstrap(): View
     {
         return view('public.catalog.index', $this->indexData());
@@ -173,11 +161,6 @@ class CatalogController extends Controller
         return compact('categories', 'featured', 'banners');
     }
 
-    public function category(string $section, string $slug): View
-    {
-        return view('public.catalog.category', $this->categoryData($slug));
-    }
-
     public function categoryBootstrap(string $section, string $slug): View
     {
         return view('public.catalog.category', $this->categoryData($slug));
@@ -195,11 +178,6 @@ class CatalogController extends Controller
             ->paginate(12);
 
         return compact('category', 'products');
-    }
-
-    public function product(string $section, string $categorySlug, string $productSlug): View
-    {
-        return view('public.catalog.product', $this->productData($categorySlug, $productSlug));
     }
 
     public function productBootstrap(string $section, string $categorySlug, string $productSlug): View

@@ -143,7 +143,9 @@ class SetupChecklistService
                 'module' => 'system',
                 'skippable' => false,
                 'url' => null,
-                'check' => fn () => $this->checkStorageLink(),
+                'check' => fn () => (is_link(public_path('storage')) || is_dir(public_path('storage')))
+                    ? [true, null]
+                    : [false, 'Jalankan: php artisan storage:link'],
             ],
             'payment_gateway' => [
                 'title' => 'Payment gateway aktif',
@@ -246,7 +248,18 @@ class SetupChecklistService
 
         $paths = array_merge([database_path('migrations')], $migrator->paths());
         $files = array_keys($migrator->getMigrationFiles($paths));
-        $pending = count(array_diff($files, $repository->getRan()));
+        $ran = $repository->getRan();
+        $pending = count(array_diff($files, $ran));
+
+        // Database lama (sebelum penataan ulang migrations) masih mencatat nama
+        // file lama, jadi `migrate` biasa akan mencoba membuat ulang tabel.
+        if ($pending > 0 && file_exists(database_path('migration-renames.php'))) {
+            $legacy = array_intersect(array_keys(require database_path('migration-renames.php')), $ran);
+
+            if (! empty($legacy)) {
+                return [false, 'Riwayat migrasi masih memakai nama lama — jalankan php artisan lumora:sync-migrations dulu, baru php artisan migrate.'];
+            }
+        }
 
         return $pending > 0
             ? [false, "{$pending} migrasi belum dijalankan — jalankan php artisan migrate."]
@@ -266,38 +279,6 @@ class SetupChecklistService
         }
 
         return [true, null];
-    }
-
-    private function checkStorageLink(): array
-    {
-        $target = realpath(storage_path('app/public'));
-
-        if ($target === false) {
-            return [false, 'Folder storage/app/public belum ada — buat dengan: mkdir -p storage/app/public'];
-        }
-
-        // Di shared hosting, document root sering bukan public/ milik Laravel
-        // (mis. public_html), jadi symlink bisa ada di salah satu lokasi ini.
-        $candidates = array_filter(array_unique([
-            public_path('storage'),
-            ! empty($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/storage' : null,
-            dirname(base_path()) . '/public_html/storage',
-            base_path('public_html/storage'),
-        ]));
-
-        foreach ($candidates as $path) {
-            // Symlink yang menunjuk ke storage/app/public
-            if (is_link($path) && realpath($path) === $target) {
-                return [true, null];
-            }
-
-            // Alternatif tanpa symlink: folder asli (disk public diarahkan ke sini)
-            if (! is_link($path) && is_dir($path)) {
-                return [true, null];
-            }
-        }
-
-        return [false, 'Symlink belum ditemukan. Buat dengan: php artisan storage:link, atau lewat shell: ln -s ' . $target . ' <folder-web>/storage'];
     }
 
     private function checkBackup(): array

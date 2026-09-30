@@ -14,7 +14,7 @@
 
   <div class="card border rounded-4 overflow-hidden">
     <form method="GET" class="px-4 py-3 border-bottom d-flex flex-wrap align-items-center gap-2">
-      <select name="status" class="form-select form-select-sm" style="max-width:12rem" onchange="this.form.submit()">
+      <select name="status" class="form-select form-select-sm" style="max-width:12rem" data-auto-submit>
         <option value="">Semua Status</option>
         @foreach (['pending' => 'Pending', 'approved' => 'Disetujui', 'processing' => 'Processing', 'paid' => 'Sudah Dibayar', 'failed' => 'Gagal', 'rejected' => 'Ditolak'] as $val => $label)
           <option value="{{ $val }}" @selected(request('status') === $val)>{{ $label }}</option>
@@ -54,7 +54,7 @@
                     @csrf
                     <button type="submit" class="btn btn-success btn-sm">Setujui</button>
                   </form>
-                  <form method="POST" action="{{ route('admin.affiliate.payouts.reject', $p) }}" class="d-inline" onsubmit="return confirm('Tolak payout ini?')">
+                  <form method="POST" action="{{ route('admin.affiliate.payouts.reject', $p) }}" class="d-inline" data-confirm="Tolak payout ini?">
                     @csrf
                     <input type="hidden" name="reason" value="Ditolak oleh admin">
                     <button type="submit" class="btn btn-outline-danger btn-sm">Tolak</button>
@@ -75,7 +75,7 @@
                     <input type="text" name="transaction_reference" class="form-control form-control-sm d-inline-block" style="width:10rem" placeholder="Ref transfer">
                     <button type="submit" class="btn btn-outline-success btn-sm">Paid</button>
                   </form>
-                  <form method="POST" action="{{ route('admin.affiliate.payouts.failed', $p) }}" class="d-inline" onsubmit="return confirm('Tandai payout gagal dan kembalikan saldo?')">
+                  <form method="POST" action="{{ route('admin.affiliate.payouts.failed', $p) }}" class="d-inline" data-confirm="Tandai payout gagal dan kembalikan saldo?">
                     @csrf
                     <input type="hidden" name="reason" value="Transfer gagal">
                     <button type="submit" class="btn btn-outline-danger btn-sm">Gagal</button>

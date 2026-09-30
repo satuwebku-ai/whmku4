@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         }
 
         $middleware->append(\App\Http\Middleware\ForceHttps::class);
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
         // Tamu diarahkan ke halaman login yang sesuai areanya, supaya
         // klien tidak terlempar ke form login admin dan sebaliknya.
@@ -36,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'payment/webhook/*',
             'webhook/whatsapp',
+            'csp-report',
         ]);
 
         // Pembatasan akses berdasarkan peran & modul admin.

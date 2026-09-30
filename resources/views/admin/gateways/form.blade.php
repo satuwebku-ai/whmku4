@@ -160,7 +160,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const select        = document.getElementById('driverSelect');
       const fieldsAuto    = document.getElementById('fieldsAuto');

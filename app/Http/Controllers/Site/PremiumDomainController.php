@@ -28,18 +28,6 @@ class PremiumDomainController extends Controller
         abort_unless(NavMenu::isRouteRegisteredAndActive('domain-premium.index'), 404);
     }
 
-    // Daftar keluarga .id & ekstensi generik (TldPremium::ID_FAMILY /
-    // ::GENERIC_EXTENSIONS, dipakai langsung -- lihat method di bawah)
-    // dipakai bersama dengan halaman admin "Domain Premium"
-    // (TldController::premiumPricing() dkk) supaya tidak dobel.
-
-    public function index(): View
-    {
-        $this->ensureActive();
-
-        return view('public.catalog.domain-premium', $this->data());
-    }
-
     public function indexBootstrap(): View
     {
         $this->ensureActive();

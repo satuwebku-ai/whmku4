@@ -10,23 +10,12 @@ use Illuminate\View\View;
 
 class PromoBannerController extends Controller
 {
-    public function index(): View
-    {
-        $banners = PromoBanner::orderBy('sort_order')->orderBy('id')->get();
-
-        return view('admin.promo-banners.index', compact('banners'));
-    }
 
     public function indexBootstrap(): View
     {
         $banners = PromoBanner::orderBy('sort_order')->orderBy('id')->get();
 
         return view('admin.promo-banners.index', compact('banners'));
-    }
-
-    public function create(): View
-    {
-        return view('admin.promo-banners.form', ['banner' => new PromoBanner()]);
     }
 
     public function createBootstrap(): View
@@ -45,11 +34,6 @@ class PromoBannerController extends Controller
         PromoBanner::create($data);
 
         return redirect()->route('admin.promo-banners.index')->with('success', 'Banner promo berhasil ditambahkan.');
-    }
-
-    public function edit(PromoBanner $promoBanner): View
-    {
-        return view('admin.promo-banners.form', ['banner' => $promoBanner]);
     }
 
     public function editBootstrap(PromoBanner $promoBanner): View

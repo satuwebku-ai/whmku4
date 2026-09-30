@@ -29,22 +29,12 @@ class NavMenuController extends Controller
         ]);
     }
 
-    public function indexBootstrap(): View
-    {
-        return $this->index();
-    }
-
     public function create(): View
     {
         return view('admin.nav-menus.main-form', $this->formData(new NavMenu([
             'type' => $this->requestedType(),
             'is_active' => true,
         ])));
-    }
-
-    public function createBootstrap(): View
-    {
-        return $this->create();
     }
 
     public function store(Request $request): RedirectResponse
@@ -64,11 +54,6 @@ class NavMenuController extends Controller
         abort_if($navMenu->parent_id !== null, 404);
 
         return view('admin.nav-menus.main-form', $this->formData($navMenu));
-    }
-
-    public function editBootstrap(NavMenu $navMenu): View
-    {
-        return $this->edit($navMenu);
     }
 
     public function update(Request $request, NavMenu $navMenu): RedirectResponse

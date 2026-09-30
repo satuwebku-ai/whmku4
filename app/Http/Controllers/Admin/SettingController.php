@@ -8,16 +8,11 @@ use App\Support\ThemeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SettingController extends Controller
 {
-    public function general(): View
-    {
-        return view('admin.settings.general');
-    }
 
     public function generalBootstrap(): View
     {
@@ -369,11 +364,6 @@ class SettingController extends Controller
         return back()->with('success', 'Pengaturan halaman depan berhasil disimpan.');
     }
 
-    public function seo(): View
-    {
-        return view('admin.settings.seo');
-    }
-
     public function seoBootstrap(): View
     {
         return view('admin.settings.seo');
@@ -414,11 +404,6 @@ class SettingController extends Controller
         return back()->with('success', 'Pengaturan SEO berhasil disimpan.');
     }
 
-    public function analytics(): View
-    {
-        return view('admin.settings.analytics');
-    }
-
     public function analyticsBootstrap(): View
     {
         return view('admin.settings.analytics');
@@ -442,11 +427,6 @@ class SettingController extends Controller
         return back()->with('success', 'Pengaturan analytics berhasil disimpan.');
     }
 
-
-    public function affiliate(): View
-    {
-        return view('admin.settings.affiliate');
-    }
 
     public function affiliateBootstrap(): View
     {
@@ -487,11 +467,6 @@ class SettingController extends Controller
         Setting::putMany($data, 'affiliate');
 
         return back()->with('success', 'Pengaturan program affiliate berhasil disimpan.');
-    }
-
-    public function notifications(): View
-    {
-        return view('admin.settings.notifications');
     }
 
     public function notificationsBootstrap(): View
@@ -677,11 +652,6 @@ class SettingController extends Controller
         );
     }
 
-    public function security(): View
-    {
-        return view('admin.settings.security');
-    }
-
     public function securityBootstrap(): View
     {
         return view('admin.settings.security');
@@ -755,11 +725,6 @@ class SettingController extends Controller
         } catch (\Throwable $e) {
             return back()->with('error', 'Tidak bisa menghubungi Google reCAPTCHA: ' . $e->getMessage());
         }
-    }
-
-    public function livechat(): View
-    {
-        return view('admin.settings.livechat');
     }
 
     public function livechatBootstrap(): View

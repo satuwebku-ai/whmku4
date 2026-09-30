@@ -126,7 +126,7 @@
     <button type="submit" class="btn btn-primary btn-sm" style="width:fit-content"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan Pengaturan</button>
   </form>
 
-  <script>
+  <script @nonce>
     // Drag-and-drop urutan section. Urutan final ditulis ke input
     // tersembunyi #sectionOrder sebagai daftar dipisah koma, jadi ikut
     // terkirim dalam submit form biasa -- tidak butuh AJAX.

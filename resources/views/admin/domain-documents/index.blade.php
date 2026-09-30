@@ -122,7 +122,7 @@
                         </button>
                       </form>
                       <button type="button" class="btn btn-outline-danger btn-sm" style="font-size:11px"
-                              onclick="tolakBerkas({{ $doc->id }})">
+                              data-action="call" data-call="tolakBerkas" data-args="{{ json_encode([$doc->id]) }}">
                         <i class="fa-solid fa-xmark"></i> Tolak
                       </button>
                     </div>
@@ -160,7 +160,7 @@
     <div class="mt-3">{{ $domains->links('pagination.bootstrap') }}</div>
   @endif
 
-  <script>
+  <script @nonce>
     // Form alasan penolakan disembunyikan sampai dibutuhkan -- alasan
     // WAJIB diisi karena teks inilah yang dibaca klien untuk tahu apa
     // yang harus diperbaiki saat mengunggah ulang.
@@ -169,5 +169,6 @@
       form.classList.toggle('d-none');
       form.querySelector('input[name="admin_note"]').focus();
     }
+    (window.LumoraActions = window.LumoraActions || {}).tolakBerkas = tolakBerkas;
   </script>
 @endsection

@@ -122,7 +122,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const title     = document.getElementById('titleInput');
       const slug      = document.getElementById('slugInput');

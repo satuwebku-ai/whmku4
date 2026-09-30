@@ -108,7 +108,7 @@
                 <div class="d-flex align-items-center justify-content-end gap-2">
                   @if ($account->provision_status === 'failed')
                     <button type="button" class="btn btn-primary btn-sm"
-                            onclick="document.getElementById('retry-{{ $account->id }}').classList.toggle('d-none')">
+                            data-action="toggle" data-target="retry-{{ $account->id }}">
                       <i class="fa-solid fa-rotate" style="font-size:11px"></i> Coba Lagi
                     </button>
                   @elseif ($account->provision_status === 'provisioned' && $account->username)
@@ -145,7 +145,7 @@
 
                   <button type="button" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center justify-content-center"
                           style="width:32px;height:32px;padding:0" title="Hapus"
-                          onclick="document.getElementById('del-{{ $account->id }}').classList.toggle('d-none')">
+                          data-action="toggle" data-target="del-{{ $account->id }}">
                     <i class="fa-regular fa-trash-can" style="font-size:11px"></i>
                   </button>
                 </div>
@@ -179,7 +179,7 @@
                     <button type="submit" class="btn btn-outline-danger btn-sm">Hapus Catatan Saja</button>
                   </form>
                   <button type="button" class="btn btn-outline-secondary btn-sm"
-                          onclick="document.getElementById('del-{{ $account->id }}').classList.add('d-none')">Batal</button>
+                          data-action="hide" data-target="del-{{ $account->id }}">Batal</button>
                 </div>
                 <p class="text-muted mt-2 mb-0" style="font-size:11px">
                   "Hapus Catatan Saja" dipakai kalau VM sudah dihapus manual di provider — jangan dipakai untuk VM yang masih berjalan.
@@ -213,7 +213,7 @@
                       <label class="form-label small fw-medium text-dark mb-1">Password VM</label>
                       <input type="text" name="password" id="rp-{{ $account->id }}" class="form-control form-control-sm" style="width:13rem" required minlength="8">
                     </div>
-                    <button type="button" onclick="genPass('rp-{{ $account->id }}')" class="btn btn-outline-secondary btn-sm">
+                    <button type="button" data-action="call" data-call="genPass" data-args="{{ json_encode(['rp-' . $account->id]) }}" class="btn btn-outline-secondary btn-sm">
                       <i class="fa-solid fa-dice" style="font-size:11px"></i>
                     </button>
                     <button type="submit" class="btn btn-primary btn-sm">Buat VM Sekarang</button>
@@ -251,7 +251,7 @@
     <code>lumora:charge-hourly-usage</code> — cek statusnya di Pengaturan → Cron Jobs.
   </p>
 
-  <script>
+  <script @nonce>
     function genPass(fieldId) {
       const U = 'ABCDEFGHJKLMNPQRSTUVWXYZ', L = 'abcdefghijkmnpqrstuvwxyz', D = '23456789';
       const all = U + L + D;
@@ -260,6 +260,7 @@
       for (let i = 0; i < 9; i++) p.push(pick(all));
       document.getElementById(fieldId).value = p.sort(() => Math.random() - 0.5).join('');
     }
+    (window.LumoraActions = window.LumoraActions || {}).genPass = genPass;
   </script>
 
 @endsection

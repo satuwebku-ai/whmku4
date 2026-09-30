@@ -12,10 +12,6 @@ use Illuminate\View\View;
 
 class CouponController extends Controller
 {
-    public function coupons(Request $request): View
-    {
-        return view('admin.coupons.index', $this->indexData($request));
-    }
 
     public function couponsBootstrap(Request $request): View
     {
@@ -32,15 +28,6 @@ class CouponController extends Controller
             ->withQueryString();
 
         return ['coupons' => $coupons];
-    }
-
-    public function create(): View
-    {
-        return view('admin.coupons.form', [
-            'coupon' => new Coupon(),
-            'categories' => ProductGroup::orderBy('name')->get(),
-            'products' => Product::orderBy('name')->get(),
-        ]);
     }
 
     public function createBootstrap(): View
@@ -61,17 +48,6 @@ class CouponController extends Controller
         $this->syncScope($request, $coupon);
 
         return redirect()->route('admin.coupons')->with('success', 'Kupon berhasil dibuat.');
-    }
-
-    public function edit(Coupon $coupon): View
-    {
-        $coupon->load('products', 'categories');
-
-        return view('admin.coupons.form', [
-            'coupon' => $coupon,
-            'categories' => ProductGroup::orderBy('name')->get(),
-            'products' => Product::orderBy('name')->get(),
-        ]);
     }
 
     public function editBootstrap(Coupon $coupon): View

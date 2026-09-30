@@ -98,7 +98,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const name = document.getElementById('nameInput');
       const slug = document.getElementById('slugInput');

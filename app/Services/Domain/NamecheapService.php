@@ -6,8 +6,6 @@ use App\Models\Registrar;
 use App\Services\Domain\Contracts\DomainRegistrarInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
-use SimpleXMLElement;
 use Throwable;
 
 /**

@@ -163,11 +163,6 @@ class Admin extends Authenticatable
         return $this->role === 'superadmin';
     }
 
-    public function isStaff(): bool
-    {
-        return $this->role === 'staff';
-    }
-
     /**
      * Apakah admin ini boleh masuk & bekerja penuh di modul tertentu?
      *
@@ -305,15 +300,6 @@ class Admin extends Authenticatable
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class);
-    }
-
-    public function hasRole(string $slug): bool
-    {
-        if ($this->role === 'superadmin') {
-            return true;
-        }
-
-        return $this->roles()->where('slug', $slug)->exists();
     }
 
     public function hasPermission(string $slug): bool

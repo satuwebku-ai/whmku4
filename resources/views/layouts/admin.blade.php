@@ -37,7 +37,7 @@
 </style>
 </head>
 <body class="lumora-body">
-<script>
+<script @nonce>
   try{ if(localStorage.getItem('lumora-layout-mode')==='horizontal'){ document.body.classList.add('mode-horizontal'); } }catch(e){}
   try{ if(localStorage.getItem('lumora-sidebar-collapsed')==='1' && !document.body.classList.contains('mode-horizontal')){ document.documentElement.classList.add('sidebar-pre-collapsed'); } }catch(e){}
 </script>
@@ -346,7 +346,7 @@
                   <div class="rounded-3 bg-{{ $w['color'] }} bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px">
                     <i class="fa-solid {{ $w['icon'] }} text-{{ $w['color'] === 'primary' ? 'accent' : $w['color'] }}"></i>
                   </div>
-                  <div class="flex-grow-1 min-w-0"><p class="mb-0 small fw-semibold text-dark">{{ $w['label'] }}</p><p class="mb-0 fw-bold text-{{ $w['color'] === 'primary' ? 'accent' : $w['color'] }}">{{ $w['value'] }}</p></div>
+                  <div class="flex-grow-1 min-w-0"><p class="mb-0 small fw-semibold text-dark">{{ $w['label'] }}</p><p @if ($w['label'] === 'Tiket Terbuka') id="ticketAttentionCount" @endif class="mb-0 fw-bold text-{{ $w['color'] === 'primary' ? 'accent' : $w['color'] }}">{{ $w['value'] }}</p></div>
                 </div>
               @endforeach
             </div>
@@ -378,25 +378,23 @@
         </div>
 
         <div class="dropdown">
-          <button class="topbar-icon-btn btn d-flex align-items-center justify-content-center position-relative" type="button" data-bs-toggle="dropdown">
+          <button class="topbar-icon-btn btn d-flex align-items-center justify-content-center position-relative" type="button" data-bs-toggle="dropdown" aria-label="Notifikasi">
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            @if ($unreadActivities > 0)
-              <span class="position-absolute bg-danger rounded-circle border border-white text-white d-flex align-items-center justify-content-center fw-bold" style="width:16px;height:16px;font-size:9px;top:2px;right:2px">
-                {{ $unreadActivities > 9 ? '9+' : $unreadActivities }}
-              </span>
-            @endif
+            <span id="notificationBellCount" class="position-absolute bg-danger rounded-circle border border-white text-white d-flex align-items-center justify-content-center fw-bold"
+                  style="width:16px;height:16px;font-size:9px;top:2px;right:2px;{{ $unreadActivities > 0 ? '' : 'display:none' }}">
+              {{ $unreadActivities > 9 ? '9+' : $unreadActivities }}
+            </span>
           </button>
           <div class="dropdown-menu dropdown-menu-end p-0 rounded-3 overflow-hidden" style="width:20rem">
             <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
               <p class="mb-0 small fw-semibold text-dark">Notifikasi</p>
-              @if ($unreadActivities > 0)
-                <span class="badge badge-soft-danger rounded-pill" style="font-size:10px">{{ $unreadActivities }} Baru</span>
-              @endif
+              <span id="notificationHeaderCount" class="badge badge-soft-danger rounded-pill"
+                    style="font-size:10px;{{ $unreadActivities > 0 ? '' : 'display:none' }}">{{ $unreadActivities }} Baru</span>
             </div>
-            <div style="max-height:18rem;overflow-y:auto">
+            <div id="notificationFeed" style="max-height:18rem;overflow-y:auto" aria-live="polite">
               @forelse ($recentActivities as $activity)
                 @php $style = $levelStyle($activity->level); @endphp
-                <a href="{{ $activity->link ?: route('admin.activities') }}"
+                <a href="{{ route('admin.activities.open', $activity) }}"
                    class="d-flex align-items-start gap-3 px-3 py-2 border-bottom text-decoration-none {{ ! $activity->read_at ? 'bg-primary bg-opacity-10' : '' }}">
                   <span class="rounded-circle {{ $style['bg'] }} bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px">
                     <i class="fa-solid {{ $style['icon'] }}" style="font-size:13px;color:var(--bs-{{ str_replace('bg-', '', $style['bg']) }})"></i>
@@ -465,7 +463,7 @@
 </div>
 
 <script src="{{ asset('assets/js/framework.js') }}?v={{ @filemtime(public_path('assets/js/framework.js')) ?: time() }}"></script>
-<script>
+<script @nonce>
   const sidebarEl = document.getElementById('sidebar');
   const mainEl = document.getElementById('main');
 
@@ -709,7 +707,7 @@
   </div>
 </div>
 
-<script>
+<script @nonce>
   (function () {
     const modal  = document.getElementById('confirmModal');
     const icon   = document.getElementById('confirmIcon');
@@ -829,8 +827,109 @@
   })();
 </script>
 
+<script @nonce>
+  (function () {
+    const feed = document.getElementById('notificationFeed');
+    const bellCount = document.getElementById('notificationBellCount');
+    const headerCount = document.getElementById('notificationHeaderCount');
+    const ticketCount = document.getElementById('ticketAttentionCount');
+    if (!feed || !bellCount || !headerCount) return;
+
+    const feedUrl = @json(route('admin.activities.feed'));
+    const icons = {
+      danger: 'fa-circle-exclamation',
+      warning: 'fa-triangle-exclamation',
+      success: 'fa-circle-check',
+      info: 'fa-circle-info',
+    };
+    const colors = {
+      danger: 'text-danger',
+      warning: 'text-warning',
+      success: 'text-success',
+      info: 'text-secondary',
+    };
+
+    function renderItem(item) {
+      const link = document.createElement('a');
+      link.href = item.url;
+      link.className = 'd-flex align-items-start gap-3 px-3 py-2 border-bottom text-decoration-none'
+        + (item.read ? '' : ' bg-primary bg-opacity-10');
+
+      const iconWrap = document.createElement('span');
+      iconWrap.className = 'rounded-circle bg-light d-flex align-items-center justify-content-center flex-shrink-0';
+      iconWrap.style.cssText = 'width:32px;height:32px';
+
+      const icon = document.createElement('i');
+      icon.classList.add('fa-solid', icons[item.level] || icons.info, colors[item.level] || colors.info);
+      icon.style.fontSize = '13px';
+      iconWrap.appendChild(icon);
+
+      const content = document.createElement('div');
+      content.className = 'flex-grow-1 min-w-0';
+      const title = document.createElement('p');
+      title.className = 'mb-0 small fw-semibold text-dark';
+      title.textContent = item.title || 'Notifikasi baru';
+      const description = document.createElement('p');
+      description.className = 'mb-0 text-muted text-truncate mt-1';
+      description.style.fontSize = '12px';
+      description.textContent = item.description || '';
+      const time = document.createElement('p');
+      time.className = 'mb-0 text-muted mt-1';
+      time.style.fontSize = '11px';
+      time.textContent = item.created_human || '';
+
+      content.append(title, description, time);
+      link.append(iconWrap, content);
+      return link;
+    }
+
+    async function refreshFeed() {
+      if (document.hidden) return;
+
+      try {
+        const response = await fetch(feedUrl, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const count = Number(data.unread_count) || 0;
+        bellCount.textContent = count > 9 ? '9+' : String(count);
+        bellCount.style.display = count > 0 ? 'flex' : 'none';
+        headerCount.textContent = count + ' Baru';
+        headerCount.style.display = count > 0 ? '' : 'none';
+        if (ticketCount && Number.isFinite(Number(data.tickets_needing_attention))) {
+          ticketCount.textContent = String(Number(data.tickets_needing_attention));
+        }
+
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'text-center text-muted small py-4 mb-0';
+          empty.textContent = 'Belum ada notifikasi.';
+          feed.replaceChildren(empty);
+          return;
+        }
+
+        feed.replaceChildren(...items.map(renderItem));
+      } catch (_) {
+        // Gangguan sesaat tidak mengganggu halaman; pengecekan berikutnya
+        // akan mencoba kembali secara otomatis.
+      }
+    }
+
+    window.setInterval(refreshFeed, 15000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshFeed();
+    });
+  })();
+</script>
+
 {{-- Modal checklist setup: muncul sekali per login selama masih ada yang belum jalan --}}
 @include('admin.partials.setup-checklist-modal')
 
+@include('partials.csp-actions')
 </body>
 </html>

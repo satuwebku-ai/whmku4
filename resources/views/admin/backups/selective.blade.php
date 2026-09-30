@@ -22,9 +22,27 @@
     </a>
   </div>
 
+  @if ($signatureStatus === 'unsigned')
+    <div class="alert alert-warning small mb-3">
+      Backup ini belum memiliki tanda tangan digital. Keasliannya tidak dapat diverifikasi; lanjutkan hanya jika Anda memercayai sumber file.
+    </div>
+  @else
+    <div class="alert alert-success small mb-3">
+      Tanda tangan backup valid. Isi file cocok dengan manifest.
+    </div>
+  @endif
+
   <form method="POST" action="{{ $action }}" id="selectiveForm"
         data-confirm="Pulihkan tabel terpilih dari cadangan? Cadangan pengaman dibuat otomatis dulu." data-confirm-title="Pulihkan Sebagian" data-confirm-style="warn" data-confirm-label="Ya, Pulihkan">
     @csrf
+
+    @if ($signatureStatus === 'unsigned')
+      <label class="d-flex align-items-start gap-2 small text-danger mb-3">
+        <input type="checkbox" name="confirm_unsigned" value="1" @checked(old('confirm_unsigned')) class="mt-1">
+        Saya memahami backup ini tidak bertanda tangan dan tetap ingin menggunakannya.
+      </label>
+      @error('confirm_unsigned') <p class="text-danger small">{{ $message }}</p> @enderror
+    @endif
 
     {{-- ── 1. Cara memasukkan data ── --}}
     <div class="card border rounded-4 p-4 mb-3">
@@ -142,7 +160,7 @@
     </button>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const form   = document.getElementById('selectiveForm');
       const rows   = Array.from(form.querySelectorAll('tr[data-table]'));

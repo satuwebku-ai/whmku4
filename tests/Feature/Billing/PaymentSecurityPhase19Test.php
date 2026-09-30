@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Billing;
 
-use App\Models\Payment;
 use App\Models\PaymentGateway;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;

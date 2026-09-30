@@ -28,11 +28,6 @@ class ServiceController extends Controller
         return view('client.services.index', $this->servicesData($request));
     }
 
-    public function servicesBootstrap(Request $request): View
-    {
-        return view('client.services.index', $this->servicesData($request));
-    }
-
     private function servicesData(Request $request): array
     {
         // VPS/cloud punya menu sendiri (client.vps) karena cara
@@ -52,11 +47,6 @@ class ServiceController extends Controller
     }
 
     public function service(HostingAccount $service): View
-    {
-        return view('client.services.show', $this->serviceData($service));
-    }
-
-    public function serviceBootstrap(HostingAccount $service): View
     {
         return view('client.services.show', $this->serviceData($service));
     }
@@ -96,11 +86,6 @@ class ServiceController extends Controller
         return view('client.domains.index', $this->domainsData($request));
     }
 
-    public function domainsBootstrap(Request $request): View
-    {
-        return view('client.domains.index', $this->domainsData($request));
-    }
-
     private function domainsData(Request $request): array
     {
         $domains = Auth::guard('client')->user()
@@ -114,11 +99,6 @@ class ServiceController extends Controller
     }
 
     public function domain(Domain $domain): View
-    {
-        return view('client.domains.show', $this->domainData($domain));
-    }
-
-    public function domainBootstrap(Domain $domain): View
     {
         return view('client.domains.show', $this->domainData($domain));
     }
@@ -168,11 +148,6 @@ class ServiceController extends Controller
     }
 
     public function domainAddons(Domain $domain): View
-    {
-        return view('client.domains.addons', $this->domainAddonsData($domain));
-    }
-
-    public function domainAddonsBootstrap(Domain $domain): View
     {
         return view('client.domains.addons', $this->domainAddonsData($domain));
     }
@@ -591,11 +566,6 @@ class ServiceController extends Controller
         return $this->dnsView($domain, 'client.domains.dns', 'client.domains.show');
     }
 
-    public function dnsBootstrap(Domain $domain): View|RedirectResponse
-    {
-        return $this->dnsView($domain, 'client.domains.dns', 'client.domains.show');
-    }
-
     private function dnsView(Domain $domain, string $view, string $backRoute): View|RedirectResponse
     {
         $this->authorizeOwner($domain);
@@ -766,14 +736,6 @@ class ServiceController extends Controller
      * Halaman pilih paket tujuan upgrade.
      */
     public function upgradeForm(HostingAccount $service): View|RedirectResponse
-    {
-        $result = $this->upgradeFormData($service, 'client.services.show');
-        if ($result instanceof RedirectResponse) return $result;
-
-        return view('client.services.upgrade', $result);
-    }
-
-    public function upgradeFormBootstrap(HostingAccount $service): View|RedirectResponse
     {
         $result = $this->upgradeFormData($service, 'client.services.show');
         if ($result instanceof RedirectResponse) return $result;
@@ -998,11 +960,6 @@ class ServiceController extends Controller
         return $this->emailForwardingView($domain, 'client.domains.email-forwarding', 'client.domains.show');
     }
 
-    public function emailForwardingBootstrap(Domain $domain): View|RedirectResponse
-    {
-        return $this->emailForwardingView($domain, 'client.domains.email-forwarding', 'client.domains.show');
-    }
-
     private function emailForwardingView(Domain $domain, string $view, string $backRoute): View|RedirectResponse
     {
         $this->authorizeOwner($domain);
@@ -1066,11 +1023,6 @@ class ServiceController extends Controller
     // ── Dokumen Persyaratan Domain Indonesia ────────────────────────
 
     public function domainDocuments(Domain $domain): View
-    {
-        return view('client.domains.documents', $this->domainDocumentsData($domain));
-    }
-
-    public function domainDocumentsBootstrap(Domain $domain): View
     {
         return view('client.domains.documents', $this->domainDocumentsData($domain));
     }
@@ -1237,11 +1189,6 @@ class ServiceController extends Controller
     // ── Addons ───────────────────────────────────────────────────────
 
     public function addons(HostingAccount $service): View
-    {
-        return view('client.services.addons', $this->addonsData($service));
-    }
-
-    public function addonsBootstrap(HostingAccount $service): View
     {
         return view('client.services.addons', $this->addonsData($service));
     }

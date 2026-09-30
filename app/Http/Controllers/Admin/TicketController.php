@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Services\Billing\DeletionGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Models\Client;
@@ -19,19 +18,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TicketController extends Controller
 {
-    public function tickets(Request $request): View
-    {
-        return $this->renderList($request, null);
-    }
 
     public function ticketsBootstrap(Request $request): View
     {
         return view('admin.tickets.index', $this->listData($request, null));
-    }
-
-    public function open(Request $request): View
-    {
-        return $this->renderList($request, 'open');
     }
 
     public function openBootstrap(Request $request): View
@@ -39,19 +29,9 @@ class TicketController extends Controller
         return view('admin.tickets.index', $this->listData($request, 'open'));
     }
 
-    public function answered(Request $request): View
-    {
-        return $this->renderList($request, 'answered');
-    }
-
     public function answeredBootstrap(Request $request): View
     {
         return view('admin.tickets.index', $this->listData($request, 'answered'));
-    }
-
-    public function customerReply(Request $request): View
-    {
-        return $this->renderList($request, 'customer_reply');
     }
 
     public function customerReplyBootstrap(Request $request): View
@@ -59,19 +39,9 @@ class TicketController extends Controller
         return view('admin.tickets.index', $this->listData($request, 'customer_reply'));
     }
 
-    public function closed(Request $request): View
-    {
-        return $this->renderList($request, 'closed');
-    }
-
     public function closedBootstrap(Request $request): View
     {
         return view('admin.tickets.index', $this->listData($request, 'closed'));
-    }
-
-    private function renderList(Request $request, ?string $status): View
-    {
-        return view('admin.tickets.index', $this->listData($request, $status));
     }
 
     private function listData(Request $request, ?string $status): array
@@ -100,14 +70,6 @@ class TicketController extends Controller
         ];
 
         return ['tickets' => $tickets, 'activeStatus' => $status, 'stats' => $stats];
-    }
-
-    public function details(Ticket $ticket): View
-    {
-        $ticket->load(['client', 'assignee', 'replies.admin', 'replies.client', 'replies.attachments', 'hostingAccount', 'domain', 'invoice']);
-        $admins = Admin::where('is_active', true)->orderBy('name')->get();
-
-        return view('admin.tickets.details', compact('ticket', 'admins'));
     }
 
     public function detailsBootstrap(Ticket $ticket): View
@@ -165,13 +127,6 @@ class TicketController extends Controller
         $ticket->update(['status' => 'answered', 'last_reply_at' => now()]);
 
         return back()->with('success', 'Kode transfer dikirim ke email klien, dan tiket ditandai terjawab.');
-    }
-
-    public function create(): View
-    {
-        $clients = Client::orderBy('name')->get();
-
-        return view('admin.tickets.form', ['ticket' => new Ticket(), 'clients' => $clients]);
     }
 
     public function createBootstrap(): View

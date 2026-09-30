@@ -22,7 +22,7 @@
     <div class="row g-3 align-items-end">
       <div class="col-md-8">
         <label class="form-label small fw-medium mb-1">Tampilkan submenu dari Menu Utama</label>
-        <select class="form-select form-select-sm" onchange="window.location=this.value">
+        <select class="form-select form-select-sm" data-navigate-on-change>
           <option value="{{ route('admin.nav-submenus') }}">Semua Menu Utama</option>
           @foreach ($mainMenus as $main)
             <option value="{{ route('admin.nav-submenus', ['parent' => $main->id]) }}" @selected($selectedParent === $main->id)>

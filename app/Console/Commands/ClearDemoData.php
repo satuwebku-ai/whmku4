@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Client;
 use App\Models\CmsPage;
 use App\Models\PaymentGateway;
-use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\Tld;
 use Illuminate\Console\Command;

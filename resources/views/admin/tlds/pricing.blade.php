@@ -16,10 +16,10 @@
     </div>
     <div class="d-flex align-items-center gap-2">
       @if ($selected)
-        <button type="button" onclick="document.getElementById('importPanel').classList.toggle('d-none')" class="btn btn-outline-secondary btn-sm">
+        <button type="button" data-action="toggle" data-target="importPanel" class="btn btn-outline-secondary btn-sm">
           <i class="fa-solid fa-cloud-arrow-down" style="font-size:11px"></i> Tarik Harga Registrar
         </button>
-        <button type="button" onclick="document.getElementById('markupPanel').classList.toggle('d-none')" class="btn btn-outline-secondary btn-sm">
+        <button type="button" data-action="toggle" data-target="markupPanel" class="btn btn-outline-secondary btn-sm">
           <i class="fa-solid fa-percent" style="font-size:11px"></i> Markup Massal
         </button>
       @endif
@@ -346,7 +346,7 @@
       <div class="bg-white rounded-4 p-4" style="width:32rem;max-width:92vw;max-height:85vh;overflow-y:auto">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h2 class="small fw-bold text-dark mb-0">Harga per Tahun — <span id="yearPriceExt"></span></h2>
-          <button type="button" onclick="closeYearPriceModal()" class="btn-close" style="font-size:11px"></button>
+          <button type="button" data-action="call" data-call="closeYearPriceModal" class="btn-close" style="font-size:11px"></button>
         </div>
         <p class="text-muted mb-3" style="font-size:11px">
           Kosongkan supaya tahun itu dihitung otomatis (harga 1 tahun × jumlah tahun). Angka abu-abu
@@ -354,11 +354,11 @@
           modal per tahun — jalankan Markup Massal dulu kalau kolomnya masih kosong.
         </p>
         <div id="yearPriceRows" class="d-flex flex-column gap-2"></div>
-        <button type="button" onclick="closeYearPriceModal(true)" class="btn btn-primary btn-sm w-100 mt-3">Terapkan ke Form</button>
+        <button type="button" data-action="call" data-call="closeYearPriceModal" data-args='[true]' class="btn btn-primary btn-sm w-100 mt-3">Terapkan ke Form</button>
       </div>
     </div>
 
-    <script>
+    <script @nonce>
       // Panel Pembulatan di Markup Massal -- sembunyikan/tampilkan field
       // sesuai mode yang dipilih.
       (function () {
@@ -456,6 +456,7 @@
         currentYearPriceTld = null;
       }
 
+      (window.LumoraActions = window.LumoraActions || {}).closeYearPriceModal = closeYearPriceModal;
       document.querySelectorAll('.year-price-btn').forEach(btn => {
         btn.addEventListener('click', () => openYearPriceModal(btn));
       });

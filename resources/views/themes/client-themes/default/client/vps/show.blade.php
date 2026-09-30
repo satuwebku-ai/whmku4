@@ -175,7 +175,7 @@
               <p class="text-muted mt-2 mb-0" style="font-size:11px">Tidak terbuka? Salin perintah ini dan jalankan manual di Terminal / PowerShell:</p>
               <div class="rounded-3 p-3 d-flex align-items-center justify-content-between gap-2 mt-1" style="background:#1e293b;color:#f1f5f9;font-family:monospace;font-size:13px">
                 <span id="sshCmd">ssh {{ $userVm }}@{{ $ipAkses }}</span>
-                <button type="button" onclick="salinSsh()" class="btn btn-sm btn-outline-light" style="font-size:11px">Salin</button>
+                <button type="button" data-action="call" data-call="salinSsh" class="btn btn-sm btn-outline-light" style="font-size:11px">Salin</button>
               </div>
             @endif
             @if (str_starts_with((string) $ipAkses, '10.'))
@@ -201,7 +201,7 @@
               <input type="text" name="new_password" id="vpsPass" placeholder="Password baru" class="form-control form-control-sm" required minlength="8">
             </div>
             <div class="col-sm-2 d-flex gap-1">
-              <button type="button" onclick="genVpsPass()" class="btn btn-outline-secondary btn-sm" title="Buatkan password"><i class="fa-solid fa-dice" style="font-size:11px"></i></button>
+              <button type="button" data-action="call" data-call="genVpsPass" class="btn btn-outline-secondary btn-sm" title="Buatkan password"><i class="fa-solid fa-dice" style="font-size:11px"></i></button>
               <button type="submit" class="btn btn-theme btn-sm flex-grow-1">Ganti</button>
             </div>
           </form>
@@ -358,7 +358,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     function genVpsPass() {
       const U = 'ABCDEFGHJKLMNPQRSTUVWXYZ', L = 'abcdefghijkmnpqrstuvwxyz', D = '23456789';
       const all = U + L + D;
@@ -368,11 +368,13 @@
       document.getElementById('vpsPass').value = p.sort(() => Math.random() - 0.5).join('');
     }
 
+    (window.LumoraActions = window.LumoraActions || {}).genVpsPass = genVpsPass;
     function salinSsh() {
       const el = document.getElementById('sshCmd');
       if (el) navigator.clipboard.writeText(el.textContent.trim());
     }
 
+    (window.LumoraActions = window.LumoraActions || {}).salinSsh = salinSsh;
     // Versi OS mengikuti OS yang dipilih di form instal ulang.
     (function () {
       const os = document.getElementById('reOs');

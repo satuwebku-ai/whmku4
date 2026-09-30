@@ -114,7 +114,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     document.querySelectorAll('.copy-var-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         const text = '{' + btn.dataset.copyVar + '}';

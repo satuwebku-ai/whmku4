@@ -21,19 +21,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PaymentController extends Controller
 {
-    public function payments(Request $request): View
-    {
-        return $this->renderList($request, null);
-    }
 
     public function paymentsBootstrap(Request $request): View
     {
         return view('admin.payments.index', $this->listData($request, null));
-    }
-
-    public function initiated(Request $request): View
-    {
-        return $this->renderList($request, 'initiated');
     }
 
     public function initiatedBootstrap(Request $request): View
@@ -41,19 +32,9 @@ class PaymentController extends Controller
         return view('admin.payments.index', $this->listData($request, 'initiated'));
     }
 
-    public function pending(Request $request): View
-    {
-        return $this->renderList($request, 'pending');
-    }
-
     public function pendingBootstrap(Request $request): View
     {
         return view('admin.payments.index', $this->listData($request, 'pending'));
-    }
-
-    public function paid(Request $request): View
-    {
-        return $this->renderList($request, 'paid');
     }
 
     public function paidBootstrap(Request $request): View
@@ -61,29 +42,14 @@ class PaymentController extends Controller
         return view('admin.payments.index', $this->listData($request, 'paid'));
     }
 
-    public function failed(Request $request): View
-    {
-        return $this->renderList($request, 'failed');
-    }
-
     public function failedBootstrap(Request $request): View
     {
         return view('admin.payments.index', $this->listData($request, 'failed'));
     }
 
-    public function refunded(Request $request): View
-    {
-        return $this->renderList($request, 'refunded');
-    }
-
     public function refundedBootstrap(Request $request): View
     {
         return view('admin.payments.index', $this->listData($request, 'refunded'));
-    }
-
-    private function renderList(Request $request, ?string $status): View
-    {
-        return view('admin.payments.index', $this->listData($request, $status));
     }
 
     private function listData(Request $request, ?string $status): array
@@ -97,13 +63,6 @@ class PaymentController extends Controller
             ->withQueryString();
 
         return ['payments' => $payments, 'activeStatus' => $status];
-    }
-
-    public function details(Payment $payment): View
-    {
-        $payment->load(['client', 'invoice', 'gateway']);
-
-        return view('admin.payments.details', compact('payment'));
     }
 
     public function detailsBootstrap(Payment $payment): View
@@ -133,21 +92,6 @@ class PaymentController extends Controller
         }
 
         return Storage::disk('local')->response($payment->proof_path);
-    }
-
-    /**
-     * Buat pembayaran baru untuk sebuah invoice, lalu inisiasi ke gateway.
-     */
-    public function create(Request $request): View
-    {
-        $invoices = Invoice::with('client')
-            ->whereIn('status', ['unpaid', 'overdue'])
-            ->latest()
-            ->get();
-
-        $gateways = PaymentGateway::where('is_active', true)->orderBy('sort_order')->get();
-
-        return view('admin.payments.form', compact('invoices', 'gateways'));
     }
 
     public function createBootstrap(Request $request): View

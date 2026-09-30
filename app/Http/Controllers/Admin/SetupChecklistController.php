@@ -19,15 +19,13 @@ class SetupChecklistController extends Controller
         $data = $request->validate([
             'key' => ['required', 'string', 'max:50'],
             'restore' => ['nullable', 'boolean'],
-            'stay' => ['nullable', 'boolean'],
         ]);
 
         $ok = $request->boolean('restore')
             ? $setup->restore($data['key'])
             : $setup->skip($data['key']);
 
-        // 'stay' = dikirim dari tabel di Konsol Web: jangan buka modal lagi.
-        $redirect = $request->boolean('stay') ? back() : back()->with('setup_reopen', true);
+        $redirect = back()->with('setup_reopen', true);
 
         return $ok ? $redirect : $redirect->with('error', 'Item ini tidak bisa dilewati.');
     }

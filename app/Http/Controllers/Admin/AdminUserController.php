@@ -13,12 +13,6 @@ use Illuminate\View\View;
 
 class AdminUserController extends Controller
 {
-    // ── Manajemen admin ──────────────────────────────────────────────
-
-    public function admins(Request $request): View
-    {
-        return view('admin.admins.index', $this->adminsData($request));
-    }
 
     public function adminsBootstrap(Request $request): View
     {
@@ -39,11 +33,6 @@ class AdminUserController extends Controller
             ->withQueryString();
 
         return compact('admins');
-    }
-
-    public function create(): View
-    {
-        return view('admin.admins.form', ['admin' => new Admin()]);
     }
 
     public function createBootstrap(): View
@@ -69,11 +58,6 @@ class AdminUserController extends Controller
         Admin::create($data);
 
         return redirect()->route('admin.admins')->with('success', 'Admin baru berhasil dibuat.');
-    }
-
-    public function edit(Admin $admin): View
-    {
-        return view('admin.admins.form', compact('admin'));
     }
 
     public function editBootstrap(Admin $admin): View
@@ -207,13 +191,6 @@ class AdminUserController extends Controller
             ->where('is_active', true)
             ->where('id', '!=', $admin->id)
             ->doesntExist();
-    }
-
-    // ── Catatan percobaan login ──────────────────────────────────────
-
-    public function loginAttempts(Request $request): View
-    {
-        return view('admin.admins.login-attempts', $this->loginAttemptsData($request));
     }
 
     public function loginAttemptsBootstrap(Request $request): View

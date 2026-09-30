@@ -52,7 +52,7 @@
   </section>
 
   @if ($banners->count() > 1)
-    <script>
+    <script @nonce>
       (function () {
         var slides = document.querySelectorAll('#nhPromoCarousel .nh-promo-slide');
         var dots = document.querySelectorAll('#nhPromoCarousel .nh-promo-dot');

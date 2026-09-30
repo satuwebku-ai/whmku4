@@ -20,7 +20,15 @@ class SupplierPricingSyncService
             throw new RuntimeException('URL API supplier belum diisi.');
         }
 
-        $request = Http::acceptJson()->timeout(20);
+        // Cegah SSRF: URL diisi admin tapi dipanggil dari server, jadi tolak
+        // alamat internal/metadata dan jangan ikuti redirect ke sana.
+        if (! \App\Support\UrlGuard::isPublicHttpUrl($addon->supplier_api_url)) {
+            $message = 'URL API supplier harus http(s) ke alamat publik (bukan localhost/jaringan internal).';
+            $addon->update(['supplier_last_error' => $message]);
+            throw new RuntimeException($message);
+        }
+
+        $request = Http::acceptJson()->timeout(20)->withoutRedirecting();
 
         if ($addon->supplier_api_token) {
             $request = $request->withToken($addon->supplier_api_token);

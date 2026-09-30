@@ -12,7 +12,7 @@
       <p class="text-muted mb-0">Riwayat tagihan dan pembayaran Anda.</p>
     </div>
     <form method="GET">
-      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+      <select name="status" class="form-select form-select-sm" data-auto-submit>
         <option value="">Semua Status</option>
         <option value="unpaid" @selected(request('status') === 'unpaid')>Belum Bayar</option>
         <option value="paid" @selected(request('status') === 'paid')>Lunas</option>

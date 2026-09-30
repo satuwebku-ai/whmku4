@@ -179,7 +179,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     (function () {
       const select = document.getElementById('providerSelect');
       const fProp  = document.getElementById('fieldProperty');

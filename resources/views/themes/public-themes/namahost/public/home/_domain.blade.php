@@ -105,7 +105,7 @@
   </section>
 @endif
 
-<script>
+<script @nonce>
   (function () {
     var els = document.querySelectorAll('[data-count]');
     if (!('IntersectionObserver' in window) || !els.length) return;

@@ -13,10 +13,6 @@ use Illuminate\View\View;
 
 class ChatController extends Controller
 {
-    public function index(Request $request): View
-    {
-        return view('admin.chats.index', $this->indexData($request));
-    }
 
     public function indexBootstrap(Request $request): View
     {
@@ -51,13 +47,6 @@ class ChatController extends Controller
         ];
 
         return compact('conversations', 'counts');
-    }
-
-    public function show(ChatConversation $chat): View
-    {
-        $this->markOpened($chat);
-
-        return view('admin.chats.show', ['chat' => $chat]);
     }
 
     public function showBootstrap(ChatConversation $chat): View

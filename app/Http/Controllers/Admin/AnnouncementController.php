@@ -10,10 +10,6 @@ use Illuminate\View\View;
 
 class AnnouncementController extends Controller
 {
-    public function announcements(Request $request): View
-    {
-        return view('admin.announcements.index', $this->indexData($request));
-    }
 
     public function announcementsBootstrap(Request $request): View
     {
@@ -33,11 +29,6 @@ class AnnouncementController extends Controller
         return compact('announcements');
     }
 
-    public function create(): View
-    {
-        return view('admin.announcements.form', ['announcement' => new Announcement()]);
-    }
-
     public function createBootstrap(): View
     {
         return view('admin.announcements.form', ['announcement' => new Announcement()]);
@@ -51,11 +42,6 @@ class AnnouncementController extends Controller
         Announcement::create($data);
 
         return redirect()->route('admin.announcements')->with('success', 'Pengumuman berhasil dibuat.');
-    }
-
-    public function edit(Announcement $announcement): View
-    {
-        return view('admin.announcements.form', compact('announcement'));
     }
 
     public function editBootstrap(Announcement $announcement): View

@@ -147,7 +147,7 @@
     </div>
   </div>
 
-  <script>
+  <script @nonce>
     (function () {
       const form = document.getElementById('toastForm');
       const wrap = document.getElementById('toastWrap');

@@ -53,7 +53,7 @@
             <label class="form-label small fw-medium text-dark">Password Baru</label>
             <div class="d-flex gap-2">
               <input type="password" name="password" id="pwField" class="form-control form-control-sm" required>
-              <button type="button" onclick="lumoraGeneratePassword('pwField', 'pwConfirmField', 'pwChecklist')" class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
+              <button type="button" data-action="call" data-call="lumoraGeneratePassword" data-args='["pwField","pwConfirmField","pwChecklist"]' class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
                 <i class="fa-solid fa-dice" style="font-size:11px"></i> Buatkan Otomatis
               </button>
             </div>
@@ -135,7 +135,7 @@
   </div>
 
   <script src="{{ asset('assets/js/push-notifications.js') }}"></script>
-  <script>
+  <script @nonce>
     function lumoraPasswordChecks(pw) {
       return [
         { label: 'Minimal 8 karakter', ok: pw.length >= 8 },
@@ -178,6 +178,7 @@
       lumoraRenderChecklist(pw, checklistId);
     }
 
+    (window.LumoraActions = window.LumoraActions || {}).lumoraGeneratePassword = lumoraGeneratePassword;
     document.addEventListener('DOMContentLoaded', () => {
       const pwField = document.getElementById('pwField');
       if (pwField) {

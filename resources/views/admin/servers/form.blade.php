@@ -204,7 +204,7 @@
       @endif
 
       @if ($server->exists)
-        <button type="button" onclick="document.getElementById('syncCostForm').submit()" class="btn btn-outline-secondary btn-sm">
+        <button type="button" data-action="submit-form" data-target="syncCostForm" class="btn btn-outline-secondary btn-sm">
           <i class="fa-solid fa-cloud-arrow-down" style="font-size:11px"></i> Tarik Harga Modal Sekarang
         </button>
       @else
@@ -225,7 +225,7 @@
     </form>
   @endif
 
-  <script>
+  <script @nonce>
     (function () {
       const $ = (id) => document.getElementById(id);
       const panelSelect = $('panelSelect');

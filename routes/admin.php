@@ -76,6 +76,10 @@ Route::middleware(['admin', 'check.status'])->group(function () {
     Route::get('/', DashboardController::class . '@indexBootstrap')->name('dashboard');
     Route::get('dashboard', DashboardController::class . '@index')->name('dashboard.alt');
 
+    // Feed global untuk dropdown notifikasi yang tampil di semua halaman admin.
+    Route::get('notifications/feed', [ActivityController::class, 'feed'])->name('activities.feed');
+    Route::get('activity/{activity}/open', [ActivityController::class, 'open'])->name('activities.open');
+
     // ── Order ── (modul: sales)
     Route::middleware('module:sales')->controller(OrderController::class)->group(function () {
         Route::get('orders', 'ordersBootstrap')->name('orders');
@@ -634,7 +638,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             // (role:superadmin, bukan cuma module:infrastructure) karena
             // dampaknya jauh lebih besar & sepihak dari aksi lain di
             // grup ini.
-            Route::middleware('role:superadmin')->group(function () {
+            Route::middleware(['role:superadmin', '2fa'])->group(function () {
                 Route::post('{filename}/restore', 'restore')->name('restore');
                 Route::post('restore-upload', 'restoreUpload')->name('restore-upload');
 
@@ -685,6 +689,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
     Route::middleware('module:system')->controller(ActivityController::class)->group(function () {
         Route::get('activities', 'activitiesBootstrap')->name('activities');
         Route::post('activities/read-all', 'markAllRead')->name('activities.read-all');
+        Route::post('activities/{activity}/read', 'markRead')->name('activities.read');
         Route::post('activities/clear-old', 'clearOld')->name('activities.clear-old');
         Route::delete('activity/{activity}', 'destroy')->name('activity.delete');
 
