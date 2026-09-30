@@ -11,12 +11,20 @@ return new class extends Migration
         Schema::create('coupons', function (Blueprint $table) {
             $table->id();
             $table->string('code')->unique();
+
+            // Tampilan halaman Promo publik: judul & keterangan promo.
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
             $table->enum('type', ['percent', 'fixed'])->default('percent');
             $table->decimal('value', 12, 2); // persen (0-100) atau rupiah tetap
 
             // 'all' (berlaku ke semua produk) atau 'specific' (dibatasi ke
             // produk/kategori tertentu lewat dua tabel pivot di bawah).
             $table->enum('applies_to', ['all', 'specific'])->default('all');
+
+            // TLD sasaran kupon "Tertentu" (JSON daftar id tlds), untuk
+            // registrasi domain baru.
+            $table->json('tld_ids')->nullable();
 
             $table->decimal('min_order', 12, 2)->default(0); // subtotal minimum supaya kupon berlaku
             $table->decimal('max_discount', 12, 2)->nullable(); // batas potongan untuk kupon persen
@@ -29,6 +37,8 @@ return new class extends Migration
             $table->date('expires_at')->nullable();
 
             $table->boolean('is_active')->default(true);
+            // Tampilkan kupon ini di halaman Promo publik (default tidak).
+            $table->boolean('is_public')->default(false);
             $table->timestamps();
         });
 

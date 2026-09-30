@@ -54,7 +54,7 @@ class Tld extends Model
         'cost_register', 'cost_renew', 'cost_transfer', 'cost_currency', 'cost_synced_at',
         'cost_year_prices', 'cost_year_renew_prices',
         'year_prices', 'year_renew_prices',
-        'show_in_search', 'search_group', 'search_order', 'is_demo',
+        'show_in_search', 'show_on_home', 'search_group', 'search_order', 'is_demo',
     ];
 
     protected function casts(): array
@@ -73,6 +73,7 @@ class Tld extends Model
             'year_renew_prices' => 'array',
             'is_active' => 'boolean',
             'show_in_search' => 'boolean',
+            'show_on_home' => 'boolean',
             'is_demo' => 'boolean',
         ];
     }

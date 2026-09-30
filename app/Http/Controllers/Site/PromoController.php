@@ -58,11 +58,29 @@ class PromoController extends Controller
 
         $scoped = $coupon->applies_to === 'specific';
 
+        $products   = $scoped ? $coupon->products()->orderBy('name')->pluck('name')->all() : [];
+        $categories = $scoped ? $coupon->categories()->orderBy('name')->pluck('name')->all() : [];
+
+        // Untuk tab filter di halaman Promo: kupon "semua produk" muncul
+        // di setiap tab; kupon tertentu hanya di tab yang relevan.
+        $kinds = [];
+        if (! $scoped) {
+            $kinds = ['domain', 'hosting'];
+        } else {
+            if ($tldRows !== []) {
+                $kinds[] = 'domain';
+            }
+            if ($products !== [] || $categories !== []) {
+                $kinds[] = 'hosting';
+            }
+        }
+
         return [
             'coupon'     => $coupon,
+            'kinds'      => $kinds,
             'tlds'       => $tldRows,
-            'products'   => $scoped ? $coupon->products()->orderBy('name')->pluck('name')->all() : [],
-            'categories' => $scoped ? $coupon->categories()->orderBy('name')->pluck('name')->all() : [],
+            'products'   => $products,
+            'categories' => $categories,
             'all'        => ! $scoped,
             // Ekstensi yang bisa langsung dicentang di Cek Domain.
             'searchExtensions' => collect($tldRows)->where('searchable', true)->pluck('extension')->all(),

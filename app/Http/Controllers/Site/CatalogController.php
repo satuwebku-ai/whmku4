@@ -73,11 +73,23 @@ class CatalogController extends Controller
             ->get();
 
         // TLD populer untuk ditampilkan di bawah kotak pencarian domain.
+        // Prioritas: TLD yang dicentang "Tampil di Beranda" di
+        // /admin/tlds. Kalau belum ada yang dicentang, pakai 6 termurah.
         $popularTlds = Tld::where('is_active', true)
             ->where('register_price', '>', 0)
+            ->where('show_on_home', true)
+            ->orderBy('search_order')
             ->orderBy('register_price')
-            ->take(6)
+            ->take(12)
             ->get();
+
+        if ($popularTlds->isEmpty()) {
+            $popularTlds = Tld::where('is_active', true)
+                ->where('register_price', '>', 0)
+                ->orderBy('register_price')
+                ->take(6)
+                ->get();
+        }
 
         $announcements = Announcement::live()
             ->orderByDesc('is_pinned')

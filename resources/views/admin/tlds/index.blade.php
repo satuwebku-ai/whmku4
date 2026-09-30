@@ -98,6 +98,7 @@
               <th class="text-end py-3">Harga Jual</th>
               <th class="text-center py-3">Aktif</th>
               <th class="text-center py-3" title="Tampil di halaman Cek Domain publik">Tampil di Web</th>
+              <th class="text-center py-3" title="Tampil di beranda (kotak pencarian & tabel harga). Kosong semua = 6 TLD termurah">Tampil di Beranda</th>
               <th class="py-3">Grup</th>
               <th class="text-end px-4 py-3">Aksi</th>
             </tr>
@@ -173,6 +174,10 @@
                   <input type="checkbox" name="in_search[]" value="{{ $tld->id }}" @checked($tld->show_in_search) style="margin:0">
                 </td>
 
+                <td class="text-center py-2">
+                  <input type="checkbox" name="on_home[]" value="{{ $tld->id }}" @checked($tld->show_on_home) @disabled($tld->register_price <= 0) style="margin:0">
+                </td>
+
                 <td class="py-2">
                   <input type="text" name="rows[{{ $tld->id }}][search_group]"
                          value="{{ $tld->search_group }}" placeholder="mis. Populer"
@@ -188,7 +193,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="7" class="text-center py-5">
+                <td colspan="8" class="text-center py-5">
                   <p class="text-muted mb-1" style="font-size:14px">Belum ada TLD.</p>
                   <p class="text-muted mb-0" style="font-size:11px">
                     Tambahkan manual, atau impor otomatis dari registrar:

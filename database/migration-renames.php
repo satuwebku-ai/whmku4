@@ -99,4 +99,6 @@ return [
     '2029_09_02_000000_add_addon_to_orders_order_type' => null,
     '2029_09_03_000000_add_license_ip_to_orders_table' => null,
     '2029_09_04_000000_create_custom_premium_domains_table' => '2026_01_01_000073_create_custom_premium_domains_table',
+    // Kolom promo kupon dilebur ke create_coupons_table.
+    '2026_01_01_000074_add_promo_fields_to_coupons_table' => null,
 ];

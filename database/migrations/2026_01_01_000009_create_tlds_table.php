@@ -77,6 +77,10 @@ return new class extends Migration
             // default -- diatur manual per-TLD di TLD Pricing supaya
             // halaman publik tidak penuh sesak oleh ratusan ekstensi.
             $table->boolean('show_in_search')->default(false);
+            // Tampil di beranda (kotak pencarian domain + tabel harga).
+            // Kalau tidak ada satu pun yang dicentang, beranda memakai
+            // 6 TLD termurah seperti sebelumnya.
+            $table->boolean('show_on_home')->default(false);
             // TLD demo: dipakai untuk mencoba alur pemesanan dari awal
             // sampai akhir tanpa menyentuh registrar atau domain
             // sungguhan. Pengecekan ketersediaannya dilewati (selalu

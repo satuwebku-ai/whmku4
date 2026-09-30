@@ -189,6 +189,7 @@ class TldController extends Controller
             'no_cost'  => Tld::where('cost_register', '<=', 0)->count(),
             'shown'    => Tld::where('show_in_search', true)->count(),
             'hidden'   => Tld::where('show_in_search', false)->count(),
+            'home'     => Tld::where('show_on_home', true)->count(),
             'privacy_eligible' => Tld::where('whois_privacy_eligible', true)->count(),
         ];
 
@@ -1425,6 +1426,7 @@ class TldController extends Controller
         ]);
 
         $searchIds = array_map('intval', (array) $request->input('in_search', []));
+        $homeIds   = array_map('intval', (array) $request->input('on_home', []));
         $changed = 0;
         $blocked = [];
 
@@ -1454,6 +1456,7 @@ class TldController extends Controller
                 // apa pun centangnya — kalau tidak, pengunjung melihat
                 // domain seharga Rp 0.
                 'show_in_search' => in_array((int) $id, $searchIds, true) && $register > 0,
+                'show_on_home'   => in_array((int) $id, $homeIds, true) && $register > 0,
                 'search_group'   => $row['search_group'] ?? $tld->search_group,
             ];
 

@@ -37,7 +37,7 @@ class CouponController extends Controller
             'coupon' => new Coupon(),
             'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
-            'tlds' => Tld::where('is_active', true)->orderBy('extension')->get(),
+            'tlds' => Tld::with('registrar')->where('is_active', true)->orderBy('extension')->get(),
         ]);
     }
 
@@ -61,7 +61,7 @@ class CouponController extends Controller
             'coupon' => $coupon,
             'categories' => ProductGroup::orderBy('name')->get(),
             'products' => Product::orderBy('name')->get(),
-            'tlds' => Tld::where('is_active', true)->orderBy('extension')->get(),
+            'tlds' => Tld::with('registrar')->where('is_active', true)->orderBy('extension')->get(),
         ]);
     }
 
