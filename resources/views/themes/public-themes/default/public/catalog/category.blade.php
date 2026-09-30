@@ -8,7 +8,11 @@
 @section('content')
 
   <nav class="text-muted mb-3" style="font-size:12px">
-    <a href="{{ route('catalog.index') }}" class="text-decoration-none text-muted">Hosting</a> / {{ $category->name }}
+    @if ($category->urlSection() === 'vps')
+      <a href="{{ route('catalog.vps') }}" class="text-decoration-none text-muted">VPS</a> / {{ $category->name }}
+    @else
+      <a href="{{ route('catalog.index') }}" class="text-decoration-none text-muted">Hosting</a> / {{ $category->name }}
+    @endif
   </nav>
 
   <div class="mb-4">

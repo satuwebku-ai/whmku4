@@ -9,7 +9,7 @@
           <p class="mb-0 text-body-secondary">Akses root dan aktif otomatis dalam hitungan menit.</p>
         </div>
       </div>
-      <a href="{{ route('catalog.index') }}" class="btn btn-primary">Lihat semua paket</a>
+      <a href="{{ route('catalog.vps') }}" class="btn btn-primary">Lihat semua paket</a>
     </div></div>
 
     <div class="row g-4">

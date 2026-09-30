@@ -22,7 +22,7 @@ class CmsPage extends Model
      * daripada halaman diam-diam tidak bisa diakses tanpa penjelasan.
      */
     public const RESERVED_SLUGS = [
-        'admin', 'client', 'hosting', 'cek-domain', 'keranjang', 'chat',
+        'admin', 'client', 'hosting', 'vps', 'cek-domain', 'keranjang', 'chat',
         'p', 'announcements', 'payment', 'storage', 'build', 'vendor',
         'api', 'login', 'register', 'logout', 'dashboard', 'home',
         'domain-premium', 'transfer-domain', 'ref',

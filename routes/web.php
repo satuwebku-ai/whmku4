@@ -45,6 +45,7 @@ Route::get('vendor/tailwind/browser.js', [\App\Http\Controllers\BrandingAssetCon
 */
 Route::controller(CatalogController::class)->group(function () {
     Route::get('hosting', 'indexBootstrap')->name('catalog.index');
+    Route::get('vps', 'vpsBootstrap')->name('catalog.vps');
     // Prefix URL mengikuti jenis kategori: /hosting/... untuk hosting
     // biasa, /vps/... untuk cloud server. Dibatasi where() supaya tidak
     // menangkap path lain yang tidak dimaksud.

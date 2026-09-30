@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\Coupon;
 use App\Models\Tld;
+use App\Support\ProductPromos;
 use Illuminate\View\View;
 
 class CatalogController extends Controller
@@ -100,7 +101,7 @@ class CatalogController extends Controller
         // Promo per-produk (hosting & VPS) untuk kartu paket di beranda:
         // nilai diskon tampil dan harga jual dikurangi -- hanya bila ada
         // kupon publik yang berlaku untuk produk itu.
-        $productPromos = $this->homeProductPromos($featured->concat($vpsProducts));
+        $productPromos = ProductPromos::for($featured->concat($vpsProducts));
 
         $announcements = Announcement::live()
             ->orderByDesc('is_pinned')
@@ -213,82 +214,6 @@ class CatalogController extends Controller
         return $found;
     }
 
-    /**
-     * Promo per-produk untuk kartu paket hosting/VPS di beranda. Kupon yang
-     * dipakai: publik, aktif, dalam rentang tanggal, dan menyasar produk
-     * itu (langsung, lewat kategorinya, atau kupon "semua produk").
-     * Harga dasar = harga mulai dari (starting_price); bila ada beberapa
-     * kupon, dipakai yang harga akhirnya paling murah. Produk yang ditagih
-     * per jam (deposit) dilewati karena tidak punya harga siklus tetap.
-     *
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
-     * @return array<int, array{code: string, label: string, discount: float, before: float, after: float, ends: ?string}>
-     */
-    private function homeProductPromos($products): array
-    {
-        $found = [];
-
-        try {
-            $coupons = Coupon::publicPromo()->with(['products:products.id', 'categories:product_groups.id'])->get();
-
-            foreach ($coupons as $coupon) {
-                // Kupon khusus TLD (domain) tidak berlaku untuk paket.
-                if ($coupon->applies_to === 'specific' && $coupon->targetsTlds()
-                    && $coupon->products->isEmpty() && $coupon->categories->isEmpty()) {
-                    continue;
-                }
-
-                $productIds  = $coupon->products->pluck('id')->all();
-                $categoryIds = $coupon->categories->pluck('id')->all();
-
-                foreach ($products as $product) {
-                    if ($product->isDepositBilled()) {
-                        continue;
-                    }
-
-                    if ($coupon->applies_to === 'specific'
-                        && ! in_array($product->id, $productIds, true)
-                        && ! in_array($product->product_category_id, $categoryIds, true)) {
-                        continue;
-                    }
-
-                    $before = (float) $product->starting_price;
-
-                    if ($before <= 0 || $before < (float) $coupon->min_order) {
-                        continue;
-                    }
-
-                    $discount = $coupon->calculateDiscount($before);
-
-                    if ($discount <= 0) {
-                        continue;
-                    }
-
-                    $after = $before - $discount;
-
-                    if (isset($found[$product->id]) && $found[$product->id]['after'] <= $after) {
-                        continue;
-                    }
-
-                    $found[$product->id] = [
-                        'code'     => $coupon->code,
-                        'label'    => $coupon->value_label,
-                        'discount' => $discount,
-                        'before'   => $before,
-                        'after'    => $after,
-                        'ends'     => $coupon->expires_at?->format('d M Y'),
-                    ];
-                }
-            }
-        } catch (\Throwable $e) {
-            report($e);
-
-            return [];
-        }
-
-        return $found;
-    }
-
     public function indexBootstrap(): View
     {
         return view('public.catalog.index', $this->indexData());
@@ -312,7 +237,44 @@ class CatalogController extends Controller
 
         $banners = \App\Models\PromoBanner::live()->forPage('catalog')->orderBy('sort_order')->get();
 
-        return compact('categories', 'featured', 'banners');
+        $productPromos = ProductPromos::for($featured);
+
+        return compact('categories', 'featured', 'banners', 'productPromos');
+    }
+
+    /**
+     * Halaman /vps -- semua paket VPS (cloud server), dengan harga promo
+     * bila ada kupon publik yang berlaku. Sumber produknya sama persis
+     * dengan section VPS di beranda (Product::scopeVpsType()).
+     */
+    public function vpsBootstrap(): View
+    {
+        return view('public.catalog.vps', $this->vpsData());
+    }
+
+    private function vpsData(): array
+    {
+        $products = Product::active()
+            ->vpsType()
+            ->with('category')
+            ->orderByDesc('is_featured')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $categories = ProductGroup::active()
+            ->where('type', 'vps')
+            ->withCount(['products' => fn ($q) => $q->active()])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn ($cat) => $cat->products_count > 0);
+
+        $banners = \App\Models\PromoBanner::live()->forPage('catalog')->orderBy('sort_order')->get();
+
+        $productPromos = ProductPromos::for($products);
+
+        return compact('products', 'categories', 'banners', 'productPromos');
     }
 
     public function categoryBootstrap(string $section, string $slug): View
@@ -331,7 +293,9 @@ class CatalogController extends Controller
             ->orderBy('name')
             ->paginate(12);
 
-        return compact('category', 'products');
+        $productPromos = ProductPromos::for(collect($products->items()));
+
+        return compact('category', 'products', 'productPromos');
     }
 
     public function productBootstrap(string $section, string $categorySlug, string $productSlug): View
