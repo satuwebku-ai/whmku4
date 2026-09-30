@@ -130,7 +130,7 @@
     </form>
   </div>
 
-  <script>
+  <script @nonce>
     const descriptions = @json($commands);
     const dryRunCommands = @json($dryRunCommands);
 
