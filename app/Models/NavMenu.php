@@ -245,18 +245,20 @@ class NavMenu extends Model
     }
 
     /**
-     * Section katalog yang sedang dibuka ('hosting' | 'vps'), hanya untuk
-     * halaman kategori/produk yang route-nya dipakai bersama. Null di
-     * halaman lain.
+     * Section katalog yang sedang dibuka ('hosting' | 'vps'). /vps adalah
+     * route sendiri (catalog.vps); halaman kategori/produk memakai route
+     * bersama sehingga dibedakan lewat parameter {section}. Null di
+     * halaman non-katalog.
      */
     private static function catalogSection(): ?string
     {
         $route = request()->route();
 
-        if (! $route || ! in_array($route->getName(), ['catalog.category', 'catalog.product'], true)) {
-            return null;
-        }
-
-        return $route->parameter('section');
+        return match ($route?->getName()) {
+            'catalog.vps' => 'vps',
+            'catalog.index' => 'hosting',
+            'catalog.category', 'catalog.product' => $route->parameter('section'),
+            default => null,
+        };
     }
 }
