@@ -129,6 +129,14 @@ class SetupChecklistService
                 'url' => null,
                 'check' => fn () => $this->checkMigrations(),
             ],
+            'schema' => [
+                'title' => 'Tabel & kolom database lengkap',
+                'description' => 'Kolom yang dipakai fitur terbaru (halaman Promo, TLD di beranda) sudah ada, supaya tidak muncul error 500.',
+                'module' => 'system',
+                'skippable' => false,
+                'url' => null,
+                'check' => fn () => $this->checkSchema(),
+            ],
             'mail' => [
                 'title' => 'Email (SMTP) aktif',
                 'description' => 'Dibutuhkan untuk OTP admin, reset password, invoice, dan pengingat tagihan.',
@@ -143,9 +151,7 @@ class SetupChecklistService
                 'module' => 'system',
                 'skippable' => false,
                 'url' => null,
-                'check' => fn () => (is_link(public_path('storage')) || is_dir(public_path('storage')))
-                    ? [true, null]
-                    : [false, 'Jalankan: php artisan storage:link'],
+                'check' => fn () => $this->checkStorageLink(),
             ],
             'payment_gateway' => [
                 'title' => 'Payment gateway aktif',
@@ -248,22 +254,43 @@ class SetupChecklistService
 
         $paths = array_merge([database_path('migrations')], $migrator->paths());
         $files = array_keys($migrator->getMigrationFiles($paths));
-        $ran = $repository->getRan();
-        $pending = count(array_diff($files, $ran));
-
-        // Database lama (sebelum penataan ulang migrations) masih mencatat nama
-        // file lama, jadi `migrate` biasa akan mencoba membuat ulang tabel.
-        if ($pending > 0 && file_exists(database_path('migration-renames.php'))) {
-            $legacy = array_intersect(array_keys(require database_path('migration-renames.php')), $ran);
-
-            if (! empty($legacy)) {
-                return [false, 'Riwayat migrasi masih memakai nama lama — jalankan php artisan lumora:sync-migrations dulu, baru php artisan migrate.'];
-            }
-        }
+        $pending = count(array_diff($files, $repository->getRan()));
 
         return $pending > 0
             ? [false, "{$pending} migrasi belum dijalankan — jalankan php artisan migrate."]
             : [true, null];
+    }
+
+    /**
+     * Kolom yang wajib ada. Migrasi yang sudah tercatat "selesai" tidak
+     * dijalankan ulang walau isinya berubah, jadi kolom baru bisa hilang
+     * padahal checkMigrations() menyatakan beres.
+     */
+    private const REQUIRED_COLUMNS = [
+        'tlds'    => ['show_in_search', 'show_on_home'],
+        'coupons' => ['title', 'description', 'tld_ids', 'is_public'],
+    ];
+
+    private function checkSchema(): array
+    {
+        $missing = [];
+
+        foreach (self::REQUIRED_COLUMNS as $table => $columns) {
+            if (! Schema::hasTable($table)) {
+                $missing[] = "tabel {$table}";
+                continue;
+            }
+
+            foreach ($columns as $column) {
+                if (! Schema::hasColumn($table, $column)) {
+                    $missing[] = "{$table}.{$column}";
+                }
+            }
+        }
+
+        return $missing === []
+            ? [true, null]
+            : [false, 'Belum ada: ' . implode(', ', $missing) . '. Tambahkan lewat ALTER TABLE (lihat panduan), lalu jalankan optimize:clear.'];
     }
 
     private function checkMail(): array
@@ -279,6 +306,38 @@ class SetupChecklistService
         }
 
         return [true, null];
+    }
+
+    private function checkStorageLink(): array
+    {
+        $target = realpath(storage_path('app/public'));
+
+        if ($target === false) {
+            return [false, 'Folder storage/app/public belum ada — buat dengan: mkdir -p storage/app/public'];
+        }
+
+        // Di shared hosting, document root sering bukan public/ milik Laravel
+        // (mis. public_html), jadi symlink bisa ada di salah satu lokasi ini.
+        $candidates = array_filter(array_unique([
+            public_path('storage'),
+            ! empty($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/storage' : null,
+            dirname(base_path()) . '/public_html/storage',
+            base_path('public_html/storage'),
+        ]));
+
+        foreach ($candidates as $path) {
+            // Symlink yang menunjuk ke storage/app/public
+            if (is_link($path) && realpath($path) === $target) {
+                return [true, null];
+            }
+
+            // Alternatif tanpa symlink: folder asli (disk public diarahkan ke sini)
+            if (! is_link($path) && is_dir($path)) {
+                return [true, null];
+            }
+        }
+
+        return [false, 'Symlink belum ditemukan. Buat dengan: php artisan storage:link, atau lewat shell: ln -s ' . $target . ' <folder-web>/storage'];
     }
 
     private function checkBackup(): array

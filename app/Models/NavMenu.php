@@ -64,6 +64,7 @@ class NavMenu extends Model
         'domain.search' => 'Cek Domain',
         'domain-premium.index' => 'Domain Premium',
         'license.index' => 'Lisensi',
+        'promo.index' => 'Promo & Diskon',
         'announcements.index' => 'Pengumuman',
     ];
 
@@ -79,6 +80,7 @@ class NavMenu extends Model
         'domain.search' => ['bi-globe2', 'Cari dan daftarkan domain', 'fa-globe'],
         'domain-premium.index' => ['bi-gem', 'Nama domain pilihan', 'fa-gem'],
         'license.index' => ['bi-key', 'Lisensi software resmi', 'fa-key'],
+        'promo.index' => ['bi-tag', 'Kode promo dan diskon terbaru', 'fa-tags'],
         'announcements.index' => ['bi-megaphone', 'Kabar dan info terbaru', 'fa-bullhorn'],
     ];
 
@@ -224,6 +226,7 @@ class NavMenu extends Model
                 'domain.search' => 'domain.*',
                 'domain-premium.index' => 'domain-premium.*',
                 'license.index' => 'license.*',
+                'promo.index' => 'promo.*',
                 'announcements.index' => 'announcements.*',
                 default => $this->route_name,
             },

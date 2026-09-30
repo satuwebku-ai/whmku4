@@ -61,7 +61,8 @@ class CheckSetup extends Command
      * Kolom penting yang ditambahkan lewat migrasi susulan.
      */
     private const REQUIRED_COLUMNS = [
-        'tlds'     => ['cost_register', 'cost_renew', 'cost_transfer', 'show_in_search', 'is_demo'],
+        'tlds'     => ['cost_register', 'cost_renew', 'cost_transfer', 'show_in_search', 'show_on_home', 'is_demo'],
+        'coupons'  => ['title', 'description', 'tld_ids', 'is_public'],
         'payment_gateways' => ['qris_method_code'],
         'admins'   => ['two_factor_enabled'],
         'clients'  => ['internal_notes', 'whatsapp_number', 'notify_promo', 'notify_whatsapp', 'google_id', 'avatar', 'balance'],
