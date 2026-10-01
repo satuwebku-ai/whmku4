@@ -4,130 +4,116 @@
 
 @section('content')
 
-  <div class="d-flex align-items-start justify-content-between gap-3 mb-4 flex-wrap">
-    <div class="min-w-0">
-      <a href="{{ route('admin.mail', $thread->status === 'closed' ? ['status' => 'closed'] : []) }}" class="text-decoration-none text-muted" style="font-size:12px"><i class="fa-solid fa-arrow-left"></i> Kembali ke Email</a>
-      <h1 class="h4 fw-bold text-dark mt-1 mb-1" style="word-break:break-word">
-        {{ $thread->subject }}
-        @if ($thread->status === 'closed')
-          <span class="badge badge-soft-secondary align-middle" style="font-size:11px">Ditutup</span>
-        @endif
-      </h1>
-      <p class="text-muted mb-0" style="font-size:12px">
-        {{ $thread->display_name }} &lt;{{ $thread->contact_email }}&gt;
-        @if ($thread->client)
-          · <a href="{{ route('admin.clients.details', $thread->client) }}" class="text-decoration-none text-accent">Lihat profil klien</a>
-        @endif
-        · {{ $thread->messages->count() }} surat
-      </p>
-    </div>
+  @php
+    $folder = $thread->status === 'closed' ? 'closed' : 'inbox';
+    $fmtSize = fn ($b) => $b >= 1048576 ? number_format($b / 1048576, 2) . ' MB' : number_format(max($b, 1) / 1024, 0) . ' KB';
+  @endphp
 
-    <div class="d-flex align-items-center gap-2">
-      @if ($thread->status === 'open')
-        <form method="POST" action="{{ route('admin.mail.close', $thread) }}">
-          @csrf
-          <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-check" style="font-size:11px"></i> Tutup</button>
-        </form>
-      @else
-        <form method="POST" action="{{ route('admin.mail.reopen', $thread) }}">
-          @csrf
-          <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-rotate-left" style="font-size:11px"></i> Buka Kembali</button>
-        </form>
-      @endif
-      <form method="POST" action="{{ route('admin.mail.delete', $thread) }}"
-            data-confirm="Hapus email ini beserta semua surat dan lampirannya?"
-            data-confirm-title="Hapus Email" data-confirm-style="danger" data-confirm-label="Ya, Hapus">
-        @csrf @method('DELETE')
-        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fa-regular fa-trash-can" style="font-size:11px"></i></button>
-      </form>
-    </div>
-  </div>
+  <div class="ix-app">
+    @include('admin.mail._sidebar', ['folder' => $folder])
 
-  <div class="d-flex flex-column gap-3 mb-4">
-    @foreach ($thread->messages as $message)
-      @php $out = ! $message->isInbound(); @endphp
-      <div class="card border rounded-4 overflow-hidden" style="{{ $out ? 'border-color:#c7d2fe !important' : '' }}">
-        <div class="px-4 py-3 border-bottom d-flex align-items-start justify-content-between gap-3 flex-wrap" style="{{ $out ? 'background:#eef2ff' : 'background:#f8fafc' }}">
-          <div class="min-w-0">
-            <p class="small fw-semibold text-dark mb-0">
-              @if ($out)
-                {{ $message->admin?->name ?: 'Staf' }}
-                <span class="badge bg-primary ms-1" style="font-size:10px"><i class="fa-solid fa-paper-plane"></i> Terkirim</span>
-              @else
-                {{ $message->from_name ?: $message->from_email }}
-                <span class="badge bg-light text-secondary border ms-1" style="font-size:10px"><i class="fa-solid fa-inbox"></i> Masuk</span>
-              @endif
-            </p>
-            <p class="text-muted mb-0" style="font-size:11px">
-              Dari: {{ $message->from_email }} &nbsp;·&nbsp; Kepada: {{ $message->to_email }}
-            </p>
-          </div>
-          <p class="text-muted mb-0 flex-shrink-0" style="font-size:11px" title="{{ $message->created_at->format('d M Y H:i:s') }}">
-            {{ $message->created_at->format('d M Y, H:i') }}
-          </p>
-        </div>
+    <section class="ix-main">
+      <div class="ix-head">
+        <h1>
+          <a href="{{ route('admin.mail', $thread->status === 'closed' ? ['status' => 'closed'] : []) }}" class="ix-icon-btn" title="Kembali" aria-label="Kembali"><i class="fa-solid fa-arrow-left"></i></a>
+          {{ $thread->subject }}
+          @if ($thread->status === 'closed')<span class="ix-pill mute">Ditutup</span>@endif
+        </h1>
 
-        <div class="px-4 py-3">
-          @if ($message->subject)
-            <p class="small fw-semibold text-dark mb-2">{{ $message->subject }}</p>
+        <div class="ix-actions">
+          @if ($thread->client)
+            <a href="{{ route('admin.clients.details', $thread->client) }}" class="ix-icon-btn" title="Profil klien"><i class="fa-regular fa-user"></i></a>
           @endif
-          <div class="small text-dark" style="white-space:pre-wrap;word-break:break-word;line-height:1.65">{{ $message->body }}</div>
+          @if ($thread->status === 'open')
+            <form method="POST" action="{{ route('admin.mail.close', $thread) }}">@csrf
+              <button type="submit" class="ix-icon-btn" title="Tutup / arsipkan"><i class="fa-solid fa-box-archive"></i></button>
+            </form>
+          @else
+            <form method="POST" action="{{ route('admin.mail.reopen', $thread) }}">@csrf
+              <button type="submit" class="ix-icon-btn" title="Buka kembali"><i class="fa-solid fa-rotate-left"></i></button>
+            </form>
+          @endif
+          <form method="POST" action="{{ route('admin.mail.delete', $thread) }}"
+                data-confirm="Hapus email ini beserta semua surat dan lampirannya?"
+                data-confirm-title="Hapus Email" data-confirm-style="danger" data-confirm-label="Ya, Hapus">
+            @csrf @method('DELETE')
+            <button type="submit" class="ix-icon-btn danger" title="Hapus"><i class="fa-regular fa-trash-can"></i></button>
+          </form>
+        </div>
+      </div>
 
-          @if (! empty($message->attachments))
-            <div class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
-              @foreach ($message->attachments as $i => $file)
-                <a href="{{ route('admin.mail.attachment', [$message, $i]) }}" class="btn btn-outline-secondary btn-sm">
-                  <i class="fa-solid fa-paperclip" style="font-size:11px"></i>
-                  {{ $file['name'] }}
-                  <span class="text-muted" style="font-size:10px">({{ number_format(($file['size'] ?? 0) / 1024, 0) }} KB)</span>
-                </a>
-              @endforeach
+      <div class="ix-msgs">
+        @foreach ($thread->messages as $message)
+          @php
+            $out = ! $message->isInbound();
+            $name = $out ? ($message->admin?->name ?: 'Staf') : ($message->from_name ?: $message->from_email);
+            $files = $message->attachments ?? [];
+            $total = collect($files)->sum('size');
+            $ini = strtoupper(mb_substr($name, 0, 1) . (preg_match('/\s(\S)/u', $name, $m) ? $m[1] : ''));
+          @endphp
+          <article class="ix-mail {{ $out ? 'ix-out' : '' }}">
+            <div class="ix-mail-h">
+              <span class="ix-av">{{ $ini }}</span>
+              <div style="min-width:0">
+                <span class="nm">{{ $name }}</span>
+                <span class="to">&nbsp;kepada {{ $out ? $message->to_email : 'saya' }}</span>
+                <div class="to">{{ $message->from_email }}</div>
+              </div>
+              <span class="dt" title="{{ $message->created_at->format('d M Y H:i:s') }}">{{ $message->created_at->translatedFormat('d M Y, H:i') }}</span>
             </div>
-          @endif
+
+            @if ($message->subject)<div class="ix-mail-s">{{ $message->subject }}</div>@endif
+            <div class="ix-mail-b">{{ $message->body }}</div>
+
+            @if (! empty($files))
+              <div class="ix-att">
+                <h4>Lampiran ({{ count($files) }} berkas, {{ $fmtSize($total) }})</h4>
+                @foreach ($files as $i => $file)
+                  <a href="{{ route('admin.mail.attachment', [$message, $i]) }}">
+                    <i class="fa-regular fa-file"></i> {{ $file['name'] }} <small>({{ $fmtSize($file['size'] ?? 0) }})</small>
+                  </a>
+                @endforeach
+              </div>
+            @endif
+          </article>
+        @endforeach
+      </div>
+
+      <form method="POST" action="{{ route('admin.mail.reply', $thread) }}" enctype="multipart/form-data" class="ix-form">
+        @csrf
+        <p style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:.8rem"><i class="fa-solid fa-reply" style="color:#94a3b8;font-size:11px"></i> Balas {{ $thread->display_name }}</p>
+
+        <div class="ix-field">
+          <label for="mailSubject">Subjek</label>
+          <div>
+            <input type="text" id="mailSubject" name="subject" value="{{ old('subject', 'Re: ' . $thread->subject) }}" maxlength="200" required>
+            @error('subject')<div class="ix-err">{{ $message }}</div>@enderror
+          </div>
         </div>
-      </div>
-    @endforeach
+
+        <div class="ix-editor">
+          <div class="ix-editor-bar">
+            <label title="Lampirkan berkas"><i class="fa-solid fa-paperclip"></i> Lampirkan
+              <input type="file" id="mailFiles" name="attachments[]" multiple class="d-none">
+            </label>
+            <span style="margin-left:auto">maks. 5 berkas @ 5 MB · JPG, PNG, WEBP, PDF, TXT, ZIP</span>
+          </div>
+          <textarea id="mailBody" name="body" maxlength="20000" placeholder="Tulis balasan..." required>{{ old('body') }}</textarea>
+          <div class="ix-files" id="mailFileList"></div>
+          <div class="ix-editor-foot"><span id="mailLines">baris: 1</span><span id="mailWords">kata: 0</span></div>
+        </div>
+        @error('body')<div class="ix-err mb-2">{{ $message }}</div>@enderror
+        @error('attachments')<div class="ix-err mb-2">{{ $message }}</div>@enderror
+        @error('attachments.*')<div class="ix-err mb-2">{{ $message }}</div>@enderror
+
+        <div class="ix-actions">
+          <button type="submit" class="ix-btn pri"><i class="fa-solid fa-paper-plane" style="font-size:11px"></i> Kirim</button>
+          <span style="font-size:11px;color:#94a3b8">Balasan pelanggan akan kembali ke thread ini.</span>
+        </div>
+      </form>
+    </section>
   </div>
 
-  <div class="card border rounded-4">
-    <div class="px-4 py-3 border-bottom">
-      <p class="small fw-semibold text-dark mb-0"><i class="fa-solid fa-reply text-muted" style="font-size:11px"></i> Balas</p>
-    </div>
-    <form method="POST" action="{{ route('admin.mail.reply', $thread) }}" enctype="multipart/form-data" class="px-4 py-3">
-      @csrf
-
-      <div class="mb-3">
-        <label class="form-label small fw-medium">Kepada</label>
-        <input type="text" class="form-control form-control-sm" value="{{ $thread->display_name }} <{{ $thread->contact_email }}>" disabled>
-      </div>
-
-      <div class="mb-3">
-        <label for="mailSubject" class="form-label small fw-medium">Subjek</label>
-        <input type="text" id="mailSubject" name="subject" value="{{ old('subject', 'Re: ' . $thread->subject) }}" maxlength="200"
-               class="form-control form-control-sm @error('subject') is-invalid @enderror" required>
-        @error('subject')<div class="invalid-feedback">{{ $message }}</div>@enderror
-      </div>
-
-      <div class="mb-3">
-        <label for="mailBody" class="form-label small fw-medium">Pesan</label>
-        <textarea id="mailBody" name="body" rows="8" maxlength="20000" placeholder="Tulis balasan..."
-                  class="form-control @error('body') is-invalid @enderror" required>{{ old('body') }}</textarea>
-        @error('body')<div class="invalid-feedback">{{ $message }}</div>@enderror
-      </div>
-
-      <div class="mb-3">
-        <label for="mailFiles" class="form-label small fw-medium">Lampiran <span class="text-muted fw-normal">(opsional, maks. 5 berkas @ 5 MB: JPG, PNG, WEBP, PDF, TXT, ZIP)</span></label>
-        <input type="file" id="mailFiles" name="attachments[]" multiple
-               class="form-control form-control-sm @error('attachments') is-invalid @enderror @error('attachments.*') is-invalid @enderror">
-        @error('attachments')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        @error('attachments.*')<div class="invalid-feedback">{{ $message }}</div>@enderror
-      </div>
-
-      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-        <p class="text-muted mb-0" style="font-size:11px">Balasan pelanggan akan kembali ke thread ini.</p>
-        <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-paper-plane" style="font-size:11px"></i> Kirim Balasan</button>
-      </div>
-    </form>
-  </div>
+  @include('admin.mail._editor-js')
 
 @endsection

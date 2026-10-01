@@ -26,13 +26,19 @@ class MailboxController extends Controller
     public function index(Request $request): View
     {
         $closed = $request->query('status') === 'closed';
-        $unreadOnly = ! $closed && $request->query('filter') === 'unread';
+        $filter = $request->query('filter');
+        $unreadOnly = ! $closed && $filter === 'unread';
+        $sentOnly = ! $closed && $filter === 'sent';
+
+        $folder = $closed ? 'closed' : ($unreadOnly ? 'unread' : ($sentOnly ? 'sent' : 'inbox'));
 
         $threads = MailThread::query()
             ->with(['client', 'latestMessage'])
             ->withCount('messages')
-            ->where('status', $closed ? 'closed' : 'open')
+            ->when($closed, fn ($q) => $q->where('status', 'closed'))
+            ->when(! $closed && ! $sentOnly, fn ($q) => $q->where('status', 'open'))
             ->when($unreadOnly, fn ($q) => $q->where('unread_count', '>', 0))
+            ->when($sentOnly, fn ($q) => $q->whereHas('messages', fn ($m) => $m->where('direction', 'out')))
             ->when($request->query('search'), function ($q, $search) {
                 $term = '%' . $search . '%';
 
@@ -54,7 +60,33 @@ class MailboxController extends Controller
             'closed' => MailThread::where('status', 'closed')->count(),
         ];
 
-        return view('admin.mail.index', compact('threads', 'counts', 'closed', 'unreadOnly'));
+        return view('admin.mail.index', compact('threads', 'counts', 'folder'));
+    }
+
+    /**
+     * Aksi massal dari daftar: arsipkan (tutup), buka kembali, atau hapus.
+     */
+    public function bulk(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'action' => ['required', 'in:close,reopen,delete'],
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $threads = MailThread::whereIn('id', $data['ids'])->get();
+
+        foreach ($threads as $thread) {
+            match ($data['action']) {
+                'close' => $thread->update(['status' => 'closed']),
+                'reopen' => $thread->update(['status' => 'open']),
+                'delete' => $this->destroyThread($thread),
+            };
+        }
+
+        $label = ['close' => 'diarsipkan', 'reopen' => 'dibuka kembali', 'delete' => 'dihapus'][$data['action']];
+
+        return back()->with('success', $threads->count() . ' email ' . $label . '.');
     }
 
     public function show(MailThread $thread): View
@@ -160,6 +192,13 @@ class MailboxController extends Controller
 
     public function destroy(MailThread $thread): RedirectResponse
     {
+        $this->destroyThread($thread);
+
+        return redirect()->route('admin.mail')->with('success', 'Email dihapus.');
+    }
+
+    private function destroyThread(MailThread $thread): void
+    {
         foreach ($thread->messages as $message) {
             foreach ($message->attachments ?? [] as $file) {
                 Storage::disk('local')->delete($file['path'] ?? '');
@@ -167,8 +206,6 @@ class MailboxController extends Controller
         }
 
         $thread->delete();
-
-        return redirect()->route('admin.mail')->with('success', 'Email dihapus.');
     }
 
     public function attachment(MailMessage $mailMessage, int $index): StreamedResponse

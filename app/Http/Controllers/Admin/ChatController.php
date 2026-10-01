@@ -16,17 +16,20 @@ class ChatController extends Controller
 
     public function indexBootstrap(Request $request): View
     {
-        return view('admin.chats.index', $this->indexData($request));
+        return view('admin.chats.index', $this->indexData($request) + ['chat' => null]);
     }
 
-    private function indexData(Request $request): array
+    private function indexData(Request $request, ?ChatConversation $current = null): array
     {
+        // Saat membuka percakapan yang sudah ditutup, daftar kiri ikut tab "Ditutup".
+        $tab = $request->query('status') ?? ($current?->status === 'closed' ? 'closed' : 'open');
+
         $conversations = ChatConversation::query()
-            ->with(['client', 'assignedAdmin'])
-            ->when($request->status === 'closed', fn ($q) => $q->where('status', 'closed'))
-            ->when($request->status !== 'closed', fn ($q) => $q->where('status', 'open'))
-            ->when($request->search, fn ($q) => $q->where(function ($w) use ($request) {
-                $term = '%' . $request->search . '%';
+            ->with(['client', 'assignedAdmin', 'latestMessage'])
+            ->when($tab === 'closed', fn ($q) => $q->where('status', 'closed'))
+            ->when($tab !== 'closed', fn ($q) => $q->where('status', 'open'))
+            ->when($request->query('search'), fn ($q) => $q->where(function ($w) use ($request) {
+                $term = '%' . $request->query('search') . '%';
                 $w->where('name', 'like', $term)
                     ->orWhere('email', 'like', $term)
                     ->orWhere('phone', 'like', $term)
@@ -36,7 +39,7 @@ class ChatController extends Controller
             }))
             ->orderByDesc('unread_for_admin')
             ->orderByDesc('last_message_at')
-            ->paginate(20)
+            ->paginate(30)
             ->withQueryString();
 
         $counts = [
@@ -46,14 +49,14 @@ class ChatController extends Controller
             'closed' => ChatConversation::where('status', 'closed')->count(),
         ];
 
-        return compact('conversations', 'counts');
+        return compact('conversations', 'counts', 'tab');
     }
 
-    public function showBootstrap(ChatConversation $chat): View
+    public function showBootstrap(Request $request, ChatConversation $chat): View
     {
         $this->markOpened($chat);
 
-        return view('admin.chats.show', ['chat' => $chat]);
+        return view('admin.chats.show', $this->indexData($request, $chat) + ['chat' => $chat]);
     }
 
     private function markOpened(ChatConversation $chat): void

@@ -695,6 +695,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::get('mail', 'index')->name('mail');
         Route::get('mail/compose', 'create')->name('mail.compose');
         Route::post('mail/compose', 'store')->name('mail.store');
+        Route::post('mail/bulk', 'bulk')->name('mail.bulk');
         Route::get('mail/attachment/{mailMessage}/{index}', 'attachment')->whereNumber('index')->name('mail.attachment');
         Route::get('mail/{thread}', 'show')->name('mail.show');
         Route::post('mail/{thread}/reply', 'reply')->name('mail.reply');
