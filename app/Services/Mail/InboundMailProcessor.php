@@ -6,6 +6,8 @@ use App\Models\ActivityLog;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use App\Models\Client;
+use App\Models\MailMessage;
+use App\Models\MailThread;
 use App\Models\Setting;
 use App\Models\Ticket;
 use App\Models\TicketReply;
@@ -15,14 +17,16 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Mengubah satu email masuk menjadi balasan tiket atau pesan Live Chat.
+ * Mengubah satu email masuk menjadi balasan tiket, pesan Live Chat, atau
+ * thread di Inbox Email.
  *
  *  - Subjek memuat nomor tiket (TKT-2026-0001) DAN pengirim = email klien
  *    pemilik tiket  -> jadi balasan tiket tersebut.
  *  - Subjek memuat [CHAT-12] DAN pengirim = email percakapan itu -> masuk
- *    ke percakapan yang sama.
- *  - Selain itu -> percakapan Live Chat (channel email) baru, atau lanjut
- *    percakapan email terbuka dari alamat yang sama.
+ *    ke percakapan Live Chat yang sama (balasan atas email dari widget chat).
+ *  - Selain itu -> Inbox Email: lanjut thread yang ada (token [MAIL-12],
+ *    header In-Reply-To/References, atau pengirim + subjek yang sama), atau
+ *    thread baru.
  *
  * Pengirim wajib cocok dengan pemilik tiket/percakapan, supaya orang lain
  * tidak bisa menyusupkan pesan ke tiket klien hanya dengan menebak nomornya.
@@ -71,25 +75,17 @@ class InboundMailProcessor
             }
         }
 
-        // 2) Lanjutan percakapan chat berdasarkan token di subjek
-        $conversation = null;
-
+        // 2) Lanjutan percakapan Live Chat berdasarkan token di subjek
         if (preg_match('/\[CHAT-(\d+)\]/i', $subject, $m)) {
             $candidate = ChatConversation::find((int) $m[1]);
 
             if ($candidate && strtolower((string) $candidate->email) === $email) {
-                $conversation = $candidate;
+                return $this->appendToChat($candidate, $mail, $body);
             }
         }
 
-        // 3) Percakapan email terbuka dari alamat yang sama, atau baru
-        $conversation ??= ChatConversation::where('channel', 'email')
-            ->where('status', 'open')
-            ->where('email', $email)
-            ->latest('id')
-            ->first();
-
-        return $this->appendToChat($conversation, $mail, $from, $subject, $body);
+        // 3) Selain itu -> Inbox Email
+        return $this->appendToMailThread($mail, $from, $subject, $body);
     }
 
     private function appendToTicket(Ticket $ticket, MimeMessage $mail, string $body): string
@@ -123,36 +119,13 @@ class InboundMailProcessor
         return 'ticket:' . $ticket->id;
     }
 
-    private function appendToChat(?ChatConversation $conversation, MimeMessage $mail, array $from, string $subject, string $body): string
+    private function appendToChat(ChatConversation $conversation, MimeMessage $mail, string $body): string
     {
-        $isNew = ! $conversation;
-
-        if ($isNew) {
-            $client = Client::where('email', $from['email'])->first();
-
-            $conversation = ChatConversation::create([
-                'client_id' => $client?->id,
-                'name' => $client?->name ?? ($from['name'] ?: Str::before($from['email'], '@')),
-                'email' => $from['email'],
-                'phone' => $client?->phone,
-                'channel' => 'email',
-                'status' => 'open',
-                'last_message_at' => now(),
-                'page_url' => null,
-            ]);
-        } elseif ($conversation->status === 'closed') {
+        if ($conversation->status === 'closed') {
             $conversation->update(['status' => 'open', 'assigned_admin_id' => null, 'assigned_at' => null]);
         }
 
-        $text = $body;
-
-        if ($isNew && $subject !== '') {
-            $text = 'Subjek: ' . $subject . "\n\n" . $body;
-        }
-
         $first = true;
-        $saved = 0;
-
         $messages = [];
 
         foreach ($mail->attachments as $att) {
@@ -165,7 +138,7 @@ class InboundMailProcessor
 
             $messages[] = new ChatMessage([
                 'sender' => 'user',
-                'message' => $first ? Str::limit($text, 4000, '') : null,
+                'message' => $first ? Str::limit($body, 4000, '') : null,
                 'attachment_path' => $path,
                 'attachment_name' => Str::limit($att['name'], 200, ''),
                 'attachment_mime' => $att['mime'],
@@ -175,29 +148,131 @@ class InboundMailProcessor
         }
 
         if ($first) {
-            $messages[] = new ChatMessage(['sender' => 'user', 'message' => Str::limit($text, 4000, '')]);
+            $messages[] = new ChatMessage(['sender' => 'user', 'message' => Str::limit($body, 4000, '')]);
         }
 
         foreach ($messages as $message) {
             $conversation->messages()->save($message);
-            $saved++;
         }
 
-        $conversation->increment('unread_for_admin', $saved);
+        $conversation->increment('unread_for_admin', count($messages));
         $conversation->update(['last_message_at' => now()]);
+
+        return 'chat:' . $conversation->id;
+    }
+
+    private function appendToMailThread(MimeMessage $mail, array $from, string $subject, string $body): string
+    {
+        $email = $from['email'];
+        $thread = $this->resolveMailThread($mail, $email, $subject);
+        $isNew = ! $thread;
+
+        if ($isNew) {
+            $client = Client::where('email', $email)->first();
+
+            $thread = MailThread::create([
+                'subject' => Str::limit(MailThread::normalizeSubject($subject), 250, ''),
+                'contact_email' => $email,
+                'contact_name' => $from['name'] ?: null,
+                'client_id' => $client?->id,
+                'status' => 'open',
+                'last_message_at' => now(),
+            ]);
+        } elseif ($thread->status === 'closed') {
+            $thread->update(['status' => 'open']);
+        }
+
+        $stored = [];
+
+        foreach ($mail->attachments as $att) {
+            if (! $this->allowed($att['name'])) {
+                continue;
+            }
+
+            $path = 'mail/' . Str::random(40) . '.' . $this->extension($att['name']);
+            Storage::disk('local')->put($path, $att['content']);
+
+            $stored[] = [
+                'path' => $path,
+                'name' => Str::limit($att['name'], 200, ''),
+                'mime' => $att['mime'],
+                'size' => strlen($att['content']),
+            ];
+        }
+
+        $thread->messages()->create([
+            'direction' => 'in',
+            'from_email' => $email,
+            'from_name' => $from['name'] ?: null,
+            'to_email' => (string) (Setting::get('imap_username') ?: config('mail.from.address')),
+            'subject' => Str::limit($subject !== '' ? $subject : MailThread::NO_SUBJECT, 250, ''),
+            'body' => Str::limit($body !== '' ? $body : '(lampiran email)', 60000, ''),
+            'message_id' => Str::limit($mail->messageId(), 250, '') ?: null,
+            'attachments' => $stored ?: null,
+        ]);
+
+        $thread->increment('unread_count');
+        $thread->update(['last_message_at' => now()]);
 
         if ($isNew) {
             ActivityLog::record(
                 'ticket',
-                'Email baru dari ' . $conversation->display_name,
+                'Email baru dari ' . $thread->display_name,
                 Str::limit($subject !== '' ? $subject : $body, 80),
-                route('admin.chats.show', $conversation),
+                route('admin.mail.show', $thread),
                 'warning',
-                $conversation->client_id,
+                $thread->client_id,
             );
         }
 
-        return 'chat:' . $conversation->id;
+        return 'mail:' . $thread->id;
+    }
+
+    /**
+     * Cari thread yang dilanjutkan email ini. Pengirim wajib sama dengan
+     * lawan bicara thread, supaya orang lain tidak bisa menyusup ke thread
+     * pelanggan hanya dengan menebak token atau Message-ID.
+     */
+    private function resolveMailThread(MimeMessage $mail, string $email, string $subject): ?MailThread
+    {
+        // 1) Token di subjek
+        if (preg_match('/\[MAIL-(\d+)\]/i', $subject, $m)) {
+            $thread = MailThread::find((int) $m[1]);
+
+            if ($thread && strtolower($thread->contact_email) === $email) {
+                return $thread;
+            }
+        }
+
+        // 2) Header In-Reply-To / References menunjuk ke pesan yang sudah kita simpan
+        $ids = $this->referencedMessageIds($mail);
+
+        if ($ids !== []) {
+            $known = MailMessage::with('thread')->whereIn('message_id', $ids)->latest('id')->first();
+
+            if ($known?->thread && strtolower($known->thread->contact_email) === $email) {
+                return $known->thread;
+            }
+        }
+
+        // 3) Thread terbuka dari pengirim yang sama dengan subjek yang sama
+        return MailThread::where('contact_email', $email)
+            ->where('status', 'open')
+            ->where('subject', MailThread::normalizeSubject($subject))
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * @return array<int, string> Message-ID (tanpa <>) dari In-Reply-To dan References
+     */
+    private function referencedMessageIds(MimeMessage $mail): array
+    {
+        $raw = $mail->header('in-reply-to') . ' ' . $mail->header('references');
+
+        preg_match_all('/<([^<>\s]+)>/', $raw, $found);
+
+        return array_values(array_unique($found[1] ?? []));
     }
 
     /**

@@ -123,6 +123,7 @@
 
             ['label' => 'Dukungan', 'icon' => 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'module' => 'support', 'children' => [
               ['label' => 'Live Chat',        'route' => 'admin.chats', 'match' => ['admin.chats*'], 'chat_badge' => true],
+              ['label' => 'Email',            'route' => 'admin.mail', 'match' => ['admin.mail*'], 'mail_badge' => true],
               ['label' => 'Support / Tiket',  'route' => 'admin.tickets', 'match' => ['admin.ticket*']],
             ]],
 
@@ -137,6 +138,13 @@
               ['label' => 'Pengaturan',    'route' => 'admin.settings.general', 'match' => ['admin.settings.*']],
             ]],
           ];
+
+          // Jumlah thread email terbuka yang belum dibaca, untuk badge menu Email.
+          // rescue(): tabelnya belum ada sebelum migrasi dijalankan -- jangan
+          // sampai seluruh halaman admin ikut error karena badge.
+          $mailUnread = auth('admin')->user()?->hasModule('support')
+              ? rescue(fn () => \App\Models\MailThread::where('status', 'open')->where('unread_count', '>', 0)->count(), 0, false)
+              : 0;
 
           // Grup terbuka otomatis kalau salah satu anaknya sedang aktif
           // -- supaya klien langsung lihat konteksnya tanpa perlu klik.
@@ -191,6 +199,9 @@
                       {{ $child['label'] }}
                       @if (! empty($child['chat_badge']))
                         <span id="chatSidebarBadge" class="d-none badge rounded-pill bg-danger" style="font-size:10px">0</span>
+                      @endif
+                      @if (! empty($child['mail_badge']) && $mailUnread > 0)
+                        <span class="badge rounded-pill bg-danger" style="font-size:10px">{{ $mailUnread }}</span>
                       @endif
                     </a>
                   </li>

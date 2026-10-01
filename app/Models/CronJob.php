@@ -96,7 +96,7 @@ class CronJob extends Model
         ],
         'fetch_inbound_mail' => [
             'name' => 'Ambil Email Masuk',
-            'description' => 'Baca mailbox support (IMAP) dan jadikan balasan tiket atau pesan Live Chat.',
+            'description' => 'Baca mailbox support (IMAP) dan masukkan ke Inbox Email, balasan tiket, atau Live Chat.',
             'command' => 'lumora:fetch-mail',
             'interval_minutes' => 5,
         ],

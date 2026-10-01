@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ActivityController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\MailboxController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\CronController;
@@ -687,6 +688,19 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::post('chat/{chat}/convert-to-ticket', 'convertToTicket')->name('chats.convert-to-ticket');
         Route::delete('chat/{chat}', 'destroy')->name('chats.delete');
         Route::get('chats-global-status', 'globalStatus')->name('chats.global-status');
+    });
+
+    // ── Inbox Email ── (modul: support)
+    Route::middleware('module:support')->controller(MailboxController::class)->group(function () {
+        Route::get('mail', 'index')->name('mail');
+        Route::get('mail/compose', 'create')->name('mail.compose');
+        Route::post('mail/compose', 'store')->name('mail.store');
+        Route::get('mail/attachment/{mailMessage}/{index}', 'attachment')->whereNumber('index')->name('mail.attachment');
+        Route::get('mail/{thread}', 'show')->name('mail.show');
+        Route::post('mail/{thread}/reply', 'reply')->name('mail.reply');
+        Route::post('mail/{thread}/close', 'close')->name('mail.close');
+        Route::post('mail/{thread}/reopen', 'reopen')->name('mail.reopen');
+        Route::delete('mail/{thread}', 'destroy')->name('mail.delete');
     });
 
     // ── Aktivitas & Broadcast ── (modul: system)

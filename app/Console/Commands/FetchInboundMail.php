@@ -13,13 +13,13 @@ use Throwable;
 
 /**
  * Membaca email baru dari mailbox support (IMAP) dan memasukkannya ke
- * tiket / Live Chat. Dijadwalkan lewat Pengaturan → Cron Jobs.
+ * Inbox Email / tiket / Live Chat. Dijadwalkan lewat Pengaturan → Cron Jobs.
  */
 class FetchInboundMail extends Command
 {
     protected $signature = 'lumora:fetch-mail {--limit=25 : Maksimal email diproses per jalan}';
 
-    protected $description = 'Ambil email masuk dari mailbox IMAP dan jadikan balasan tiket / pesan live chat';
+    protected $description = 'Ambil email masuk dari mailbox IMAP dan masukkan ke Inbox Email, balasan tiket, atau pesan live chat';
 
     public function handle(InboundMailProcessor $processor): int
     {

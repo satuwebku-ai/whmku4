@@ -72,7 +72,7 @@ class MimeMessage
 
         $from = $this->from()['email'];
 
-        return (bool) preg_match('/^(mailer-daemon|postmaster|no-?reply|do-?not-?reply)@/i', $from);
+        return (bool) preg_match('/^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|cpanel|whm|root|nobody)@/i', $from);
     }
 
     /**

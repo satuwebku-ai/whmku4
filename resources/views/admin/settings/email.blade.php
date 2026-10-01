@@ -100,7 +100,7 @@
       </div>
       <p class="text-muted mb-3" style="font-size:12px">
         Aplikasi membaca mailbox support secara berkala. Balasan email klien masuk ke tiket yang sama (nomor tiket ada di subjek).
-        Email dari pengunjung atau alamat yang belum dikenal masuk ke menu <b>Live Chat</b>, dan balasan staf dari sana dikirim ke email mereka.
+        Email dari pengunjung atau alamat yang belum dikenal masuk ke menu <b>Email</b> (Dukungan → Email), dan balasan staf dari sana dikirim ke email mereka.
       </p>
 
       @if ($imapStatus === 'failed' && $imapMsg)
