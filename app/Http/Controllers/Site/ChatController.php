@@ -98,6 +98,8 @@ class ChatController extends Controller
             'phone'   => [$isGuest ? 'required' : 'nullable', 'string', 'min:8', 'max:20'],
             // Bukti transfer dan tangkapan layar kendala teknis.
             'attachment' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,webp,pdf'],
+            // Pengunjung memilih jalur Email di widget: balasan staf juga dikirim ke email mereka.
+            'via_email' => ['nullable', 'boolean'],
         ], [
             'name.required' => 'Nama wajib diisi sebelum mengirim pesan.',
             'email.required' => 'Email wajib diisi sebelum mengirim pesan.',
@@ -256,6 +258,7 @@ class ChatController extends Controller
             'name' => $client?->name ?? ($data['name'] ?? null),
             'email' => $client?->email ?? ($data['email'] ?? null),
             'phone' => $client?->phone ?? ($data['phone'] ?? null),
+            'channel' => $request->boolean('via_email') ? 'email' : 'web',
             'status' => 'open',
             'last_message_at' => now(),
             'page_url' => $request->headers->get('referer'),

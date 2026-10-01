@@ -27,6 +27,8 @@ class Setting extends Model
         'ai_chat_api_key',
         'ai_chat_openai_api_key',
         'vapid_private_key',
+        'mail_password',
+        'imap_password',
     ];
 
     public static function isSecretKey(string $key): bool

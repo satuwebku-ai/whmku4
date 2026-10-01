@@ -572,6 +572,10 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::get('security', 'securityBootstrap')->name('security');
             Route::post('security', 'updateSecurity')->name('security.update');
             Route::post('security/test-recaptcha', 'testRecaptcha')->name('security.test-recaptcha');
+            Route::get('email', 'emailBootstrap')->name('email');
+            Route::post('email', 'updateEmail')->name('email.update');
+            Route::post('email/test-smtp', 'testSmtp')->name('email.test-smtp');
+            Route::post('email/test-imap', 'testImap')->name('email.test-imap');
             Route::get('livechat', 'livechatBootstrap')->name('livechat');
             Route::post('livechat', 'updateLivechat')->name('livechat.update');
             Route::post('livechat/test', 'testLiveChat')->name('livechat.test');

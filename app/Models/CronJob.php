@@ -94,6 +94,12 @@ class CronJob extends Model
             'command' => 'lumora:close-inactive-chats',
             'interval_minutes' => 5,
         ],
+        'fetch_inbound_mail' => [
+            'name' => 'Ambil Email Masuk',
+            'description' => 'Baca mailbox support (IMAP) dan jadikan balasan tiket atau pesan Live Chat.',
+            'command' => 'lumora:fetch-mail',
+            'interval_minutes' => 5,
+        ],
         'backup' => [
             'name' => 'Backup Otomatis',
             'description' => 'Cadangkan database dan file upload ke ZIP (opsional ikut unggah ke Google Drive).',

@@ -143,11 +143,13 @@
             <span><b class="d-block" style="font-size:10px">Tiket</b><span class="text-muted" style="font-size:9px">Lacak masalah</span></span>
           </a>
         @endauth
-        @if ($supportMail)
-          <a href="mailto:{{ $supportMail }}" class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-decoration-none flex-grow-1" style="background:#fff;color:#475569">
+        @if ($supportMail || filled(Setting::get('mail_host')))
+          {{-- Dulu tautan mailto: yang mati kalau perangkat tidak punya aplikasi email.
+               Sekarang pesan dikirim lewat widget ini; balasan staf juga dikirim ke email. --}}
+          <button type="button" id="chatEmailMode" aria-pressed="false" class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-start flex-grow-1" style="background:#fff;color:#475569;cursor:pointer">
             <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#f1f5f9"><i class="fa-regular fa-envelope"></i></span>
-            <span><b class="d-block" style="font-size:10px">Email</b><span class="text-muted" style="font-size:9px">Kirim detail</span></span>
-          </a>
+            <span><b class="d-block" style="font-size:10px">Email</b><span class="text-muted" style="font-size:9px">Balasan ke email</span></span>
+          </button>
         @endif
       </div>
 
@@ -162,6 +164,9 @@
             <p id="chatIdentityError" class="d-none text-danger mb-0" style="font-size:11px"></p>
           </div>
         @endguest
+
+        <input type="hidden" name="via_email" id="chatViaEmail" value="0">
+        <p id="chatEmailNote" class="d-none mb-2 px-2 py-1 rounded-3" style="font-size:10px;background:#eef2ff;color:#4338ca"><i class="fa-regular fa-envelope me-1"></i>Mode email: balasan tim juga dikirim ke email Anda, dan Anda bisa membalasnya langsung dari email.</p>
 
         <div id="chatFileChip" class="d-none align-items-center gap-2 mb-2 px-2 py-2 rounded-3" style="background:#f1f5f9;font-size:12px;color:#475569">
           <i class="fa-solid fa-paperclip"></i>
@@ -362,6 +367,24 @@
 
       toggle.addEventListener('click', () => setOpen(panel.classList.contains('d-none')));
       document.getElementById('chatClose').addEventListener('click', () => setOpen(false));
+
+      // Mode Email: pesan tetap dikirim lewat widget, tetapi balasan staf
+      // juga dikirim ke email pengunjung (dan bisa dibalas lewat email).
+      const emailBtn  = document.getElementById('chatEmailMode');
+      const viaEmail  = document.getElementById('chatViaEmail');
+      const emailNote = document.getElementById('chatEmailNote');
+
+      if (emailBtn) {
+        emailBtn.addEventListener('click', function () {
+          const on = viaEmail.value !== '1';
+          viaEmail.value = on ? '1' : '0';
+          emailBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+          emailBtn.style.background = on ? '#eef2ff' : '#fff';
+          emailNote.classList.toggle('d-none', !on);
+          input.placeholder = on ? 'Tulis pesan email…' : 'Tulis pesan…';
+          if (on) input.focus();
+        });
+      }
 
       // Lampiran
       fileIn.addEventListener('change', function () {

@@ -12,6 +12,9 @@
         @if ($chat->channel === 'whatsapp')
           <span class="badge" style="background:#25d366;color:#fff;font-size:11px;vertical-align:middle"><i class="fa-brands fa-whatsapp"></i> WhatsApp</span>
         @endif
+        @if ($chat->channel === 'email')
+          <span class="badge badge-soft-info" style="font-size:11px;vertical-align:middle"><i class="fa-regular fa-envelope"></i> Email</span>
+        @endif
       </h1>
       <p class="text-muted mb-1" style="font-size:12px">
         @if ($chat->client)

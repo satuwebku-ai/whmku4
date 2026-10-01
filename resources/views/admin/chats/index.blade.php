@@ -76,6 +76,9 @@
               @if ($chat->channel === 'whatsapp')
                 <span class="badge" style="background:#25d366;color:#fff;font-size:9px" title="Percakapan WhatsApp"><i class="fa-brands fa-whatsapp"></i> WA</span>
               @endif
+              @if ($chat->channel === 'email')
+                <span class="badge badge-soft-info" style="font-size:9px" title="Percakapan lewat email"><i class="fa-regular fa-envelope"></i> Email</span>
+              @endif
               @if ($chat->client_id)
                 <span class="badge badge-soft-success ms-1">Klien</span>
               @else

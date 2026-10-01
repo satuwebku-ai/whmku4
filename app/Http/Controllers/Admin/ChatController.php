@@ -164,6 +164,16 @@ class ChatController extends Controller
             }
         }
 
+        // Percakapan dari email: balasan staf dikirim ke alamat email mereka
+        // (token [CHAT-id] di subjek membuat balasan mereka kembali ke sini).
+        if ($chat->channel === 'email') {
+            if (! \App\Services\Mail\ChatMailer::sendReply($chat, $message)) {
+                \Illuminate\Support\Facades\Log::warning('Balasan admin gagal dikirim lewat email.', ['conversation_id' => $chat->id]);
+
+                $emailFailed = true;
+            }
+        }
+
         // Setelah membalas, kalau staf ini tidak punya percakapan lain
         // yang masih menunggu balasan, otomatis berikan percakapan
         // TERLAMA yang belum dipegang siapa pun -- supaya staf tidak
@@ -198,6 +208,7 @@ class ChatController extends Controller
         if ($request->wantsJson()) {
             return response()->json([
                 'ok' => true,
+                'email_failed' => $emailFailed ?? false,
                 'message' => $message->load('admin')->toWidgetArray(),
                 'auto_assigned' => $autoAssigned ? [
                     'id' => $autoAssigned->id,
@@ -207,7 +218,9 @@ class ChatController extends Controller
             ]);
         }
 
-        return back();
+        return isset($emailFailed)
+            ? back()->with('error', 'Balasan tersimpan, tetapi email ke pengunjung gagal terkirim. Periksa Pengaturan → Email.')
+            : back();
     }
 
     public function close(ChatConversation $chat): RedirectResponse

@@ -260,6 +260,7 @@ class SettingController extends Controller
             ['label' => 'Notifikasi', 'desc' => 'Pengaturan pengiriman email & WhatsApp.', 'icon' => 'fa-bell', 'route' => 'admin.settings.notifications'],
             ['label' => 'Tampilan Notifikasi', 'desc' => 'Posisi, durasi, ukuran & warna pesan pop-up di panel admin.', 'icon' => 'fa-message', 'route' => 'admin.settings.toast.edit'],
             ['label' => 'Keamanan', 'desc' => 'Autentikasi dua faktor & pembatasan akses.', 'icon' => 'fa-lock', 'route' => 'admin.settings.security'],
+            ['label' => 'Email', 'desc' => 'SMTP pengirim & IMAP penerima balasan email (tiket / live chat).', 'icon' => 'fa-envelope', 'route' => 'admin.settings.email'],
             ['label' => 'Live Chat', 'desc' => 'Widget chat, pesan sambutan, bot AI.', 'icon' => 'fa-comments', 'route' => 'admin.settings.livechat'],
             ['label' => 'Trafik AI', 'desc' => 'Pemakaian token & perkiraan biaya AI.', 'icon' => 'fa-robot', 'route' => 'admin.ai-usage.index'],
             ['label' => 'cPanel Aplikasi', 'desc' => 'Pintasan cepat ke panel hosting sendiri.', 'icon' => 'fa-server', 'route' => 'admin.self-cpanel.edit'],
@@ -458,7 +459,7 @@ class SettingController extends Controller
         ]);
 
         if ($data['affiliate_commission_type'] === 'percentage' && $data['affiliate_commission_value'] > 100) {
-            return back()->withErrors(['affiliate_commission_value' => 'Persentase komisi tidak boleh lebih dari 100.'])->withInput();
+            return back()->withErrors(['affiliate_commission_value' => 'Persentase komisi tidak boleh lebih dari 100.'])->withInput($request->except(['mail_password', 'imap_password']));
         }
 
         $data['affiliate_commission_repeat'] = $request->boolean('affiliate_commission_repeat') ? '1' : '0';
@@ -725,6 +726,158 @@ class SettingController extends Controller
         } catch (\Throwable $e) {
             return back()->with('error', 'Tidak bisa menghubungi Google reCAPTCHA: ' . $e->getMessage());
         }
+    }
+
+    // ── Email (SMTP keluar + IMAP masuk) ────────────────────────
+
+    public function emailBootstrap(): View
+    {
+        return view('admin.settings.email');
+    }
+
+    private function emailRules(): array
+    {
+        $host = ['nullable', 'string', 'max:190', 'regex:/^[A-Za-z0-9.\-]+$/'];
+
+        return [
+            'mail_host'         => $host,
+            'mail_port'         => ['nullable', 'integer', 'between:1,65535'],
+            'mail_encryption'   => ['nullable', 'in:ssl,tls,none'],
+            'mail_username'     => ['nullable', 'string', 'max:190'],
+            'mail_password'     => ['nullable', 'string', 'max:255'],
+            'mail_from_address' => ['nullable', 'email', 'max:190'],
+            'mail_from_name'    => ['nullable', 'string', 'max:120'],
+            'mail_reply_to'     => ['nullable', 'email', 'max:190'],
+
+            'imap_enabled'      => ['nullable', 'boolean'],
+            'imap_host'         => $host,
+            'imap_port'         => ['nullable', 'integer', 'between:1,65535'],
+            'imap_encryption'   => ['nullable', 'in:ssl,tls,none'],
+            'imap_username'     => ['nullable', 'string', 'max:190'],
+            'imap_password'     => ['nullable', 'string', 'max:255'],
+            'imap_folder'       => ['nullable', 'string', 'max:100'],
+            'imap_verify_cert'  => ['nullable', 'boolean'],
+        ];
+    }
+
+    private function emailMessages(): array
+    {
+        return [
+            'mail_host.regex' => 'Host SMTP hanya berisi huruf, angka, titik, dan tanda hubung (tanpa http:// atau spasi).',
+            'imap_host.regex' => 'Host IMAP hanya berisi huruf, angka, titik, dan tanda hubung (tanpa http:// atau spasi).',
+        ];
+    }
+
+    public function updateEmail(Request $request): RedirectResponse
+    {
+        $data = $request->validate($this->emailRules(), $this->emailMessages());
+
+        $data['imap_enabled'] = $request->boolean('imap_enabled') ? '1' : '0';
+        $data['imap_verify_cert'] = $request->boolean('imap_verify_cert') ? '1' : '0';
+
+        // Password dikosongkan di form saat mengedit pengaturan lain -- jangan
+        // sampai menimpa password yang sudah tersimpan.
+        foreach (['mail_password', 'imap_password'] as $secret) {
+            if (blank($data[$secret] ?? null)) {
+                unset($data[$secret]);
+            }
+        }
+
+        // Kolom kosong disimpan sebagai string kosong (bukan null) supaya
+        // pengaturan lama benar-benar terhapus.
+        foreach ($data as $key => $value) {
+            if ($value === null) {
+                $data[$key] = '';
+            }
+        }
+
+        Setting::putMany($data, 'email');
+        Setting::put('imap_last_status', null, 'email');
+        \App\Support\MailConfig::apply();
+
+        return back()->with('success', 'Pengaturan email berhasil disimpan.');
+    }
+
+    /**
+     * Kirim email percobaan memakai nilai yang sedang diisi di form
+     * (tanpa harus menyimpan dulu).
+     */
+    public function testSmtp(Request $request): RedirectResponse
+    {
+        $request->validate($this->emailRules() + ['test_to' => ['required', 'email', 'max:190']], $this->emailMessages() + [
+            'test_to.required' => 'Isi alamat email tujuan uji coba.',
+            'test_to.email' => 'Alamat email tujuan uji coba tidak valid.',
+        ]);
+
+        $saved = \App\Support\MailConfig::saved();
+
+        $values = [
+            'host'         => $request->input('mail_host', $saved['host']),
+            'port'         => (int) ($request->input('mail_port') ?: $saved['port']),
+            'encryption'   => $request->input('mail_encryption', $saved['encryption']),
+            'username'     => $request->input('mail_username', $saved['username']),
+            'password'     => filled($request->input('mail_password')) ? $request->input('mail_password') : $saved['password'],
+            'from_address' => $request->input('mail_from_address', $saved['from_address']),
+            'from_name'    => $request->input('mail_from_name', $saved['from_name']),
+            'reply_to'     => $request->input('mail_reply_to', $saved['reply_to']),
+        ];
+
+        if (blank($values['host'])) {
+            return back()->withInput($request->except(['mail_password', 'imap_password']))->with('error', 'Isi Host SMTP dulu sebelum menguji.');
+        }
+
+        \App\Support\MailConfig::apply($values);
+
+        try {
+            \Illuminate\Support\Facades\Mail::mailer('smtp')->raw(
+                "Ini email percobaan dari " . config('app.name') . ".\nKalau Anda menerima pesan ini, pengaturan SMTP sudah benar.",
+                fn ($m) => $m->to($request->input('test_to'))->subject('Uji coba email — ' . config('app.name')),
+            );
+        } catch (\Throwable $e) {
+            return back()->withInput($request->except(['mail_password', 'imap_password']))->with('error', 'Email gagal terkirim: ' . \Illuminate\Support\Str::limit($e->getMessage(), 300));
+        }
+
+        return back()->withInput($request->except(['mail_password', 'imap_password']))->with('success', 'Email percobaan terkirim ke ' . $request->input('test_to') . '. Cek inbox (dan folder spam).');
+    }
+
+    /**
+     * Uji koneksi IMAP: login, buka folder, hitung email belum dibaca.
+     */
+    public function testImap(Request $request): RedirectResponse
+    {
+        $request->validate($this->emailRules(), $this->emailMessages());
+
+        $saved = \App\Support\MailConfig::imap();
+
+        $c = [
+            'host'        => $request->input('imap_host', $saved['host']),
+            'port'        => (int) ($request->input('imap_port') ?: $saved['port']),
+            'encryption'  => $request->input('imap_encryption', $saved['encryption']),
+            'username'    => $request->input('imap_username', $saved['username']),
+            'password'    => filled($request->input('imap_password')) ? $request->input('imap_password') : $saved['password'],
+            'folder'      => $request->input('imap_folder') ?: ($saved['folder'] ?: 'INBOX'),
+            'verify_cert' => $request->has('imap_verify_cert') ? $request->boolean('imap_verify_cert') : $saved['verify_cert'],
+        ];
+
+        if (blank($c['host']) || blank($c['username']) || blank($c['password'])) {
+            return back()->withInput($request->except(['mail_password', 'imap_password']))->with('error', 'Isi Host, Username, dan Password IMAP dulu sebelum menguji.');
+        }
+
+        $imap = \App\Services\Mail\ImapClient::fromConfig($c);
+
+        try {
+            $imap->connect();
+            $imap->login($c['username'], $c['password']);
+            $total = $imap->select($c['folder']);
+            $unseen = count($imap->searchUnseen(500));
+            $imap->logout();
+        } catch (\Throwable $e) {
+            $imap->logout();
+
+            return back()->withInput($request->except(['mail_password', 'imap_password']))->with('error', 'Koneksi IMAP gagal: ' . \Illuminate\Support\Str::limit($e->getMessage(), 300));
+        }
+
+        return back()->withInput($request->except(['mail_password', 'imap_password']))->with('success', "Koneksi IMAP berhasil. Folder \"{$c['folder']}\" berisi {$total} email, {$unseen} belum dibaca.");
     }
 
     public function livechatBootstrap(): View

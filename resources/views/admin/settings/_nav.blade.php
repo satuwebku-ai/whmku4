@@ -10,6 +10,7 @@
     ['label' => 'Notifikasi', 'route' => 'admin.settings.notifications'],
     ['label' => 'Tampilan Notifikasi', 'route' => 'admin.settings.toast.edit'],
     ['label' => 'Keamanan', 'route' => 'admin.settings.security'],
+    ['label' => 'Email', 'route' => 'admin.settings.email'],
     ['label' => 'Live Chat', 'route' => 'admin.settings.livechat'],
     ['label' => 'Trafik AI', 'route' => 'admin.ai-usage.index'],
     ['label' => 'cPanel Aplikasi', 'route' => 'admin.self-cpanel.edit'],
