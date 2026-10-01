@@ -684,11 +684,24 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::get('chat/{chat}/poll', 'poll')->name('chats.poll');
         Route::post('chat/{chat}/reply', 'reply')->name('chats.reply');
         Route::post('chat/{chat}/claim', 'claim')->name('chats.claim');
+        Route::post('chat/{chat}/ai-draft', 'aiDraft')->name('chats.ai-draft');
         Route::post('chat/{chat}/close', 'close')->name('chats.close');
         Route::post('chat/{chat}/convert-to-ticket', 'convertToTicket')->name('chats.convert-to-ticket');
         Route::delete('chat/{chat}', 'destroy')->name('chats.delete');
         Route::get('chats-global-status', 'globalStatus')->name('chats.global-status');
     });
+
+    // ── Template Balasan ── (modul: support) teks support untuk Email & Live Chat, terhubung ke AI
+    Route::middleware('module:support')
+        ->controller(\App\Http\Controllers\Admin\ReplyTemplateController::class)
+        ->prefix('reply-templates')->name('templates.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::post('{template}', 'update')->name('update');
+            Route::post('{template}/toggle', 'toggle')->name('toggle');
+            Route::post('{template}/duplicate', 'duplicate')->name('duplicate');
+            Route::delete('{template}', 'destroy')->name('delete');
+        });
 
     // ── Inbox Email ── (modul: support)
     Route::middleware('module:support')->controller(MailboxController::class)->group(function () {

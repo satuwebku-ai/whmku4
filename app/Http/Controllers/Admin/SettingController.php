@@ -893,6 +893,10 @@ class SettingController extends Controller
             'livechat_whatsapp'   => ['nullable', 'string', 'max:30', 'regex:/^[0-9]*$/'],
             'livechat_greeting'   => ['nullable', 'string', 'max:255'],
             'support_hours'       => ['nullable', 'string', 'max:120'],
+            'livechat_menu_chat'   => ['nullable', 'boolean'],
+            'livechat_menu_email'  => ['nullable', 'boolean'],
+            'livechat_menu_ticket' => ['nullable', 'boolean'],
+            'livechat_menu_wa'     => ['nullable', 'boolean'],
             'chat_greeting_1'     => ['nullable', 'string', 'max:300'],
             'chat_greeting_2'     => ['nullable', 'string', 'max:300'],
             // Bot AI -- balasan otomatis, provider bisa Claude atau
@@ -901,6 +905,7 @@ class SettingController extends Controller
             // pilihan tidak saling menimpa saat admin gonta-ganti
             // provider.
             'ai_chat_enabled'     => ['nullable', 'boolean'],
+            'ai_chat_first_only'  => ['nullable', 'boolean'],
             'ai_chat_provider'    => ['nullable', 'in:anthropic,openai'],
             'ai_chat_api_key'     => ['nullable', 'string', 'max:255'],
             'ai_chat_openai_api_key' => ['nullable', 'string', 'max:255'],
@@ -913,6 +918,13 @@ class SettingController extends Controller
         ]);
 
         $data['ai_chat_enabled'] = $request->boolean('ai_chat_enabled') ? '1' : '0';
+        $data['ai_chat_first_only'] = $request->boolean('ai_chat_first_only') ? '1' : '0';
+
+        // Pilihan di layar awal widget: checkbox yang tidak dicentang tidak
+        // dikirim browser, jadi harus ditulis eksplisit sebagai '0'.
+        foreach (['chat', 'email', 'ticket', 'wa'] as $k) {
+            $data['livechat_menu_'.$k] = $request->boolean('livechat_menu_'.$k) ? '1' : '0';
+        }
 
         // Kunci API tidak boleh ikut kosong menimpa yang sudah tersimpan
         // kalau admin membiarkan kolomnya kosong saat mengedit pengaturan

@@ -84,10 +84,22 @@
       </div>
     </div>
 
+    {{-- Pilihan di layar awal widget (berlaku untuk semua tema) --}}
+    <div id="fieldMenu" class="d-none rounded-4 border p-3 mb-3" style="background:#f8fafc">
+      <p class="fw-bold text-dark mb-1" style="font-size:13px"><i class="fa-solid fa-list"></i> Pilihan di Layar Awal Widget</p>
+      <p class="text-muted mb-2" style="font-size:11px">Saat tombol chat diklik, pengunjung memilih ingin menghubungi lewat mana. Matikan yang tidak dipakai. Email muncul kalau email support atau SMTP sudah diisi, WhatsApp muncul kalau nomornya diisi.</p>
+      @foreach (['chat' => 'Live Chat', 'email' => 'Email', 'ticket' => 'Support / Ticket', 'wa' => 'WhatsApp'] as $k => $label)
+        <label class="d-flex align-items-center gap-2 mb-1" style="font-size:12px">
+          <input type="checkbox" name="livechat_menu_{{ $k }}" value="1" @checked(old('livechat_menu_'.$k, Setting::get('livechat_menu_'.$k, '1')) !== '0') class="form-check-input" style="margin-top:0">
+          {{ $label }}
+        </label>
+      @endforeach
+    </div>
+
     <div id="hintWidget" class="d-none rounded-3 px-3 py-2 mb-3" style="background:#eef2ff;border:1px solid #c7d2fe;font-size:12px;color:#4338ca">
       <i class="fa-solid fa-circle-info"></i>
-      <b>Widget Bawaan</b> menampilkan tombol mengambang di pojok kanan bawah berisi tiga pilihan:
-      chat WhatsApp, buat tiket support, dan kirim email. Tidak memuat script pihak ketiga sama sekali,
+      <b>Widget Bawaan</b> menampilkan tombol mengambang di pojok kanan bawah berisi pilihan:
+      Live Chat, Email, Support/Ticket, dan WhatsApp. Tidak memuat script pihak ketiga sama sekali,
       jadi halaman tetap ringan dan data pengunjung tidak dikirim ke layanan luar.
       Email support diambil dari <b>Pengaturan → Umum</b>.
     </div>
@@ -156,6 +168,12 @@
         </select>
       </div>
 
+      <label class="d-flex align-items-start gap-2 mb-3" style="font-size:12px">
+        <input type="checkbox" name="ai_chat_first_only" value="1" @checked(Setting::get('ai_chat_first_only', '1') === '1') class="form-check-input" style="margin-top:.2rem">
+        <span><b>Balasan awal saja.</b> Bot hanya menjawab pesan pertama pengunjung, lalu diam sampai admin membalas.
+        Matikan kalau bot boleh terus menjawab sampai admin ikut membalas.</span>
+      </label>
+
       <div>
         <label class="form-label small fw-medium text-dark">Info Bisnis untuk Bot</label>
         <textarea name="ai_chat_context" rows="6" class="form-control form-control-sm" placeholder="Contoh:
@@ -194,6 +212,7 @@
         fWa.classList.toggle('d-none', v !== 'whatsapp' && v !== 'widget');
         document.getElementById('hintWidget').classList.toggle('d-none', v !== 'widget');
         document.getElementById('fieldAiBot').classList.toggle('d-none', v !== 'widget');
+        document.getElementById('fieldMenu').classList.toggle('d-none', v !== 'widget' && v !== 'whatsapp');
 
         if (v === 'tawkto') {
           lProp.textContent = 'Tawk.to Property ID / Widget ID';

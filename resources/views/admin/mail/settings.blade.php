@@ -49,42 +49,8 @@
 
       <div class="ix-form">
         <h2 style="font-size:14px;font-weight:700;color:#0f172a">Template balasan (teks support)</h2>
-        <p style="font-size:12px;color:#64748b">Muncul sebagai pilihan “⚡ Template…” saat membalas email dan live chat. Penanda: <code>{nama}</code> <code>{email}</code> <code>{site}</code> <code>{admin}</code></p>
-
-        @foreach ($templates as $t)
-          <details class="mb-2" style="border:1px solid #e2e8f0;border-radius:.6rem">
-            <summary style="padding:.6rem .9rem;font-size:13px;cursor:pointer;font-weight:600;color:#1e293b">{{ $t->title }}</summary>
-            <div style="padding:.2rem .9rem .9rem">
-              <form method="POST" action="{{ route('admin.mail.templates.update', $t) }}">
-                @csrf
-                <input type="text" name="title" value="{{ $t->title }}" maxlength="120" class="form-control form-control-sm mb-2" placeholder="Judul" required>
-                <input type="text" name="subject" value="{{ $t->subject }}" maxlength="200" class="form-control form-control-sm mb-2" placeholder="Subjek (opsional, hanya untuk email)">
-                <textarea name="body" rows="6" class="form-control mb-2" style="font-size:13px" required>{{ $t->body }}</textarea>
-                <div class="ix-actions">
-                  <button type="submit" class="ix-btn pri" style="padding:.4rem 1rem">Simpan</button>
-                  <button type="submit" form="delTpl{{ $t->id }}" class="ix-btn sec" style="padding:.4rem 1rem;color:#e11d48">Hapus</button>
-                </div>
-              </form>
-              <form id="delTpl{{ $t->id }}" method="POST" action="{{ route('admin.mail.templates.delete', $t) }}"
-                    data-confirm="Hapus template “{{ $t->title }}”?" data-confirm-title="Hapus Template" data-confirm-style="danger" data-confirm-label="Ya, Hapus">
-                @csrf @method('DELETE')
-              </form>
-            </div>
-          </details>
-        @endforeach
-
-        <details style="border:1px dashed #c7d2fe;border-radius:.6rem" {{ $errors->has('title') || $errors->has('body') ? 'open' : '' }}>
-          <summary style="padding:.6rem .9rem;font-size:13px;cursor:pointer;color:#4f46e5;font-weight:600"><i class="fa-solid fa-plus"></i> Tambah template</summary>
-          <form method="POST" action="{{ route('admin.mail.templates.store') }}" style="padding:.2rem .9rem .9rem">
-            @csrf
-            <input type="text" name="title" value="{{ old('title') }}" maxlength="120" class="form-control form-control-sm mb-2" placeholder="Judul, mis. Cara reset password" required>
-            <input type="text" name="subject" value="{{ old('subject') }}" maxlength="200" class="form-control form-control-sm mb-2" placeholder="Subjek (opsional)">
-            <textarea name="body" rows="6" class="form-control mb-2" style="font-size:13px" placeholder="Isi template…" required>{{ old('body') }}</textarea>
-            @error('title')<div class="ix-err">{{ $message }}</div>@enderror
-            @error('body')<div class="ix-err">{{ $message }}</div>@enderror
-            <button type="submit" class="ix-btn pri" style="padding:.4rem 1rem">Tambah</button>
-          </form>
-        </details>
+        <p style="font-size:12px;color:#64748b">Template sekarang punya menu sendiri: tambah, ubah, kategori, aktif/nonaktif, dan sambungan ke AI chat.</p>
+        <a href="{{ route('admin.templates.index') }}" class="ix-btn pri" style="text-decoration:none;display:inline-block"><i class="fa-solid fa-bolt"></i> Buka Template Balasan ({{ $templates->count() }})</a>
       </div>
     </section>
   </div>

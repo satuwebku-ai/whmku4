@@ -5,6 +5,7 @@ namespace App\Services\Chat;
 use App\Models\AiChatUsage;
 use App\Models\ChatConversation;
 use App\Models\ChatMessage;
+use App\Models\MailTemplate;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -59,6 +60,14 @@ class AiChatService
             return null;
         }
 
+        // Mode "balasan awal saja": bot menjawab SEKALI per percakapan,
+        // sesudahnya diam sampai admin membalas. Sapaan widget tidak
+        // dihitung karena tidak tersimpan sebagai pesan bot.
+        if (Setting::get('ai_chat_first_only', '1') === '1'
+            && $conversation->messages()->where('sender', 'bot')->exists()) {
+            return null;
+        }
+
         $history = $conversation->messages()
             ->whereIn('sender', ['user', 'bot'])
             ->orderBy('id')
@@ -100,6 +109,7 @@ class AiChatService
             AiChatUsage::create([
                 'chat_conversation_id' => $conversation->id,
                 'model' => $model,
+                'kind' => 'bot',
                 'input_tokens' => $result['input_tokens'],
                 'output_tokens' => $result['output_tokens'],
             ]);
@@ -143,6 +153,48 @@ class AiChatService
             $dasar .= "\n\nInformasi tentang bisnis ini (dari admin):\n" . $konteks;
         }
 
-        return $dasar;
+        return $dasar . self::templateKnowledge();
+    }
+
+    /**
+     * Konteks bisnis + template AI, dipakai bersama oleh draf balasan admin.
+     */
+    public static function businessKnowledge(): string
+    {
+        $konteks = Setting::get('ai_chat_context', '');
+        $teks = filled($konteks) ? "\n\nInformasi tentang bisnis ini (dari admin):\n" . $konteks : '';
+
+        return $teks . self::templateKnowledge();
+    }
+
+    /**
+     * Template balasan yang admin tandai "dipakai AI" menjadi panduan
+     * jawaban: AI meniru isi dan gaya bahasanya, tidak menyalinnya mentah.
+     * Dibatasi supaya biaya token per pesan tidak membengkak.
+     */
+    private static function templateKnowledge(): string
+    {
+        try {
+            $templates = MailTemplate::active()->where('use_for_ai', true)->ordered()->limit(15)->get(['title', 'body']);
+        } catch (Throwable) {
+            return ''; // tabel/kolom belum dimigrasi: bot tetap jalan tanpa panduan
+        }
+
+        if ($templates->isEmpty()) {
+            return '';
+        }
+
+        $out = "\n\nContoh jawaban resmi dari tim (jadikan panduan isi dan gaya bahasa; sesuaikan dengan pertanyaan, jangan menyalin mentah, dan abaikan penanda seperti {nama}):";
+        $budget = 5000;
+
+        foreach ($templates as $t) {
+            $chunk = "\n\n[" . $t->title . "]\n" . trim($t->body);
+            if (mb_strlen($out) + mb_strlen($chunk) > $budget) {
+                break;
+            }
+            $out .= $chunk;
+        }
+
+        return $out;
     }
 }

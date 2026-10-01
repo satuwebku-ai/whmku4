@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AiChatUsage extends Model
 {
-    protected $fillable = ['chat_conversation_id', 'model', 'input_tokens', 'output_tokens'];
+    protected $fillable = ['chat_conversation_id', 'model', 'kind', 'input_tokens', 'output_tokens'];
 
     public function conversation(): BelongsTo
     {

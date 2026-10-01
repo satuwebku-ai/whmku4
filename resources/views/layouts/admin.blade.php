@@ -124,6 +124,7 @@
             ['label' => 'Dukungan', 'icon' => 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'module' => 'support', 'children' => [
               ['label' => 'Live Chat',        'route' => 'admin.chats', 'match' => ['admin.chats*'], 'chat_badge' => true],
               ['label' => 'Email',            'route' => 'admin.mail', 'match' => ['admin.mail*'], 'mail_badge' => true],
+              ['label' => 'Template Balasan', 'route' => 'admin.templates.index', 'match' => ['admin.templates.*']],
               ['label' => 'Support / Tiket',  'route' => 'admin.tickets', 'match' => ['admin.ticket*']],
             ]],
 

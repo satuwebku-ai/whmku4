@@ -7,9 +7,36 @@
   $greeting   = Setting::get('livechat_greeting', 'Halo, saya ingin bertanya tentang layanan hosting.');
 
   $siteName    = Setting::get('site_name', config('app.name'));
-  $themeColor  = '#0e7c86'; // tema NamaHost: teal tetap
+  // Warna tema NamaHost: teal tetap.
+  $themeColor  = '#0e7c86';
+  $themeColor2 = '#0a4f57';
   $supportMail = Setting::get('support_email');
   $jamOperasi  = Setting::get('support_hours');
+
+  // Pilihan di layar awal. Tiap pilihan bisa dimatikan admin di
+  // Pengaturan -> Live Chat (kunci livechat_menu_*), default aktif.
+  $menuOn = fn ($k) => Setting::get('livechat_menu_'.$k, '1') !== '0';
+  $canEmail = $supportMail || filled(Setting::get('mail_host'));
+  $waLink = $waNumber
+      ? 'https://wa.me/'.preg_replace('/\D/', '', $waNumber).'?text='.urlencode($greeting)
+      : null;
+
+  $menuItems = [];
+  if ($provider === 'widget' && $menuOn('chat')) {
+      $menuItems[] = ['key'=>'chat','icon'=>'fa-solid fa-comment-dots','title'=>'Live Chat','sub'=>'Ngobrol langsung dengan tim kami','bg'=>'#eef2ff','fg'=>'#4338ca'];
+  }
+  if ($provider === 'widget' && $canEmail && $menuOn('email')) {
+      $menuItems[] = ['key'=>'email','icon'=>'fa-regular fa-envelope','title'=>'Email','sub'=>'Balasan dikirim ke email Anda','bg'=>'#fef3c7','fg'=>'#b45309'];
+  }
+  if ($menuOn('ticket')) {
+      $menuItems[] = ['key'=>'ticket','icon'=>'fa-solid fa-ticket','title'=>'Support / Ticket','sub'=>auth('client')->check() ? 'Buat tiket bantuan' : 'Masuk untuk membuat tiket','bg'=>'#f3e8ff','fg'=>'#7e22ce','href'=>route('client.tickets.create')];
+  }
+  if ($waLink && $menuOn('wa')) {
+      $menuItems[] = ['key'=>'wa','icon'=>'fa-brands fa-whatsapp','title'=>'WhatsApp','sub'=>'Balasan cepat lewat WhatsApp','bg'=>'#dcfce7','fg'=>'#047857','href'=>$waLink,'blank'=>true];
+  }
+  // Satu-satunya pilihan "chat" -> langsung ke percakapan tanpa layar pilihan.
+  $skipMenu = count($menuItems) <= 1 && collect($menuItems)->every(fn ($m) => in_array($m['key'], ['chat','email'], true));
+  $defaultView = $skipMenu ? ($menuItems[0]['key'] ?? 'chat') : 'menu';
 @endphp
 
 @if ($provider === 'tawkto' && $propertyId)
@@ -84,6 +111,11 @@
     .chat-online-dot{ width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.18); display:inline-block; }
     .chat-quick-action{ transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease; border:1px solid #e8eaf8; }
     .chat-quick-action:hover{ transform:translateY(-1px); background:#f5f3ff!important; box-shadow:0 5px 12px rgba(79,70,229,.08); }
+    .chat-menu-item{ transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease; border:1px solid #e8eaf8; background:#fff; width:100%; text-align:left; cursor:pointer; }
+    .chat-menu-item:hover{ transform:translateY(-1px); box-shadow:0 6px 16px rgba(30,27,75,.09); border-color:{{ $themeColor }}66; }
+    .chat-menu-item .chat-menu-arrow{ color:#cbd5e1; transition:transform .15s ease,color .15s ease; }
+    .chat-menu-item:hover .chat-menu-arrow{ transform:translateX(2px); color:{{ $themeColor }}; }
+    #chatBack{ opacity:.85; } #chatBack:hover{ opacity:1; }
     .chat-identity{ background:linear-gradient(135deg,#f8faff,#f5f3ff); border:1px solid #e5e7ff; }
     #chatBody::-webkit-scrollbar{ width:5px; }
     #chatBody::-webkit-scrollbar-thumb{ background:#c7d2fe; border-radius:9px; }
@@ -101,9 +133,12 @@
     <div id="chatPanel" class="d-none flex-column rounded-4 bg-white shadow overflow-hidden" style="width:380px;max-width:calc(100vw - 40px);height:min(610px,78vh)">
 
       {{-- Kepala --}}
-      <div id="chatHeader" class="px-4 py-3 text-white flex-shrink-0" style="background:linear-gradient(135deg,{{ $themeColor }},#0a4f57)">
+      <div id="chatHeader" class="px-4 py-3 text-white flex-shrink-0" style="background:linear-gradient(135deg,{{ $themeColor }},{{ $themeColor2 }})">
         <div class="d-flex align-items-center justify-content-between gap-3">
           <div class="d-flex align-items-center gap-2 min-w-0">
+            <button type="button" id="chatBack" class="btn btn-link p-0 text-white flex-shrink-0 d-none" aria-label="Kembali ke pilihan" title="Kembali ke pilihan">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
             <span class="rounded-4 d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)">
               <i class="fa-solid fa-headset"></i>
             </span>
@@ -118,6 +153,29 @@
         </div>
       </div>
 
+      {{-- Layar pilihan awal --}}
+      <div id="chatMenu" class="flex-grow-1 overflow-y-auto px-3 py-3 {{ $defaultView === 'menu' ? 'd-flex' : 'd-none' }} flex-column gap-2" style="background:linear-gradient(180deg,#f8faff 0%,#f8fafc 100%)">
+        <div class="rounded-4 p-3 mb-1" style="background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid #e0e7ff">
+          <p class="fw-bold mb-1" style="font-size:13px;color:#312e81">Halo, 👋</p>
+          <p class="mb-0" style="font-size:12px;line-height:1.6;color:#64748b">Mau menghubungi kami lewat mana?</p>
+        </div>
+        @foreach ($menuItems as $m)
+          @php
+            $inner = '<span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;background:'.$m['bg'].';color:'.$m['fg'].'"><i class="'.$m['icon'].'"></i></span>'
+                   . '<span class="flex-grow-1 min-w-0"><b class="d-block" style="font-size:13px;color:#1e293b">'.e($m['title']).'</b><span class="d-block text-muted" style="font-size:11px">'.e($m['sub']).'</span></span>'
+                   . '<i class="fa-solid fa-chevron-right chat-menu-arrow flex-shrink-0" style="font-size:11px"></i>';
+          @endphp
+          @if (isset($m['href']))
+            <a href="{{ $m['href'] }}" @if (!empty($m['blank'])) target="_blank" rel="noopener noreferrer" @endif
+               class="chat-menu-item d-flex align-items-center gap-3 px-3 py-3 rounded-4 text-decoration-none">{!! $inner !!}</a>
+          @else
+            <button type="button" data-chat-view="{{ $m['key'] }}" class="chat-menu-item d-flex align-items-center gap-3 px-3 py-3 rounded-4">{!! $inner !!}</button>
+          @endif
+        @endforeach
+      </div>
+
+      {{-- Percakapan (Live Chat / Email) --}}
+      <div id="chatConv" class="flex-grow-1 {{ $defaultView === 'menu' ? 'd-none' : 'd-flex' }} flex-column" style="min-height:0">
       {{-- Daftar pesan --}}
       <div id="chatBody" class="flex-grow-1 overflow-y-auto px-3 py-3 d-flex flex-column gap-2" style="background:linear-gradient(180deg,#f8faff 0%,#f8fafc 100%)">
         <div id="chatWelcome" class="rounded-4 p-3 mb-1" style="background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid #e0e7ff">
@@ -125,32 +183,6 @@
           <p class="mb-0" style="font-size:11px;line-height:1.6;color:#64748b">Ceritakan kebutuhan Anda. Tim kami akan membantu secepat mungkin.</p>
         </div>
         <div id="chatLoading" class="text-center text-muted py-4" style="font-size:12px">Memuat percakapan…</div>
-      </div>
-
-      {{-- Tautan cepat --}}
-      <div class="px-3 py-2 border-top d-flex align-items-center gap-2 flex-shrink-0 bg-white" style="font-size:11px">
-        @if ($waNumber)
-          <a href="https://wa.me/{{ preg_replace('/\D/', '', $waNumber) }}?text={{ urlencode($greeting) }}"
-             target="_blank" rel="noopener noreferrer"
-             class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-decoration-none flex-grow-1" style="background:#fff;color:#047857">
-            <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#dcfce7"><i class="fa-brands fa-whatsapp"></i></span>
-            <span><b class="d-block" style="font-size:10px">WhatsApp</b><span class="text-muted" style="font-size:9px">Balasan cepat</span></span>
-          </a>
-        @endif
-        @auth('client')
-          <a href="{{ route('client.tickets.create') }}" class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-decoration-none flex-grow-1" style="background:#fff;color:#4338ca">
-            <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#eef2ff"><i class="fa-solid fa-ticket"></i></span>
-            <span><b class="d-block" style="font-size:10px">Tiket</b><span class="text-muted" style="font-size:9px">Lacak masalah</span></span>
-          </a>
-        @endauth
-        @if ($supportMail || filled(Setting::get('mail_host')))
-          {{-- Dulu tautan mailto: yang mati kalau perangkat tidak punya aplikasi email.
-               Sekarang pesan dikirim lewat widget ini; balasan staf juga dikirim ke email. --}}
-          <button type="button" id="chatEmailMode" aria-pressed="false" class="chat-quick-action d-flex align-items-center gap-2 px-2 py-2 rounded-3 text-start flex-grow-1" style="background:#fff;color:#475569;cursor:pointer">
-            <span class="rounded-2 d-flex align-items-center justify-content-center" style="width:24px;height:24px;background:#f1f5f9"><i class="fa-regular fa-envelope"></i></span>
-            <span><b class="d-block" style="font-size:10px">Email</b><span class="text-muted" style="font-size:9px">Balasan ke email</span></span>
-          </button>
-        @endif
       </div>
 
       {{-- Kotak kirim --}}
@@ -193,12 +225,13 @@
 
         <p id="chatError" class="d-none text-danger mt-2 mb-0" style="font-size:11px"></p>
       </form>
+      </div>
     </div>
 
     {{-- Tombol pembuka --}}
     <button type="button" id="chatToggle" aria-label="Buka chat"
             class="rounded-circle text-white border-0 shadow d-flex align-items-center justify-content-center position-relative"
-            style="width:56px;height:56px;background:linear-gradient(135deg,{{ $themeColor }},#0a4f57)">
+            style="width:56px;height:56px;background:linear-gradient(135deg,{{ $themeColor }},{{ $themeColor2 }})">
       <i id="chatIcon" class="fa-solid fa-comment-dots" style="font-size:20px"></i>
       <span id="chatBadge" class="d-none position-absolute rounded-circle align-items-center justify-content-center fw-bold text-white"
             style="top:-4px;right:-4px;min-width:20px;height:20px;padding:0 4px;font-size:10px;background:#f43f5e;border:2px solid #fff"></span>
@@ -232,6 +265,7 @@
       // ditambahkan ulang setiap kali polling berjalan (tiap 5 detik).
       let greetingShown = false;
       let hasConversation = false;
+      let hadUnread = false;
 
       function esc(t) {
         const d = document.createElement('div');
@@ -319,6 +353,7 @@
             badge.classList.remove('d-none');
             badge.classList.add('d-flex');
             toggle.classList.add('has-unread');
+            hadUnread = true;
           }
 
           // Polling berkala baru dimulai setelah ada percakapan sungguhan
@@ -360,31 +395,47 @@
           badge.classList.add('d-none');
           badge.classList.remove('d-flex');
           toggle.classList.remove('has-unread');
+          if (hadUnread && view === 'menu') showView('chat');
+          hadUnread = false;
           load();
-          setTimeout(() => input.focus(), 100);
+          if (view !== 'menu') setTimeout(() => input.focus(), 100);
         }
       }
 
       toggle.addEventListener('click', () => setOpen(panel.classList.contains('d-none')));
       document.getElementById('chatClose').addEventListener('click', () => setOpen(false));
 
-      // Mode Email: pesan tetap dikirim lewat widget, tetapi balasan staf
-      // juga dikirim ke email pengunjung (dan bisa dibalas lewat email).
-      const emailBtn  = document.getElementById('chatEmailMode');
+      // Layar pilihan: menu -> chat / email. Pesan tetap lewat widget;
+      // di mode email balasan staf juga dikirim ke email pengunjung.
+      const menuBox   = document.getElementById('chatMenu');
+      const convBox   = document.getElementById('chatConv');
+      const backBtn   = document.getElementById('chatBack');
       const viaEmail  = document.getElementById('chatViaEmail');
       const emailNote = document.getElementById('chatEmailNote');
+      const hasMenu   = !!menuBox && menuBox.querySelectorAll('[data-chat-view], a').length > 0;
+      let view = @json($defaultView);
 
-      if (emailBtn) {
-        emailBtn.addEventListener('click', function () {
-          const on = viaEmail.value !== '1';
-          viaEmail.value = on ? '1' : '0';
-          emailBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-          emailBtn.style.background = on ? '#eef2ff' : '#fff';
-          emailNote.classList.toggle('d-none', !on);
-          input.placeholder = on ? 'Tulis pesan email…' : 'Tulis pesan…';
-          if (on) input.focus();
-        });
+      function showView(v, silent) {
+        view = v;
+        const conv = v === 'chat' || v === 'email';
+        menuBox?.classList.toggle('d-none', conv);
+        menuBox?.classList.toggle('d-flex', !conv);
+        convBox.classList.toggle('d-none', !conv);
+        convBox.classList.toggle('d-flex', conv);
+        // Tombol kembali hanya kalau memang ada layar pilihan.
+        backBtn.classList.toggle('d-none', !(conv && hasMenu && @json(!$skipMenu)));
+        const on = v === 'email';
+        viaEmail.value = on ? '1' : '0';
+        emailNote.classList.toggle('d-none', !on);
+        input.placeholder = on ? 'Tulis pesan email…' : 'Tulis pesan…';
+        if (conv && !silent) { body.scrollTop = body.scrollHeight; setTimeout(() => input.focus(), 50); }
       }
+
+      document.querySelectorAll('[data-chat-view]').forEach(function (btn) {
+        btn.addEventListener('click', function () { showView(btn.dataset.chatView); });
+      });
+      backBtn.addEventListener('click', function () { showView('menu'); });
+      showView(view, true);
 
       // Lampiran
       fileIn.addEventListener('change', function () {

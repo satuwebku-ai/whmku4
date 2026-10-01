@@ -162,12 +162,15 @@
             <i class="fa-solid fa-paperclip" style="font-size:13px"></i>
             <input type="file" id="admFile" name="attachment" accept="image/*,application/pdf" class="d-none">
           </label>
-          @php $chatTpls = \App\Models\MailTemplate::orderBy('sort')->orderBy('id')->get(['id', 'title', 'body']); @endphp
+          @php $chatTpls = \App\Models\MailTemplate::active()->ordered()->get(['id', 'title', 'body']); @endphp
           @if ($chatTpls->isNotEmpty())
             <select id="admTpl" class="ix-tpl" title="Template balasan" style="max-width:120px">
               <option value="">⚡ Template</option>
               @foreach ($chatTpls as $t)<option value="{{ $t->id }}">{{ $t->title }}</option>@endforeach
             </select>
+          @endif
+          @if (app(\App\Services\Chat\AiReplyDrafter::class)->available())
+            <button type="button" id="admAiDraft" class="ix-tpl" style="cursor:pointer" title="Minta AI menulis draf balasan">✨ Draf AI</button>
           @endif
           <textarea id="admInput" name="message" rows="1" placeholder="Tulis pesan… (Enter kirim, Shift+Enter baris baru)"></textarea>
           <button type="submit" id="admSend" class="ix-round send" aria-label="Kirim"><i class="fa-solid fa-paper-plane" style="font-size:13px"></i></button>
@@ -253,6 +256,28 @@
                 .split('{admin}').join(@json($me->name));
               input.focus();
               input.dispatchEvent(new Event('input'));
+            });
+          }
+
+          const aiBtn = document.getElementById('admAiDraft');
+          if (aiBtn) {
+            aiBtn.addEventListener('click', async function () {
+              const label = aiBtn.textContent;
+              aiBtn.disabled = true; aiBtn.textContent = 'Menulis…';
+              try {
+                const res = await fetch(@json(route('admin.chats.ai-draft', $chat)), {
+                  method: 'POST',
+                  headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) { errBox.textContent = data.message || 'AI belum bisa membuat draf.'; errBox.classList.remove('d-none'); return; }
+                errBox.classList.add('d-none');
+                input.value = input.value.trim() === '' ? data.text : input.value.replace(/\s+$/, '') + '\n\n' + data.text;
+                input.focus();
+                input.dispatchEvent(new Event('input'));
+              } catch (e) {
+                errBox.textContent = 'Tidak bisa terhubung ke server.'; errBox.classList.remove('d-none');
+              } finally { aiBtn.disabled = false; aiBtn.textContent = label; }
             });
           }
 

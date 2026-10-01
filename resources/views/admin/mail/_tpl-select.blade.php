@@ -1,4 +1,4 @@
-@php $tplOptions = \App\Models\MailTemplate::orderBy('sort')->orderBy('id')->get(['id', 'title']); @endphp
+@php $tplOptions = \App\Models\MailTemplate::active()->ordered()->get(['id', 'title']); @endphp
 @if ($tplOptions->isNotEmpty())
   <select id="tplPick" class="ix-tpl" title="Sisipkan template balasan">
     <option value="">⚡ Template…</option>

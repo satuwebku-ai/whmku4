@@ -227,6 +227,30 @@ class ChatController extends Controller
             : back();
     }
 
+    /**
+     * Draf balasan AI untuk admin -- hanya mengembalikan teks; admin yang
+     * mengedit dan mengirimnya sendiri.
+     */
+    public function aiDraft(ChatConversation $chat, \App\Services\Chat\AiReplyDrafter $drafter): JsonResponse
+    {
+        $rows = $chat->messages()
+            ->whereIn('sender', ['user', 'admin', 'bot'])
+            ->orderByDesc('id')->limit(20)->get()->reverse()
+            ->map(fn ($m) => [
+                'role' => $m->sender === 'user' ? 'user' : 'assistant',
+                'content' => $m->message ?: '(mengirim lampiran/berkas)',
+            ])->values()->all();
+
+        $r = $drafter->draft(
+            \App\Services\Chat\AiReplyDrafter::normalize($rows),
+            $chat->id,
+            (string) $chat->display_name,
+            'Live Chat'
+        );
+
+        return response()->json($r, $r['ok'] ? 200 : 422);
+    }
+
     public function close(ChatConversation $chat): RedirectResponse
     {
         $chat->update(['status' => 'closed']);

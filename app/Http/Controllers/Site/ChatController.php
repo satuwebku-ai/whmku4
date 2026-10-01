@@ -154,7 +154,9 @@ class ChatController extends Controller
         // nonaktif atau API gagal, ini diam-diam dilewati (lihat
         // AiChatService::reply()), percakapan tetap berjalan normal
         // tanpa balasan bot.
-        $botMessage = (new \App\Services\Chat\AiChatService())->reply($conversation);
+        // AI hanya untuk Live Chat: percakapan jalur Email (masuk Inbox Email)
+        // dibalas staf, bukan bot.
+        $botMessage = $viaEmail ? null : (new \App\Services\Chat\AiChatService())->reply($conversation);
 
         // Catat sekali per percakapan saja, supaya daftar aktivitas tidak
         // dibanjiri satu baris per pesan.

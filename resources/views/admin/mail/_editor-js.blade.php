@@ -1,4 +1,4 @@
-@php $tplData = \App\Models\MailTemplate::orderBy('sort')->orderBy('id')->get(['id', 'subject', 'body'])->keyBy('id'); @endphp
+@php $tplData = \App\Models\MailTemplate::active()->ordered()->get(['id', 'subject', 'body'])->keyBy('id'); @endphp
 <script @nonce>
   (function () {
     const body = document.getElementById('mailBody');
