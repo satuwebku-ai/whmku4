@@ -20,7 +20,7 @@
 
   <nav class="ix-nav">
     <a href="{{ route('admin.mail') }}" class="{{ $folder === 'inbox' ? 'active' : '' }}">
-      <i class="fa-regular fa-inbox"></i> Kotak Masuk
+      <i class="fa-solid fa-inbox"></i> Kotak Masuk
       <span class="ix-count {{ $side['unread'] > 0 ? 'hot' : '' }}">{{ $side['unread'] > 0 ? $side['unread'] : $side['open'] }}</span>
     </a>
     <a href="{{ route('admin.mail', ['filter' => 'unread']) }}" class="{{ $folder === 'unread' ? 'active' : '' }}">

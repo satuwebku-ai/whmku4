@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\MailMessage;
 use App\Models\MailThread;
+use App\Services\Mail\ChatMailMirror;
 use App\Services\Mail\MailboxMailer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -121,6 +122,9 @@ class MailboxController extends Controller
                 Auth::guard('admin')->user(),
                 $lastInbound?->message_id,
             );
+
+            // Thread berasal dari widget chat: balasan juga tampil di widget pengunjung.
+            ChatMailMirror::toWidget($thread, 'admin', $data['body'], Auth::guard('admin')->id());
         } catch (Throwable $e) {
             report($e);
 

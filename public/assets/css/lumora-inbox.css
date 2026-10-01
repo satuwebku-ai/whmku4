@@ -104,7 +104,8 @@
 .ix-me .nm{font-size:13px;font-weight:600;color:#0f172a;line-height:1.2}
 .ix-me .rl{font-size:11px;color:#64748b}
 .ix-me .ix-icon-btn{margin-left:auto}
-.ix-clist .ix-search{margin:.4rem 1rem .8rem;max-width:none}
+.ix-clist .ix-search{margin:.4rem 1rem .8rem;max-width:none;min-width:0;flex:none;height:38px}
+.ix-clist .ix-search input,.ix-clist .ix-search button{height:100%}
 .ix-tabs{display:flex;margin:0 1rem;border:1px solid #e2e8f0;border-radius:.5rem;overflow:hidden;background:#fff}
 .ix-tabs a{flex:1;text-align:center;font-size:12px;padding:.5rem .3rem;color:#64748b;text-decoration:none;border-right:1px solid #e2e8f0}
 .ix-tabs a:last-child{border-right:0}

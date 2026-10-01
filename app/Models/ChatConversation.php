@@ -52,6 +52,15 @@ class ChatConversation extends Model
     }
 
     /**
+     * Percakapan kanal email tampil di Inbox Email (lihat MailThread::mirrorChat),
+     * jadi tidak ikut daftar & hitungan Live Chat.
+     */
+    public function scopeInLiveChat(Builder $query): Builder
+    {
+        return $query->where('channel', '!=', 'email');
+    }
+
+    /**
      * Belum dipegang staf mana pun DAN masih ada pesan klien yang belum
      * dibalas -- inilah yang jadi kandidat "antrian" untuk diambil alih
      * otomatis oleh staf yang baru selesai membalas percakapan lain.
@@ -59,6 +68,7 @@ class ChatConversation extends Model
     public function scopeWaitingUnassigned(Builder $query): Builder
     {
         return $query->open()
+            ->inLiveChat()
             ->whereNull('assigned_admin_id')
             ->where('unread_for_admin', '>', 0);
     }

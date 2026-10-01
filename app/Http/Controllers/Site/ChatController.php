@@ -139,8 +139,16 @@ class ChatController extends Controller
 
         $conversation->messages()->save($message);
 
-        $conversation->increment('unread_for_admin');
         $conversation->update(['last_message_at' => now()]);
+
+        // Jalur Email -> masuk Inbox Email (bukan daftar Live Chat).
+        $viaEmail = \App\Services\Mail\ChatMailMirror::isEmailChat($conversation);
+
+        if ($viaEmail) {
+            \App\Services\Mail\ChatMailMirror::fromVisitor($conversation, $message);
+        } else {
+            $conversation->increment('unread_for_admin');
+        }
 
         // Bot dipanggil SETELAH pesan pengunjung tersimpan -- kalau
         // nonaktif atau API gagal, ini diam-diam dilewati (lihat
@@ -150,7 +158,7 @@ class ChatController extends Controller
 
         // Catat sekali per percakapan saja, supaya daftar aktivitas tidak
         // dibanjiri satu baris per pesan.
-        if ($conversation->messages()->where('sender', 'user')->count() === 1) {
+        if (! $viaEmail && $conversation->messages()->where('sender', 'user')->count() === 1) {
             ActivityLog::record(
                 'ticket',
                 'Chat baru dari ' . $conversation->display_name,

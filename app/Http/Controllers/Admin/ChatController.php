@@ -25,6 +25,7 @@ class ChatController extends Controller
         $tab = $request->query('status') ?? ($current?->status === 'closed' ? 'closed' : 'open');
 
         $conversations = ChatConversation::query()
+            ->inLiveChat()
             ->with(['client', 'assignedAdmin', 'latestMessage'])
             ->when($tab === 'closed', fn ($q) => $q->where('status', 'closed'))
             ->when($tab !== 'closed', fn ($q) => $q->where('status', 'open'))
@@ -43,10 +44,10 @@ class ChatController extends Controller
             ->withQueryString();
 
         $counts = [
-            'open' => ChatConversation::open()->count(),
-            'unread' => ChatConversation::where('unread_for_admin', '>', 0)->count(),
+            'open' => ChatConversation::inLiveChat()->open()->count(),
+            'unread' => ChatConversation::inLiveChat()->where('unread_for_admin', '>', 0)->count(),
             'unassigned' => ChatConversation::waitingUnassigned()->count(),
-            'closed' => ChatConversation::where('status', 'closed')->count(),
+            'closed' => ChatConversation::inLiveChat()->where('status', 'closed')->count(),
         ];
 
         return compact('conversations', 'counts', 'tab');
@@ -297,7 +298,7 @@ class ChatController extends Controller
 
         return response()->json([
             'unassigned_waiting' => ChatConversation::waitingUnassigned()->count(),
-            'my_unread' => ChatConversation::where('assigned_admin_id', $adminId)
+            'my_unread' => ChatConversation::inLiveChat()->where('assigned_admin_id', $adminId)
                 ->where('unread_for_admin', '>', 0)
                 ->count(),
         ]);

@@ -17,7 +17,7 @@ class MailThread extends Model
 
     protected $fillable = [
         'subject', 'contact_email', 'contact_name', 'client_id',
-        'status', 'unread_count', 'last_message_at',
+        'status', 'unread_count', 'last_message_at', 'chat_conversation_id',
     ];
 
     protected function casts(): array
@@ -38,6 +38,11 @@ class MailThread extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function chatConversation(): BelongsTo
+    {
+        return $this->belongsTo(ChatConversation::class);
     }
 
     public function scopeOpen(Builder $query): Builder

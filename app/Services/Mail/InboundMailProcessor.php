@@ -214,6 +214,9 @@ class InboundMailProcessor
         $thread->increment('unread_count');
         $thread->update(['last_message_at' => now()]);
 
+        // Pengunjung membalas lewat email: ikut tampil di widget chat-nya.
+        ChatMailMirror::toWidget($thread, 'user', $body !== '' ? $body : '(lampiran email)');
+
         if ($isNew) {
             ActivityLog::record(
                 'ticket',
