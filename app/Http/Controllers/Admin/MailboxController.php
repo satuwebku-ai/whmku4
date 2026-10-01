@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\MailMessage;
+use App\Models\Setting;
+use App\Models\MailTemplate;
 use App\Models\MailThread;
 use App\Services\Mail\ChatMailMirror;
+use App\Services\Mail\MailAutomation;
 use App\Services\Mail\MailboxMailer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,7 +42,7 @@ class MailboxController extends Controller
             ->when($closed, fn ($q) => $q->where('status', 'closed'))
             ->when(! $closed && ! $sentOnly, fn ($q) => $q->where('status', 'open'))
             ->when($unreadOnly, fn ($q) => $q->where('unread_count', '>', 0))
-            ->when($sentOnly, fn ($q) => $q->whereHas('messages', fn ($m) => $m->where('direction', 'out')))
+            ->when($sentOnly, fn ($q) => $q->whereHas('messages', fn ($m) => $m->where('direction', 'out')->where('is_auto', false)))
             ->when($request->query('search'), function ($q, $search) {
                 $term = '%' . $search . '%';
 
@@ -88,6 +91,73 @@ class MailboxController extends Controller
         $label = ['close' => 'diarsipkan', 'reopen' => 'dibuka kembali', 'delete' => 'dihapus'][$data['action']];
 
         return back()->with('success', $threads->count() . ' email ' . $label . '.');
+    }
+
+
+    // ── Otomatisasi & template balasan ──────────────────────────
+
+    public function settings(): View
+    {
+        $values = [];
+
+        foreach (array_keys(MailAutomation::DEFAULTS) as $key) {
+            $values[$key] = MailAutomation::get($key);
+        }
+
+        return view('admin.mail.settings', [
+            'v' => $values,
+            'templates' => MailTemplate::orderBy('sort')->orderBy('id')->get(),
+        ]);
+    }
+
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'mail_autoreply_body' => ['required', 'string', 'max:3000'],
+            'mail_autoclose_hours' => ['required', 'integer', 'between:1,720'],
+            'mail_autoclose_body' => ['required', 'string', 'max:3000'],
+        ]);
+
+        $data['mail_autoreply_enabled'] = $request->boolean('mail_autoreply_enabled') ? '1' : '0';
+        $data['mail_autoclose_enabled'] = $request->boolean('mail_autoclose_enabled') ? '1' : '0';
+        $data['mail_autoclose_notice'] = $request->boolean('mail_autoclose_notice') ? '1' : '0';
+
+        Setting::putMany(array_map('strval', $data), 'email');
+
+        return back()->with('success', 'Pengaturan otomatisasi email disimpan.');
+    }
+
+    public function storeTemplate(Request $request): RedirectResponse
+    {
+        $data = $this->templateData($request);
+        $data['sort'] = (int) MailTemplate::max('sort') + 1;
+
+        MailTemplate::create($data);
+
+        return back()->with('success', 'Template ditambahkan.');
+    }
+
+    public function updateTemplate(Request $request, MailTemplate $template): RedirectResponse
+    {
+        $template->update($this->templateData($request));
+
+        return back()->with('success', 'Template diperbarui.');
+    }
+
+    public function destroyTemplate(MailTemplate $template): RedirectResponse
+    {
+        $template->delete();
+
+        return back()->with('success', 'Template dihapus.');
+    }
+
+    private function templateData(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['required', 'string', 'max:120'],
+            'subject' => ['nullable', 'string', 'max:200'],
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
     }
 
     public function show(MailThread $thread): View

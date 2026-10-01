@@ -696,6 +696,11 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::get('mail/compose', 'create')->name('mail.compose');
         Route::post('mail/compose', 'store')->name('mail.store');
         Route::post('mail/bulk', 'bulk')->name('mail.bulk');
+        Route::get('mail/settings', 'settings')->name('mail.settings');
+        Route::post('mail/settings', 'updateSettings')->name('mail.settings.update');
+        Route::post('mail/templates', 'storeTemplate')->name('mail.templates.store');
+        Route::post('mail/templates/{template}', 'updateTemplate')->name('mail.templates.update');
+        Route::delete('mail/templates/{template}', 'destroyTemplate')->name('mail.templates.delete');
         Route::get('mail/attachment/{mailMessage}/{index}', 'attachment')->whereNumber('index')->name('mail.attachment');
         Route::get('mail/{thread}', 'show')->name('mail.show');
         Route::post('mail/{thread}/reply', 'reply')->name('mail.reply');

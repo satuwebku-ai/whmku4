@@ -217,6 +217,12 @@ class InboundMailProcessor
         // Pengunjung membalas lewat email: ikut tampil di widget chat-nya.
         ChatMailMirror::toWidget($thread, 'user', $body !== '' ? $body : '(lampiran email)');
 
+        // Email pertama dari pelanggan: robot membalas satu kali sebagai tanda
+        // terima, sampai admin membalas sendiri.
+        if ($isNew) {
+            MailAutomation::autoReply($thread, $mail->messageId() ?: null);
+        }
+
         if ($isNew) {
             ActivityLog::record(
                 'ticket',

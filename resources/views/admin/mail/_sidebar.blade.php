@@ -36,7 +36,8 @@
     </a>
   </nav>
 
-  <div class="mt-auto" style="font-size:11px;color:#94a3b8">
-    <a href="{{ route('admin.settings.email') }}" class="text-decoration-none" style="color:#64748b"><i class="fa-solid fa-sliders"></i> Pengaturan Email</a>
+  <div class="mt-auto d-flex flex-column gap-1" style="font-size:11px;color:#94a3b8">
+    <a href="{{ route('admin.mail.settings') }}" class="text-decoration-none" style="color:#64748b"><i class="fa-solid fa-robot"></i> Otomatisasi &amp; Template</a>
+    <a href="{{ route('admin.settings.email') }}" class="text-decoration-none" style="color:#64748b"><i class="fa-solid fa-sliders"></i> Pengaturan SMTP/IMAP</a>
   </div>
 </aside>

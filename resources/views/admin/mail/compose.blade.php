@@ -44,6 +44,7 @@
             <label title="Lampirkan berkas"><i class="fa-solid fa-paperclip"></i> Lampirkan
               <input type="file" id="mailFiles" name="attachments[]" multiple class="d-none">
             </label>
+            @include('admin.mail._tpl-select')
             <span style="margin-left:auto">maks. 5 berkas @ 5 MB · JPG, PNG, WEBP, PDF, TXT, ZIP</span>
           </div>
           <textarea id="mailBody" name="body" maxlength="20000" required>{{ old('body') }}</textarea>
@@ -63,6 +64,6 @@
     </section>
   </div>
 
-  @include('admin.mail._editor-js')
+  @include('admin.mail._editor-js', ['ctx' => []])
 
 @endsection

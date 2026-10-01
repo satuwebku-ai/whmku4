@@ -162,6 +162,13 @@
             <i class="fa-solid fa-paperclip" style="font-size:13px"></i>
             <input type="file" id="admFile" name="attachment" accept="image/*,application/pdf" class="d-none">
           </label>
+          @php $chatTpls = \App\Models\MailTemplate::orderBy('sort')->orderBy('id')->get(['id', 'title', 'body']); @endphp
+          @if ($chatTpls->isNotEmpty())
+            <select id="admTpl" class="ix-tpl" title="Template balasan" style="max-width:120px">
+              <option value="">⚡ Template</option>
+              @foreach ($chatTpls as $t)<option value="{{ $t->id }}">{{ $t->title }}</option>@endforeach
+            </select>
+          @endif
           <textarea id="admInput" name="message" rows="1" placeholder="Tulis pesan… (Enter kirim, Shift+Enter baris baru)"></textarea>
           <button type="submit" id="admSend" class="ix-round send" aria-label="Kirim"><i class="fa-solid fa-paper-plane" style="font-size:13px"></i></button>
         </div>
@@ -231,6 +238,22 @@
               const data = await res.json();
               (data.messages || []).forEach(append);
             } catch (e) { /* diam: lanjut saat koneksi pulih */ }
+          }
+
+          const tpls = @json($chatTpls->keyBy('id'));
+          const tplSel = document.getElementById('admTpl');
+          if (tplSel) {
+            tplSel.addEventListener('change', function () {
+              const t = tpls[tplSel.value]; tplSel.value = '';
+              if (!t) return;
+              input.value = t.body
+                .split('{nama}').join(@json($chat->display_name))
+                .split('{email}').join(@json((string) $chat->email))
+                .split('{site}').join(@json((string) \App\Models\Setting::get('site_name', config('app.name'))))
+                .split('{admin}').join(@json($me->name));
+              input.focus();
+              input.dispatchEvent(new Event('input'));
+            });
           }
 
           document.getElementById('admInfoBtn').addEventListener('click', function () {

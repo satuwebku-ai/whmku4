@@ -9,12 +9,12 @@ class MailMessage extends Model
 {
     protected $fillable = [
         'mail_thread_id', 'direction', 'from_email', 'from_name', 'to_email',
-        'subject', 'body', 'message_id', 'admin_id', 'attachments',
+        'subject', 'body', 'message_id', 'admin_id', 'attachments', 'is_auto',
     ];
 
     protected function casts(): array
     {
-        return ['attachments' => 'array'];
+        return ['attachments' => 'array', 'is_auto' => 'boolean'];
     }
 
     public function thread(): BelongsTo

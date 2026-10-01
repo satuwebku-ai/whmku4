@@ -100,6 +100,12 @@ class CronJob extends Model
             'command' => 'lumora:fetch-mail',
             'interval_minutes' => 5,
         ],
+        'close_inactive_mail' => [
+            'name' => 'Tutup Email Tanpa Balasan',
+            'description' => 'Tutup otomatis thread Inbox Email yang sudah dibalas admin tetapi pelanggan tidak membalas lagi dalam batas waktu yang diatur.',
+            'command' => 'lumora:close-inactive-mail',
+            'interval_minutes' => 60,
+        ],
         'backup' => [
             'name' => 'Backup Otomatis',
             'description' => 'Cadangkan database dan file upload ke ZIP (opsional ikut unggah ke Google Drive).',

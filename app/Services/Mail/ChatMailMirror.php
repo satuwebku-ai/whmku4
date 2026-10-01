@@ -109,7 +109,7 @@ class ChatMailMirror
 
         $chat->update(['last_message_at' => now(), 'status' => 'open']);
 
-        if ($sender === 'admin') {
+        if (in_array($sender, ['admin', 'bot'], true)) {
             $chat->increment('unread_for_user');
         }
     }

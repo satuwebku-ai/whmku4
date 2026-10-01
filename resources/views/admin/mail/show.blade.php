@@ -46,7 +46,7 @@
         @foreach ($thread->messages as $message)
           @php
             $out = ! $message->isInbound();
-            $name = $out ? ($message->admin?->name ?: 'Staf') : ($message->from_name ?: $message->from_email);
+            $name = $out ? ($message->is_auto ? 'Balasan Otomatis' : ($message->admin?->name ?: 'Staf')) : ($message->from_name ?: $message->from_email);
             $files = $message->attachments ?? [];
             $total = collect($files)->sum('size');
             $ini = strtoupper(mb_substr($name, 0, 1) . (preg_match('/\s(\S)/u', $name, $m) ? $m[1] : ''));
@@ -56,6 +56,7 @@
               <span class="ix-av">{{ $ini }}</span>
               <div style="min-width:0">
                 <span class="nm">{{ $name }}</span>
+                @if ($message->is_auto)<span class="ix-pill"><i class="fa-solid fa-robot"></i> Robot</span>@endif
                 <span class="to">&nbsp;kepada {{ $out ? $message->to_email : 'saya' }}</span>
                 <div class="to">{{ $message->from_email }}</div>
               </div>
@@ -96,6 +97,7 @@
             <label title="Lampirkan berkas"><i class="fa-solid fa-paperclip"></i> Lampirkan
               <input type="file" id="mailFiles" name="attachments[]" multiple class="d-none">
             </label>
+            @include('admin.mail._tpl-select')
             <span style="margin-left:auto">maks. 5 berkas @ 5 MB · JPG, PNG, WEBP, PDF, TXT, ZIP</span>
           </div>
           <textarea id="mailBody" name="body" maxlength="20000" placeholder="Tulis balasan..." required>{{ old('body') }}</textarea>
@@ -114,6 +116,6 @@
     </section>
   </div>
 
-  @include('admin.mail._editor-js')
+  @include('admin.mail._editor-js', ['ctx' => ['nama' => $thread->display_name, 'email' => $thread->contact_email]])
 
 @endsection

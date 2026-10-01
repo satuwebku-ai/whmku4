@@ -34,6 +34,7 @@ class MailboxMailer
         array $files = [],
         ?Admin $admin = null,
         ?string $inReplyTo = null,
+        bool $auto = false,
     ): MailMessage {
         $site = (string) Setting::get('site_name', config('app.name'));
         $fromAddress = (string) (Setting::get('mail_from_address') ?: config('mail.from.address'));
@@ -43,7 +44,7 @@ class MailboxMailer
         $subject = trim(preg_replace('/\s*\[MAIL-\d+\]\s*/i', ' ', $subject) ?? $subject);
         $wireSubject = Str::limit($subject, 230, '') . ' ' . $thread->token();
 
-        $text = rtrim($body) . "\n\n--\n" . ($admin?->name ? $admin->name . "\n" : '') . $site;
+        $text = rtrim($body) . "\n\n--\n" . (! $auto && $admin?->name ? $admin->name . "\n" : '') . $site;
 
         $messageId = Str::uuid()->toString() . '@' . $domain;
         $references = $thread->messages()
@@ -63,6 +64,14 @@ class MailboxMailer
 
                 $headers = $mail->getSymfonyMessage()->getHeaders();
                 $headers->addIdHeader('Message-ID', $messageId);
+
+                // Balasan robot ditandai sesuai RFC 3834 supaya tidak dibalas
+                // robot lain (dan dikenali isAutomated() kalau mantul ke sini).
+                if ($auto) {
+                    $headers->addTextHeader('Auto-Submitted', 'auto-replied');
+                    $headers->addTextHeader('Precedence', 'bulk');
+                    $headers->addTextHeader('X-Auto-Response-Suppress', 'All');
+                }
 
                 // Id dari pengirim lain bisa saja tidak valid secara RFC;
                 // header threading hanya pelengkap, jangan sampai menggagalkan kirim.
@@ -103,9 +112,11 @@ class MailboxMailer
             'message_id' => $messageId,
             'admin_id' => $admin?->id,
             'attachments' => $stored ?: null,
+            'is_auto' => $auto,
         ]);
 
-        $thread->update(['status' => 'open', 'last_message_at' => now()]);
+        // Balasan/pemberitahuan otomatis tidak boleh membuka kembali thread.
+        $thread->update($auto ? ['last_message_at' => now()] : ['status' => 'open', 'last_message_at' => now()]);
 
         return $message;
     }

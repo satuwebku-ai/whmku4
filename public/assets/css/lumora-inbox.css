@@ -178,3 +178,7 @@
   .ix-back{display:inline-flex}
   .ix-msg{max-width:92%}
 }
+
+/* Template balasan */
+.ix-tpl{border:1px solid #c7d2fe;background:#fff;color:#4f46e5;border-radius:.45rem;font-size:12px;padding:.25rem .5rem;cursor:pointer;outline:none}
+.ix-compose-bar .ix-tpl{height:38px;border-radius:999px;padding:0 .6rem}
