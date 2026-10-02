@@ -39,16 +39,28 @@ class AdminAlert extends Notification
         return ['admin_name' => $notifiable->name, 'site_name' => Setting::get('site_name', config('app.name')), 'judul' => $this->judul];
     }
 
-    private function rincianText(): string
+    /**
+     * Nilai rincian berasal dari klien (nama, perusahaan, subjek/isi tiket,
+     * nama domain) tetapi dikirim ke ADMIN dalam email yang tampak resmi
+     * dari sistem, jadi dinetralkan: satu baris per rincian (tidak bisa
+     * menyelipkan baris/tombol palsu) dan tanpa sintaks Markdown aktif.
+     *
+     * @param  bool  $markdown  true untuk email, false untuk WhatsApp (teks polos)
+     */
+    private function rincianText(bool $markdown = false): string
     {
         $lines = [];
 
         foreach ($this->details as $label => $nilai) {
+            $nilai = \App\Support\MailText::inline((string) $nilai);
+            $nilai = $markdown ? \App\Support\MailText::markdown($nilai) : $nilai;
+
             $lines[] = "**{$label}:** {$nilai}";
         }
 
         return implode("\n", $lines);
     }
+
 
     public function toMail(object $notifiable): MailMessage
     {
@@ -56,8 +68,12 @@ class AdminAlert extends Notification
         $data = $this->data($notifiable);
         $tpl = NotificationTemplate::effective('admin_alert');
 
-        $body = NotificationTemplate::substitute($tpl['body_mail'], $data);
-        $body = str_replace('[RINCIAN]', $this->rincianText(), $body);
+        // Judul bisa memuat teks dari klien (mis. nama/subjek); isi email
+        // diparse sebagai Markdown, jadi nilainya dinetralkan khusus untuk body.
+        $body = NotificationTemplate::substitute($tpl['body_mail'], array_merge($data, [
+            'judul' => \App\Support\MailText::markdown(\App\Support\MailText::inline($this->judul)),
+        ]));
+        $body = str_replace('[RINCIAN]', $this->rincianText(true), $body);
 
         $mail = (new MailMessage)
             ->subject(NotificationTemplate::substitute($tpl['subject'], $data))
