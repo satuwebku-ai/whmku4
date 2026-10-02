@@ -34,6 +34,7 @@ class CronController extends Controller
             // Kalau tidak ada tugas yang pernah jalan, hampir pasti cron
             // di server belum dipasang — itu kesalahan paling sering.
             'neverRan' => $jobs->whereNotNull('last_run_at')->isEmpty(),
+            'queue' => app(\App\Services\QueueDrainer::class)->status(),
         ];
     }
 

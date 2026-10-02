@@ -25,6 +25,28 @@
     </div>
   @endif
 
+  @if (!empty($queue['applicable']))
+    @php $queueBad = $queue['stuck'] > 0 || $queue['failed_recent'] > 0; @endphp
+    <div class="card border rounded-4 p-3 mb-4" style="{{ $queueBad ? 'background:#fef2f2;border-color:#fecaca!important' : 'background:#f0fdf4;border-color:#bbf7d0!important' }}">
+      <p class="small fw-bold mb-1" style="color:{{ $queueBad ? '#991b1b' : '#166534' }}">
+        <i class="fa-solid {{ $queueBad ? 'fa-triangle-exclamation' : 'fa-circle-check' }}"></i> Antrean email, WhatsApp &amp; aktivasi
+      </p>
+      <p class="mb-0" style="font-size:12px;color:#475569">
+        Menunggu: <b>{{ $queue['pending'] }}</b>
+        @if ($queue['stuck'] > 0) · <b style="color:#b91c1c">tertahan {{ $queue['stuck'] }} (tertua {{ $queue['oldest_minutes'] }} menit)</b>@endif
+        · Gagal 24 jam terakhir: <b>{{ $queue['failed_recent'] }}</b>
+      </p>
+      <p class="mb-0 mt-1 text-muted" style="font-size:11px">
+        @if ($queue['drain_enabled'])
+          Antrean diproses otomatis setiap kali cron berjalan (tiap menit), tanpa perlu worker terpisah.
+          Pastikan baris cron di bawah dipasang <b>tiap menit</b>, bukan tiap 5 menit atau lebih jarang.
+        @else
+          Pemrosesan dari cron dimatikan (QUEUE_DRAIN_IN_CRON=false). Pastikan <code>php artisan queue:work</code> berjalan lewat Supervisor/systemd.
+        @endif
+      </p>
+    </div>
+  @endif
+
   <div class="row g-3">
     <div class="col-12 col-lg-8">
 

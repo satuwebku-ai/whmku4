@@ -121,6 +121,14 @@ class SetupChecklistService
                 'url' => fn () => route('admin.cron.index'),
                 'check' => fn () => $this->checkCron(),
             ],
+            'queue' => [
+                'title' => 'Antrean (email & aktivasi) diproses',
+                'description' => 'Email/WhatsApp transaksi dan aktivasi layanan setelah pembayaran berjalan lewat antrean. Kalau antrean tidak diproses, pelanggan sudah bayar tapi layanan belum aktif dan notifikasi tidak terkirim.',
+                'module' => 'system',
+                'skippable' => false,
+                'url' => fn () => route('admin.cron.index'),
+                'check' => fn () => $this->checkQueue(),
+            ],
             'migrations' => [
                 'title' => 'Database sudah up-to-date',
                 'description' => 'Semua migrasi sudah dijalankan, supaya tidak ada halaman yang error karena tabel/kolom belum ada.',
@@ -238,6 +246,25 @@ class SetupChecklistService
 
         if ($overdue > 0) {
             return [false, "{$overdue} tugas terlambat dijalankan — cron server kemungkinan berhenti."];
+        }
+
+        return [true, null];
+    }
+
+    private function checkQueue(): array
+    {
+        $q = app(\App\Services\QueueDrainer::class)->status();
+
+        if (! $q['applicable']) {
+            return [true, null]; // sync / driver lain: tidak ada antrean database
+        }
+
+        if ($q['stuck'] > 0) {
+            return [false, "{$q['stuck']} pekerjaan antrean tertahan (tertua {$q['oldest_minutes']} menit) — worker antrean tidak berjalan. Pastikan cron `lumora:cron` aktif tiap menit, atau jalankan `php artisan queue:work`."];
+        }
+
+        if ($q['failed_recent'] > 0) {
+            return [false, "{$q['failed_recent']} pekerjaan antrean gagal dalam 24 jam terakhir — periksa dengan `php artisan queue:failed`, ulangi dengan `php artisan queue:retry all`."];
         }
 
         return [true, null];

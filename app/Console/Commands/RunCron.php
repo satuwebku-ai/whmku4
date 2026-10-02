@@ -28,6 +28,24 @@ class RunCron extends Command
     {
         CronJob::syncBuiltIn();
 
+        $exit = $this->runDueJobs();
+
+        // Antrean (email/WhatsApp transaksi, aktivasi setelah bayar) ikut
+        // dikuras di setiap tick cron, SETELAH tugas terjadwal supaya tugas
+        // panjang tidak menunda notifikasi dan sebaliknya. Memakai --job=
+        // berarti menjalankan satu tugas tertentu saja, jadi dilewati.
+        // Gagal menguras antrean tidak mengubah exit code tugas terjadwal.
+        if (! $this->option('job')) {
+            $result = app(\App\Services\QueueDrainer::class)->drain();
+            $this->line('Antrean: ' . $result['message']);
+        }
+
+        return $exit;
+    }
+
+    private function runDueJobs(): int
+    {
+
         $jobs = $this->option('job')
             ? CronJob::where('key', $this->option('job'))->get()
             : ($this->option('force') ? CronJob::where('is_enabled', true)->get() : CronJob::due()->get());

@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Kuras antrean dari cron
+    |--------------------------------------------------------------------------
+    |
+    | Kalau true (default) dan driver antrean = database, `lumora:cron`
+    | memproses antrean setiap kali berjalan (tiap menit). Set
+    | QUEUE_DRAIN_IN_CRON=false kalau server Anda sudah menjalankan
+    | `queue:work` sendiri lewat Supervisor/systemd.
+    |
+    */
+
+    'drain_in_cron' => env('QUEUE_DRAIN_IN_CRON', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |
