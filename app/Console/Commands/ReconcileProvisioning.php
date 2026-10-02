@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Models\HostingAccount;
 use App\Models\Invoice;
-use App\Enums\OrderStatus;
 use App\Services\Hosting\HostingPanelFactory;
 use App\Services\Provisioning\ProvisioningService;
 use Illuminate\Console\Command;
@@ -31,14 +30,7 @@ class ReconcileProvisioning extends Command
 
     public function handle(ProvisioningService $provisioning): int
     {
-        ob_start();
-        $result = $this->handleJob($provisioning);
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution('lumora:reconcile-provisioning', $result === self::SUCCESS, $output);
-
-        return $result;
+        return $this->handleJob($provisioning);
     }
 
     private function handleJob(ProvisioningService $provisioning): int
@@ -52,11 +44,7 @@ class ReconcileProvisioning extends Command
         $stuckInvoices = Invoice::where('status', 'paid')
             ->whereHas('items.order', function ($q) {
                 $q->where(function ($q) {
-                    $q->whereIn('status', [
-                        OrderStatus::Paid->value,
-                        OrderStatus::Provisioning->value,
-                        OrderStatus::Failed->value,
-                    ])
+                    $q->where('status', 'pending')
                       ->orWhereHas('hostingAccount', fn ($h) => $h->whereIn('provision_status', ['failed', 'manual']))
                       ->orWhereHas('domain', fn ($d) => $d->whereIn('provision_status', ['failed', 'needs_documents', 'needs_eligibility']));
                 });
@@ -143,18 +131,8 @@ class ReconcileProvisioning extends Command
 
                     $account->orders()
                         ->where('order_type', 'hosting')
-                        ->whereIn('status', [
-                            OrderStatus::Paid->value,
-                            OrderStatus::Provisioning->value,
-                            OrderStatus::Failed->value,
-                        ])
-                        ->get()
-                        ->each(function ($order) {
-                            if ($order->status === OrderStatus::Failed) {
-                                $order->markProvisioning('Provider sudah memiliki akun; status direkonsiliasi.');
-                            }
-                            $order->markCompleted('Provider sudah memiliki akun; status direkonsiliasi.');
-                        });
+                        ->where('status', 'pending')
+                        ->update(['status' => 'active']);
 
                     Log::info('reconcile-provisioning: hosting disinkronkan', ['hosting_account_id' => $account->id]);
 

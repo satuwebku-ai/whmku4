@@ -22,6 +22,7 @@
 
   <form method="POST" action="{{ $account->exists ? route('admin.hosting-account.update', $account) : route('admin.hosting-account.add') }}" class="card border rounded-4 p-4" style="max-width:42rem">
     @csrf
+    @if ($account->exists) @method('PUT') @endif
 
     <div class="mb-3">
       <label class="form-label small fw-medium text-dark">Klien</label>
@@ -134,7 +135,7 @@
           <label class="form-label small fw-medium text-dark">Password Akun cPanel</label>
           <div class="d-flex gap-2">
             <input type="password" name="provision_password" id="pwField" placeholder="Password untuk akun baru di server" class="form-control form-control-sm">
-            <button type="button" data-action="call" data-call="lumoraGeneratePassword" data-args='["pwField",null,"pwChecklist"]' class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
+            <button type="button" onclick="lumoraGeneratePassword('pwField', null, 'pwChecklist')" class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
               <i class="fa-solid fa-dice" style="font-size:11px"></i> Buatkan Otomatis
             </button>
           </div>
@@ -187,7 +188,7 @@
         <input type="number" step="0.0001" name="hourly_rate" value="{{ old('hourly_rate', $account->hourly_rate) }}" class="form-control form-control-sm" style="max-width:14rem">
         @error('hourly_rate') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
         <p class="text-muted mt-1 mb-0" style="font-size:11px">
-          Dipotong otomatis dari saldo klien tiap jam (lewat cron <code>lumora:charge-hourly-usage</code>).
+          Pemotongan saldo dijalankan otomatis oleh pusat Cron Jobs; jadwal dan statusnya ada di Pengaturan → Cron Jobs.
           Kalau saldo habis, layanan otomatis di-suspend. Kolom "Harga" &amp; "Siklus Tagihan" di atas diabaikan untuk mode ini.
         </p>
       </div>
@@ -210,7 +211,7 @@
     </div>
   </form>
 
-  <script @nonce>
+  <script>
     function lumoraPasswordChecks(pw) {
       return [
         { label: 'Minimal 8 karakter', ok: pw.length >= 8 },
@@ -253,7 +254,6 @@
       lumoraRenderChecklist(pw, checklistId);
     }
 
-    (window.LumoraActions = window.LumoraActions || {}).lumoraGeneratePassword = lumoraGeneratePassword;
     document.addEventListener('DOMContentLoaded', () => {
       const pwField = document.getElementById('pwField');
       if (pwField) {
@@ -262,7 +262,7 @@
     });
   </script>
 
-  <script @nonce>
+  <script>
     // Tampilkan kolom Tarif per Jam hanya saat mode "Potong Saldo per Jam" dipilih.
     (function () {
       const radios = document.querySelectorAll('[data-billing-mode-radio]');

@@ -46,17 +46,17 @@ class CronJob extends Model
             'command' => 'lumora:mark-overdue',
             'interval_minutes' => 360, // 6 jam
         ],
-        'cancel_overdue_checkouts' => [
-            'name' => 'Batalkan Checkout Terlambat',
-            'description' => 'Batalkan checkout baru yang overdue melewati masa toleransi dan lepaskan reservasinya.',
-            'command' => 'lumora:cancel-overdue-checkouts',
-            'interval_minutes' => 1440,
-        ],
         'suspend_overdue' => [
             'name' => 'Suspend Layanan Menunggak',
             'description' => 'Suspend hosting yang tagihannya lewat tempo melebihi batas toleransi.',
             'command' => 'lumora:suspend-overdue',
             'interval_minutes' => 1440,
+        ],
+        'expire_trials' => [
+            'name' => 'Suspend Trial Habis',
+            'description' => 'Suspend layanan trial yang masa percobaannya habis dan invoice pertama belum dibayar.',
+            'command' => 'lumora:expire-trials',
+            'interval_minutes' => 60,
         ],
         'clean_activity' => [
             'name' => 'Bersihkan Log Aktivitas',
@@ -93,18 +93,6 @@ class CronJob extends Model
             'description' => 'Tutup otomatis percakapan live chat yang sudah lama tidak ada aktivitas.',
             'command' => 'lumora:close-inactive-chats',
             'interval_minutes' => 5,
-        ],
-        'fetch_inbound_mail' => [
-            'name' => 'Ambil Email Masuk',
-            'description' => 'Baca mailbox support (IMAP) dan masukkan ke Inbox Email, balasan tiket, atau Live Chat.',
-            'command' => 'lumora:fetch-mail',
-            'interval_minutes' => 5,
-        ],
-        'close_inactive_mail' => [
-            'name' => 'Tutup Email Tanpa Balasan',
-            'description' => 'Tutup otomatis thread Inbox Email yang sudah dibalas admin tetapi pelanggan tidak membalas lagi dalam batas waktu yang diatur.',
-            'command' => 'lumora:close-inactive-mail',
-            'interval_minutes' => 60,
         ],
         'backup' => [
             'name' => 'Backup Otomatis',
@@ -176,6 +164,11 @@ class CronJob extends Model
             ->where(fn ($q) => $q->whereNull('next_run_at')->orWhere('next_run_at', '<=', now()));
     }
 
+    public function getIntervalLabelAttribute(): string
+    {
+        return self::INTERVALS[$this->interval_minutes] ?? "Tiap {$this->interval_minutes} menit";
+    }
+
     public function getStatusBadgeAttribute(): string
     {
         return match ($this->last_status) {
@@ -193,31 +186,4 @@ class CronJob extends Model
             && $this->next_run_at->lt(now()->subMinutes(30));
     }
 
-    /**
-     * Dipanggil langsung oleh perintah artisan di akhir eksekusinya, bukan
-     * hanya oleh lumora:cron. Ini membuat status panel tetap akurat saat
-     * command dijalankan manual dari Console admin atau SSH.
-     *
-     * Aman dipanggil untuk command yang tidak terdaftar di BUILT_IN
-     * (tidak melakukan apa-apa kalau tidak ketemu), supaya tidak
-     * melempar error kalau ada command lain yang ikut memanggil ini.
-     */
-    public static function recordExecution(string $command, bool $success, ?string $output = null): void
-    {
-        static::syncBuiltIn();
-
-        $job = static::where('command', $command)->first();
-
-        if (! $job) {
-            return;
-        }
-
-        $job->update([
-            'last_status' => $success ? 'success' : 'failed',
-            'last_output' => $output ? mb_substr($output, 0, 2000) : null,
-            'last_run_at' => now(),
-            'next_run_at' => now()->addMinutes($job->interval_minutes),
-            'run_count' => $job->run_count + 1,
-        ]);
-    }
 }

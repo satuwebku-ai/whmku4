@@ -4,16 +4,15 @@ namespace App\Console\Commands;
 
 use App\Models\Invoice;
 use App\Models\Setting;
-use App\Notifications\InvoiceDueReminder;
+use App\Services\Notification\NotificationService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
-use Throwable;
+use Illuminate\Support\Collection;
 
 /**
  * Mengirim pengingat tagihan: sebelum jatuh tempo (H-n) dan setelah lewat.
  *
- * Dijalankan sekali sehari lewat cron. Karena berjalan otomatis, hasilnya
- * dicetak ke layar supaya bisa diperiksa manual saat pertama kali dipasang.
+ * Dijalankan oleh dispatcher pusat. Saat cron terlambat, hanya tahap terbaru
+ * yang masih relevan yang dikirim; tahap lama tidak dikirim bertubi-tubi.
  */
 class SendInvoiceReminders extends Command
 {
@@ -22,25 +21,8 @@ class SendInvoiceReminders extends Command
 
     protected $description = 'Kirim pengingat tagihan yang akan / sudah jatuh tempo';
 
-    
-    public function handle(): int
+    public function handle(NotificationService $notifications): int
     {
-        ob_start();
-        $result = $this->handleJob();
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution('lumora:send-reminders', $result === self::SUCCESS, $output);
-
-        return $result;
-    }
-
-    private function handleJob(): int
-    {
-        // Dicatat sebelum pengecekan lain: tujuannya membuktikan cron
-        // benar-benar berjalan, terlepas dari apakah ada yang dikirim.
-        Setting::put('last_cron_run', now()->toDateTimeString(), 'system');
-
         if (Setting::get('notify_reminder', '1') !== '1') {
             $this->warn('Pengingat tagihan sedang dinonaktifkan di Pengaturan → Notifikasi.');
 
@@ -51,80 +33,88 @@ class SendInvoiceReminders extends Command
         $beforeDays = collect(explode(',', (string) Setting::get('reminder_days_before', '7,3,1')))
             ->map(fn ($d) => (int) trim($d))
             ->filter(fn ($d) => $d > 0)
-            ->unique();
+            ->unique()
+            ->sort()
+            ->values();
 
         // Hari-hari setelah lewat jatuh tempo, mis. "1,7".
         $afterDays = collect(explode(',', (string) Setting::get('reminder_days_after', '1,7')))
             ->map(fn ($d) => (int) trim($d))
             ->filter(fn ($d) => $d > 0)
-            ->unique();
+            ->unique()
+            ->sort()
+            ->values();
 
         $dry = $this->option('dry');
-        $sent = 0;
+        $eligible = 0;
+        $queued = 0;
 
         $this->info('Pengingat sebelum jatuh tempo: H-' . $beforeDays->implode(', H-'));
         $this->info('Pengingat setelah jatuh tempo: H+' . $afterDays->implode(', H+'));
         $this->newLine();
 
-        foreach ($beforeDays as $days) {
-            $sent += $this->processDate(now()->addDays($days)->toDateString(), $days, $dry);
-        }
+        $latestUpcomingReminder = (int) ($beforeDays->max() ?? 0);
+        $cutoff = today()->addDays($latestUpcomingReminder)->toDateString();
 
-        foreach ($afterDays as $days) {
-            $sent += $this->processDate(now()->subDays($days)->toDateString(), -$days, $dry);
-        }
+        Invoice::with('client')
+            ->whereIn('status', ['unpaid', 'overdue'])
+            ->whereDate('due_date', '<=', $cutoff)
+            ->chunkById(100, function ($invoices) use ($beforeDays, $afterDays, $dry, $notifications, &$eligible, &$queued) {
+                foreach ($invoices as $invoice) {
+                    $daysUntilDue = (int) today()->diffInDays($invoice->due_date->copy()->startOfDay(), false);
+
+                    // Perbarui status lewat tempo meski tidak ada tahap
+                    // pengingat H+ yang dikonfigurasi.
+                    if ($daysUntilDue < 0 && $invoice->status === 'unpaid' && ! $dry) {
+                        $invoice->markOverdue();
+                    }
+
+                    $stage = $this->latestApplicableStage($daysUntilDue, $beforeDays, $afterDays);
+
+                    if (! $stage || ! $invoice->client) {
+                        continue;
+                    }
+
+                    $label = $daysUntilDue < 0 ? 'H+' . abs($daysUntilDue) : 'H-' . $daysUntilDue;
+                    $this->line("  [{$label}; {$stage['key']}] {$invoice->invoice_number} → {$invoice->client->email}");
+                    $eligible++;
+
+                    if (! $dry && $notifications->invoiceReminder($invoice, $daysUntilDue, $stage['key'])) {
+                        $queued++;
+                    }
+                }
+            });
 
         $this->newLine();
         $this->info($dry
-            ? "Simulasi selesai — {$sent} tagihan akan dikirimi pengingat."
-            : "Selesai — {$sent} pengingat terkirim.");
+            ? "Simulasi selesai — {$eligible} invoice memenuhi syarat; tidak ada pesan dikirim."
+            : "Selesai — {$queued} pengingat baru diantrikan dari {$eligible} invoice yang memenuhi syarat.");
 
         return self::SUCCESS;
     }
 
     /**
-     * Proses semua invoice yang jatuh tempo pada tanggal tertentu.
+     * Pilih satu tahap yang paling baru terlewati untuk setiap invoice.
      */
-    private function processDate(string $date, int $daysLeft, bool $dry): int
+    private function latestApplicableStage(int $daysUntilDue, Collection $beforeDays, Collection $afterDays): ?array
     {
-        $invoices = Invoice::with('client')
-            ->whereIn('status', ['unpaid', 'overdue'])
-            ->whereDate('due_date', $date)
-            ->get();
+        if ($daysUntilDue >= 0) {
+            $configuredDays = $beforeDays
+                ->filter(fn ($days) => $daysUntilDue <= $days)
+                ->min();
 
-        $count = 0;
-
-        foreach ($invoices as $invoice) {
-            if (! $invoice->client) {
-                continue;
-            }
-
-            $label = $daysLeft < 0 ? 'H+' . abs($daysLeft) : 'H-' . $daysLeft;
-            $this->line("  [{$label}] {$invoice->invoice_number} → {$invoice->client->email}");
-
-            if ($dry) {
-                $count++;
-                continue;
-            }
-
-            try {
-                $invoice->client->notify(new InvoiceDueReminder($invoice, $daysLeft));
-                $count++;
-            } catch (Throwable $e) {
-                $this->error("        gagal: " . $e->getMessage());
-                Log::warning('Pengingat tagihan gagal: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
-            }
+            return $configuredDays === null
+                ? null
+                : ['key' => "before:{$configuredDays}"];
         }
 
-        // Tandai lewat tempo sekalian, supaya status di panel tetap akurat
-        // walau tidak ada yang membuka halamannya.
-        if ($daysLeft < 0 && ! $dry) {
-            Invoice::where('status', 'unpaid')
-                ->whereDate('due_date', '<', now()->toDateString())
-                ->get()
-                ->each(fn (Invoice $invoice) => $invoice->markOverdue());
-        }
+        $daysLate = abs($daysUntilDue);
+        $configuredDays = $afterDays
+            ->filter(fn ($days) => $days <= $daysLate)
+            ->max();
 
-        return $count;
+        return $configuredDays === null
+            ? null
+            : ['key' => "after:{$configuredDays}"];
     }
 }

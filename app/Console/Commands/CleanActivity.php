@@ -14,14 +14,7 @@ class CleanActivity extends Command
     
     public function handle(): int
     {
-        ob_start();
-        $result = $this->handleJob();
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution('lumora:clean-activity', $result === self::SUCCESS, $output);
-
-        return $result;
+        return $this->handleJob();
     }
 
     private function handleJob(): int

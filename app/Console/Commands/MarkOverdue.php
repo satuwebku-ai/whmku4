@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Invoice;
-use App\Services\Billing\InvoiceService;
 use Illuminate\Console\Command;
 
 /**
@@ -19,31 +18,16 @@ class MarkOverdue extends Command
     protected $description = 'Tandai invoice yang melewati jatuh tempo sebagai overdue';
 
     
-    public function handle(InvoiceService $invoices): int
+    public function handle(): int
     {
-        ob_start();
-        $result = $this->handleJob($invoices);
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution('lumora:mark-overdue', $result === self::SUCCESS, $output);
-
-        return $result;
+        return $this->handleJob();
     }
 
-    private function handleJob(InvoiceService $invoices): int
+    private function handleJob(): int
     {
-        $count = 0;
-
-        Invoice::where('status', 'unpaid')
+        $count = Invoice::where('status', 'unpaid')
             ->whereDate('due_date', '<', now()->toDateString())
-            ->chunkById(100, function ($invoicesToMark) use ($invoices, &$count) {
-                foreach ($invoicesToMark as $invoice) {
-                    if ($invoices->markOverdue($invoice)->status === 'overdue') {
-                        $count++;
-                    }
-                }
-            });
+            ->update(['status' => 'overdue']);
 
         $this->info($count > 0
             ? "{$count} invoice ditandai lewat tempo."

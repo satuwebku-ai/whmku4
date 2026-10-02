@@ -2,6 +2,7 @@
 
 namespace App\Services\Notification;
 
+use App\Jobs\Notification\DeliverNotification;
 use App\Models\ActivityLog;
 use App\Models\Admin;
 use App\Models\Client;
@@ -11,8 +12,8 @@ use App\Models\Setting;
 use App\Notifications\AdminAlert;
 use App\Notifications\ClientWelcome;
 use App\Notifications\InvoiceCreated;
+use App\Notifications\InvoiceDueReminder;
 use App\Notifications\InvoicePaid;
-use App\Jobs\Notification\DeliverNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -82,6 +83,28 @@ class NotificationService
     }
 
     /**
+     * Pengingat memakai event key stabil per invoice, tanggal jatuh tempo,
+     * dan tahap agar retry cron tidak membuat pengiriman baru untuk tahap sama.
+     */
+    public function invoiceReminder(Invoice $invoice, int $daysLeft, string $stageKey): bool
+    {
+        $client = $invoice->client;
+        $dueDate = $invoice->due_date?->toDateString();
+
+        if (! $client || ! $dueDate || ! $this->enabled('notify_reminder')) {
+            return false;
+        }
+
+        $eventKey = "invoice:reminder:{$invoice->id}:{$dueDate}:{$stageKey}";
+
+        return $this->send(
+            $client,
+            new InvoiceDueReminder($invoice, $daysLeft),
+            $eventKey,
+        );
+    }
+
+    /**
      * Pembayaran diterima dan invoice lunas.
      */
     public function invoicePaid(Invoice $invoice): void
@@ -89,9 +112,7 @@ class NotificationService
         $client = $invoice->client;
 
         // Invoice isi ulang saldo dapat notifikasi khusus sendiri (lihat
-        // balanceTopupPaid) yang menyebutkan saldo barunya — mengirim
-        // notifikasi generik "Invoice dibayar" juga di sini akan jadi
-        // dua email untuk satu kejadian yang sama.
+        // balanceTopupPaid) — notifikasi generik akan menghasilkan pesan ganda.
         if ($client && $this->enabled('notify_paid') && ! $invoice->is_topup) {
             $this->send($client, new InvoicePaid($invoice), 'invoice:paid:' . $invoice->id);
         }
@@ -114,10 +135,9 @@ class NotificationService
 
     /**
      * Konfirmasi isi ulang saldo — beda dari invoicePaid() biasa karena
-     * menyebutkan nominal yang masuk DAN saldo terbaru, bukan sekadar
-     * "invoice Anda telah dibayar".
+     * menyebutkan nominal yang masuk dan saldo terbaru.
      */
-    public function balanceTopupPaid(\App\Models\Client $client, float $amount): void
+    public function balanceTopupPaid(Client $client, float $amount): void
     {
         if ($this->enabled('notify_paid')) {
             $this->send($client, new \App\Notifications\BalanceTopupPaid($amount, (float) $client->balance), null);
@@ -126,8 +146,6 @@ class NotificationService
 
     /**
      * Klien mengunggah bukti transfer manual — perlu diverifikasi admin.
-     * Berbeda dari invoicePaid(): di sini invoice BELUM lunas, baru bukti
-     * transfernya yang masuk dan menunggu diperiksa.
      */
     public function paymentProofUploaded(\App\Models\Payment $payment): void
     {
@@ -139,9 +157,7 @@ class NotificationService
     }
 
     /**
-     * Klien sudah bayar ID Protection tapi aktivasi di registrar gagal —
-     * uangnya sudah masuk, jadi ini WAJIB ditindaklanjuti admin manual,
-     * tidak boleh didiamkan.
+     * Klien sudah bayar ID Protection tapi aktivasi di registrar gagal.
      */
     public function privacyActivationFailed(\App\Models\Domain $domain, string $reason): void
     {
@@ -153,9 +169,7 @@ class NotificationService
     }
 
     /**
-     * Domain untuk TLD yang mewajibkan data kelayakan (.us, .asia, dll)
-     * berhenti sejenak menunggu admin mengisi datanya sebelum bisa
-     * didaftarkan — lihat LiquidService::ELIGIBILITY_REQUIRED_TLDS.
+     * Domain untuk TLD yang mewajibkan data kelayakan menunggu tindakan admin.
      */
     public function domainNeedsEligibility(\App\Models\Domain $domain, string $tldExt): void
     {
@@ -167,22 +181,7 @@ class NotificationService
     }
 
     /**
-     * Domain premium sudah lunas -- admin WAJIB mendaftarkannya manual di
-     * panel registrar (tidak ada registrasi otomatis lewat API).
-     */
-    public function premiumDomainNeedsManualRegistration(\App\Models\Domain $domain): void
-    {
-        $this->alertAdmins('notify_admin_payment', 'Domain premium lunas — daftarkan manual di registrar', [
-            'Domain' => $domain->domain_name,
-            'Klien' => $domain->client->name ?? '—',
-            'Harga' => 'Rp ' . number_format((float) $domain->price, 0, ',', '.'),
-        ], route('admin.domains.details', $domain), 'warning');
-    }
-
-    /**
-     * TLD Indonesia (.co.id, .ac.id, dst) — klien perlu diberi tahu
-     * untuk upload dokumen (beda dari eligibility di atas yang murni
-     * urusan admin, tidak melibatkan klien sama sekali).
+     * TLD Indonesia — klien perlu diberi tahu untuk mengunggah dokumen.
      */
     public function domainNeedsDocuments(\App\Models\Domain $domain, string $tldExt): void
     {
@@ -222,10 +221,7 @@ class NotificationService
     }
 
     /**
-     * Staf membalas tiket -- beritahu klien lewat email (+WhatsApp kalau
-     * aktif). Cuma dipanggil untuk balasan BIASA, bukan catatan internal
-     * (itu tidak pernah terlihat klien, jadi tidak masuk akal
-     * dinotifikasi ke mereka).
+     * Staf membalas tiket biasa (bukan catatan internal).
      */
     public function ticketRepliedByAdmin(\App\Models\Ticket $ticket, \App\Models\TicketReply $reply): void
     {
@@ -235,9 +231,7 @@ class NotificationService
     }
 
     /**
-     * Klien membalas tiket -- beritahu admin, sama seperti tiket baru.
-     * Sebelumnya cuma tiket BARU yang memicu alert; balasan susulan dari
-     * klien lewat tanpa pemberitahuan apa pun ke staf.
+     * Klien membalas tiket — kirim alert kepada admin.
      */
     public function ticketRepliedByClient(\App\Models\Ticket $ticket, \App\Models\TicketReply $reply): void
     {
@@ -288,8 +282,7 @@ class NotificationService
     }
 
     /**
-     * Apakah jenis notifikasi ini diaktifkan? Default menyala, supaya
-     * pemasangan baru langsung berfungsi tanpa perlu setel apa-apa.
+     * Apakah jenis notifikasi ini diaktifkan? Default menyala.
      */
     private function enabled(string $key): bool
     {
@@ -297,11 +290,13 @@ class NotificationService
     }
 
     /**
-     * Bungkus pengiriman supaya kegagalan notifikasi tidak pernah
-     * menggagalkan proses bisnis yang memanggilnya.
+     * Kirim lewat antrean dengan deduplikasi; antrean pending tidak dikirim
+     * ulang tiap kali pemicu yang sama dipanggil.
      */
-    private function send(object $notifiable, $notification, ?string $eventKey = null): void
+    private function send(object $notifiable, $notification, ?string $eventKey = null): bool
     {
+        $delivery = null;
+
         try {
             $dedupeKey = $eventKey
                 ? hash('sha256', implode('|', [
@@ -323,8 +318,9 @@ class NotificationService
                 ],
             );
 
-            if ($delivery->status === 'sent') {
-                return;
+            if ($delivery->status === 'sent'
+                || ($delivery->status === 'pending' && ! $delivery->wasRecentlyCreated)) {
+                return false;
             }
 
             if ($delivery->status === 'failed') {
@@ -336,11 +332,23 @@ class NotificationService
             }
 
             DeliverNotification::dispatch($delivery->id, $notifiable, $notification);
+
+            return true;
         } catch (Throwable $e) {
+            if ($delivery && $delivery->status === 'pending') {
+                $delivery->forceFill([
+                    'status' => 'failed',
+                    'failed_at' => now(),
+                    'error' => mb_substr($e->getMessage(), 0, 4000),
+                ])->save();
+            }
+
             Log::warning('Notifikasi gagal diantrikan: ' . $e->getMessage(), [
                 'penerima' => $notifiable->email ?? '—',
                 'jenis' => $notification::class,
             ]);
+
+            return false;
         }
     }
 }

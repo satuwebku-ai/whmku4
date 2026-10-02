@@ -18,29 +18,6 @@
     </a>
   </div>
 
-  @php
-    $mailDriver = config('mail.default', 'log');
-    $mailReady = $mailDriver !== 'log' && filled(config('mail.from.address'));
-  @endphp
-  <div class="card border rounded-4 p-3 mb-3" style="max-width:56rem;background:linear-gradient(135deg,#eef2ff,#fff)">
-    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-      <div class="d-flex align-items-center gap-3">
-        <span class="rounded-3 d-flex align-items-center justify-content-center" style="width:40px;height:40px;background:{{ $mailReady ? '#dcfce7' : '#fef3c7' }};color:{{ $mailReady ? '#047857' : '#b45309' }}"><i class="fa-solid fa-envelope-circle-check"></i></span>
-        <div>
-          <p class="fw-bold text-dark mb-1" style="font-size:13px">Saluran Email</p>
-          <p class="text-muted mb-0" style="font-size:11px">Driver <b>{{ strtoupper($mailDriver) }}</b> · Pengirim <b>{{ config('mail.from.address', 'belum diatur') }}</b></p>
-        </div>
-      </div>
-      <span class="badge {{ $mailReady ? 'badge-soft-success' : 'badge-soft-warning' }}">{{ $mailReady ? 'Siap mengirim' : 'Perlu konfigurasi SMTP' }}</span>
-    </div>
-    @unless ($mailReady)
-      <div class="mt-3 rounded-3 px-3 py-2" style="font-size:11px;color:#92400e;background:rgba(255,255,255,.65)">
-        <i class="fa-solid fa-circle-info me-1"></i>
-        Email masih memakai mode log atau alamat pengirim belum diisi. Atur <code>MAIL_MAILER=smtp</code> dan kredensial SMTP di environment server, lalu uji dengan <code>php artisan lumora:test-mail alamat@anda.com</code>.
-      </div>
-    @endunless
-  </div>
-
   <form method="POST" action="{{ route('admin.settings.notifications.update') }}" style="max-width:56rem">
     @csrf
 
@@ -148,11 +125,16 @@
         </div>
       </div>
 
+      <p class="text-muted mt-2 mb-0" style="font-size:11px">
+        Jika beberapa tahap terlewat, hanya tahap terbaru yang masih relevan yang dikirim; tahap lama dilewati agar klien tidak menerima pesan bertubi-tubi.
+      </p>
+
       <div class="mt-3 rounded-3 px-3 py-2" style="background:#fffbeb;border:1px solid #fde68a;font-size:12px;color:#92400e">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        Pengingat hanya berjalan kalau cron sudah dipasang. Tambahkan di cPanel → Cron Jobs,
-        dijalankan tiap menit:
-        <code class="d-block mt-1 px-2 py-1 rounded" style="background:rgba(255,255,255,.6);word-break:break-all">* * * * * cd {{ base_path() }} && php artisan schedule:run >> /dev/null 2>&1</code>
+        Pengingat dijalankan oleh pusat Cron Jobs aplikasi. Pastikan hanya satu cron pusat
+        <code>php artisan lumora:cron</code> yang dipasang dari
+        <a href="{{ route('admin.cron.index') }}" class="fw-semibold">Pengaturan → Cron Jobs</a>;
+        jangan memasang <code>schedule:run</code>.
       </div>
     </div>
 
@@ -228,16 +210,6 @@
           <input type="text" name="wa_admin_number" value="{{ Setting::get('wa_admin_number') }}" class="form-control form-control-sm" placeholder="6281234567890">
           <p class="text-muted mt-1 mb-0" style="font-size:11px">Tujuan notifikasi admin lewat WhatsApp.</p>
         </div>
-      </div>
-
-      <div class="mt-3">
-        <label class="form-label small fw-medium text-dark">Alamat Webhook Pesan Masuk</label>
-        <input type="text" readonly value="{{ $waWebhookUrl ?? '' }}" onclick="this.select()" class="form-control form-control-sm" style="font-family:monospace">
-        <p class="text-muted mt-1 mb-0" style="font-size:11px">
-          Daftarkan alamat ini <b>lengkap dengan ?key=…</b> di dashboard Fonnte/Wablas sebagai URL webhook.
-          Kunci di belakangnya adalah rahasia; pesan masuk tanpa kunci yang benar ditolak. Jangan dibagikan.
-          Kalau webhook lama masih memakai alamat tanpa kunci, ganti dengan alamat ini.
-        </p>
       </div>
     </div>
 
@@ -357,7 +329,7 @@
     @if (Setting::get('vapid_public_key'))
       <div class="mb-3">
         <label class="form-label small fw-medium text-dark">Kunci Publik VAPID</label>
-        <input type="text" value="{{ Setting::get('vapid_public_key') }}" class="form-control form-control-sm bg-light" readonly data-action="select">
+        <input type="text" value="{{ Setting::get('vapid_public_key') }}" class="form-control form-control-sm bg-light" readonly onclick="this.select()">
       </div>
     @endif
 
@@ -387,7 +359,7 @@
     </p>
   </div>
 
-  <script @nonce>
+  <script>
     // Endpoint hanya relevan untuk Wablas dan gateway custom.
     (function () {
       const provider = document.getElementById('waProvider');

@@ -4,39 +4,29 @@ namespace App\Console\Commands;
 
 use App\Models\Setting;
 use App\Services\Backup\DatabaseDumper;
-use App\Services\Backup\BackupSignature;
 use Illuminate\Console\Command;
 use ZipArchive;
 
 class BackupApplication extends Command
 {
-    protected $signature = 'lumora:backup
-        {--keep= : Berapa cadangan terakhir yang disimpan (kosongkan untuk pakai pengaturan admin)}
-        {--force : Tetap buat cadangan walau "Backup otomatis" dimatikan di Pengaturan (dipakai sebagai pengaman sebelum restore)}';
+    protected $signature = 'lumora:backup {--keep= : Berapa cadangan terakhir yang disimpan (kosongkan untuk pakai pengaturan admin)}';
 
     protected $description = 'Backup database + file yang diupload (bukti bayar, dokumen domain, logo) jadi satu file ZIP.';
 
     
-    public function handle(DatabaseDumper $dumper, BackupSignature $signature): int
+    public function handle(DatabaseDumper $dumper): int
     {
-        ob_start();
-        $result = $this->handleJob($dumper, $signature);
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution('lumora:backup', $result === self::SUCCESS, $output);
-
-        return $result;
+        return $this->handleJob($dumper);
     }
 
-    private function handleJob(DatabaseDumper $dumper, BackupSignature $signature): int
+    private function handleJob(DatabaseDumper $dumper): int
     {
         // Sebelumnya kondisi "backup_enabled" cuma dicek di jadwal lama
         // (routes/console.php) -- begitu semua tugas dipindah ke sistem
         // lumora:cron, toggle ini jadi diam-diam terabaikan (backup
         // tetap jalan walau admin mematikannya). Dicek langsung di sini
         // supaya berlaku apa pun cara command ini dipicu.
-        if (! $this->option('force') && Setting::get('backup_enabled', '1') !== '1') {
+        if (Setting::get('backup_enabled', '1') !== '1') {
             $this->info('Backup otomatis sedang dimatikan di Pengaturan — dilewati.');
 
             return self::SUCCESS;
@@ -74,41 +64,15 @@ class BackupApplication extends Command
             return self::FAILURE;
         }
 
-        try {
-            if (! $zip->addFile($sqlPath, 'database.sql')) {
-                throw new \RuntimeException('database.sql gagal dimasukkan ke ZIP.');
-            }
+        $zip->addFile($sqlPath, 'database.sql');
 
-            // Seluruh storage/app -- mencakup file publik (logo, bukti
-            // transfer) DAN file privat (dokumen domain, dsb) dalam satu
-            // cadangan, supaya tidak ada yang tercecer.
-            $storageAppPath = storage_path('app');
-            $this->addDirectoryToZip($zip, $storageAppPath, 'storage-app', ['backups']);
+        // Seluruh storage/app -- mencakup file publik (logo, bukti
+        // transfer) DAN file privat (dokumen domain, dsb) dalam satu
+        // cadangan, supaya tidak ada yang tercecer.
+        $storageAppPath = storage_path('app');
+        $this->addDirectoryToZip($zip, $storageAppPath, 'storage-app', ['backups']);
 
-            if (! $zip->close()) {
-                throw new \RuntimeException('File ZIP gagal ditutup dengan lengkap.');
-            }
-
-            if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-                throw new \RuntimeException('File ZIP tidak dapat dibuka kembali untuk ditandatangani.');
-            }
-
-            if (! $zip->addFromString(BackupSignature::MANIFEST_NAME, $signature->createManifestFromArchive($zip))) {
-                throw new \RuntimeException('Manifest tanda tangan gagal dimasukkan ke ZIP.');
-            }
-
-            if (! $zip->close()) {
-                throw new \RuntimeException('File ZIP gagal ditutup dengan lengkap.');
-            }
-        } catch (\Throwable $e) {
-            $zip->close();
-            @unlink($zipPath);
-            @unlink($sqlPath);
-            $this->error('Gagal menandatangani atau mengemas backup: ' . $e->getMessage());
-
-            return self::FAILURE;
-        }
-
+        $zip->close();
         unlink($sqlPath); // .sql mentah sudah ikut masuk ZIP, tidak perlu disimpan dobel
 
         $sizeMb = round(filesize($zipPath) / 1024 / 1024, 2);
@@ -184,11 +148,8 @@ class BackupApplication extends Command
                 continue;
             }
 
-            if ($file->isFile() && ! $file->isLink()) {
-                $archiveName = $zipRoot . '/' . str_replace('\\', '/', $relativePath);
-                if (! $zip->addFile($file->getPathname(), $archiveName)) {
-                    throw new \RuntimeException("File {$relativePath} gagal dimasukkan ke ZIP.");
-                }
+            if ($file->isFile()) {
+                $zip->addFile($file->getPathname(), $zipRoot . '/' . str_replace('\\', '/', $relativePath));
             }
         }
     }

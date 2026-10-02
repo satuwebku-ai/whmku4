@@ -81,12 +81,40 @@ class CpanelCronService
 
         $existing = $this->listLines();
 
-        if ($existing['success']) {
-            foreach ($existing['lines'] as $line) {
-                if (str_contains((string) ($line['command'] ?? ''), 'lumora:cron')) {
-                    return ['success' => true, 'message' => 'Cron sudah terpasang sebelumnya — tidak ada yang diubah.'];
-                }
+        // Jangan menambahkan cron baru bila daftar yang ada tidak berhasil
+        // dibaca. Tanpa pengecekan ini, tombol pasang bisa membuat duplikat.
+        if (! $existing['success']) {
+            return ['success' => false, 'message' => 'Tidak bisa memeriksa cron yang sudah terpasang: ' . $existing['message']];
+        }
+
+        $lines = $existing['lines'];
+        $hasCentralCron = false;
+        $hasLegacyScheduler = false;
+
+        foreach ($lines as $line) {
+            $installedCommand = (string) ($line['command'] ?? '');
+
+            // Abaikan cron dari aplikasi lain pada akun cPanel yang sama.
+            if (! str_contains($installedCommand, base_path())) {
+                continue;
             }
+
+            $hasCentralCron = $hasCentralCron || str_contains($installedCommand, 'lumora:cron');
+            $hasLegacyScheduler = $hasLegacyScheduler || str_contains($installedCommand, 'artisan schedule:run');
+        }
+
+        if ($hasLegacyScheduler) {
+            $message = 'Ditemukan cron lama schedule:run untuk aplikasi ini. Hapus baris lama secara manual di cPanel agar tidak ada dua pintu jadwal.';
+
+            if ($hasCentralCron) {
+                return ['success' => true, 'message' => 'Cron pusat sudah terpasang. ' . $message];
+            }
+
+            return ['success' => false, 'message' => $message . ' Setelah itu, pasang ulang cron pusat dari halaman ini.'];
+        }
+
+        if ($hasCentralCron) {
+            return ['success' => true, 'message' => 'Cron pusat sudah terpasang sebelumnya — tidak ada yang diubah.'];
         }
 
         $response = $this->call('Cron', 'add_line', [
