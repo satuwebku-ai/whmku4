@@ -36,8 +36,29 @@
 
           <div>
             <label class="form-label">Email</label>
-            <input type="email" name="email" value="{{ old('email', $client->email) }}" required class="form-control">
+            <input type="email" name="email" id="profileEmail" value="{{ old('email', $client->email) }}" required class="form-control" @if ($client->google_id) readonly @endif>
             @error('email') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+            @if ($client->google_id)
+              <p class="text-muted mt-1 mb-0" style="font-size:11px">Email akun Google tidak bisa diganti dari sini.</p>
+            @else
+              <div id="emailPasswordBox" class="mt-2 {{ old('current_password') !== null || $errors->has('current_password') ? '' : 'd-none' }}">
+                <label class="form-label" style="font-size:12px">Password saat ini <span class="text-danger">*</span></label>
+                <input type="password" name="current_password" autocomplete="current-password" class="form-control" placeholder="Wajib untuk mengganti email">
+                @error('current_password') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+                <p class="text-muted mt-1 mb-0" style="font-size:11px">Email baru harus diverifikasi saat Anda masuk berikutnya. Alamat lama akan diberi tahu.</p>
+              </div>
+              <script @nonce>
+                (function () {
+                  var input = document.getElementById('profileEmail');
+                  var box = document.getElementById('emailPasswordBox');
+                  var original = @json($client->email);
+                  if (!input || !box) return;
+                  input.addEventListener('input', function () {
+                    box.classList.toggle('d-none', input.value.trim().toLowerCase() === original.toLowerCase());
+                  });
+                })();
+              </script>
+            @endif
           </div>
 
           <div>

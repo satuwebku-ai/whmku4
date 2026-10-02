@@ -7,6 +7,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use Throwable;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
@@ -24,6 +29,7 @@ class ProfileController extends Controller
         $data = $request->validate([
             'name'    => ['required', 'string', 'max:255'],
             'email'   => ['required', 'email', 'max:255', 'unique:clients,email,' . $client->id],
+            'current_password' => ['nullable', 'string'],
             'phone'   => ['required', 'string', 'max:30'],
             'company' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
@@ -50,9 +56,79 @@ class ProfileController extends Controller
 
         $data['notify_sms'] = $request->boolean('notify_sms');
 
+        // ── Ganti email ── Email dipakai untuk reset password dan kode login,
+        // jadi sesi yang dibajak tidak boleh bisa mengubahnya diam-diam.
+        $oldEmail = $client->email;
+        $emailChanged = mb_strtolower(trim($data['email'])) !== mb_strtolower($oldEmail);
+
+        if ($emailChanged && $client->google_id) {
+            // Akun Google: email adalah identitas Google-nya dan password
+            // acaknya tidak diketahui klien, jadi tidak ada cara aman
+            // memverifikasi pemiliknya di sini. Email dikunci.
+            $data['email'] = $oldEmail;
+            $emailChanged = false;
+        }
+
+        if ($emailChanged) {
+            $throttleKey = 'client-email-change|' . $client->id;
+
+            if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                return back()->withInput()->withErrors([
+                    'current_password' => 'Terlalu banyak percobaan. Coba lagi dalam ' . ceil(RateLimiter::availableIn($throttleKey) / 60) . ' menit.',
+                ]);
+            }
+
+            if (blank($data['current_password'] ?? null) || ! Hash::check($data['current_password'], (string) $client->password)) {
+                RateLimiter::hit($throttleKey, 900);
+
+                return back()->withInput()->withErrors([
+                    'current_password' => 'Untuk mengganti email, masukkan password Anda saat ini dengan benar.',
+                ]);
+            }
+
+            RateLimiter::clear($throttleKey);
+
+            // Alamat baru harus dibuktikan dulu: salah ketik atau alamat
+            // orang lain tidak boleh langsung jadi penerima kode reset.
+            // Login berikutnya akan meminta kode verifikasi ke alamat baru.
+            $data['email_verified_at'] = null;
+        }
+
+        unset($data['current_password']);
+
         $client->update($data);
 
-        return back()->with('success', 'Data profil berhasil diperbarui.');
+        if ($emailChanged) {
+            $this->notifyOldEmail($oldEmail, $data['email'], $request->ip());
+        }
+
+        return back()->with('success', $emailChanged
+            ? 'Data profil diperbarui. Email baru perlu diverifikasi saat Anda masuk berikutnya.'
+            : 'Data profil berhasil diperbarui.');
+    }
+
+    /**
+     * Beri tahu alamat lama. Gagal kirim tidak boleh membatalkan perubahan
+     * (SMTP bisa sedang bermasalah) -- cukup dicatat.
+     */
+    private function notifyOldEmail(string $oldEmail, string $newEmail, ?string $ip): void
+    {
+        try {
+            Notification::route('mail', $oldEmail)->notify(new \App\Notifications\ClientEmailChanged(
+                $this->maskEmail($newEmail),
+                (string) (\App\Models\Setting::get('site_name') ?: config('app.name')),
+                $ip,
+            ));
+        } catch (Throwable $e) {
+            Log::warning('Peringatan ganti email ke alamat lama gagal terkirim: ' . $e->getMessage());
+        }
+    }
+
+    private function maskEmail(string $email): string
+    {
+        [$user, $domain] = array_pad(explode('@', $email, 2), 2, '');
+
+        return Str::substr($user, 0, 1) . str_repeat('*', max(2, mb_strlen($user) - 1)) . '@' . $domain;
     }
 
     public function updatePassword(Request $request): RedirectResponse
@@ -64,9 +140,21 @@ class ProfileController extends Controller
             'password'         => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
         ]);
 
+        $throttleKey = 'client-password-change|' . $client->id;
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            return back()->withErrors([
+                'current_password' => 'Terlalu banyak percobaan. Coba lagi dalam ' . ceil(RateLimiter::availableIn($throttleKey) / 60) . ' menit.',
+            ]);
+        }
+
         if (! Hash::check($data['current_password'], $client->password)) {
+            RateLimiter::hit($throttleKey, 900);
+
             return back()->withErrors(['current_password' => 'Password saat ini salah.']);
         }
+
+        RateLimiter::clear($throttleKey);
 
         $client->update(['password' => $data['password']]);
 
