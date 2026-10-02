@@ -14,7 +14,7 @@
           </form>
 
           <div class="mx-trust">
-            <span><i class="fa-solid fa-shield-halved"></i>SSL gratis</span>
+            <span><i class="fa-solid fa-shield-halved"></i>SSL tersedia</span>
             <span><i class="fa-solid fa-bolt"></i>Aktif otomatis</span>
             <span><i class="fa-solid fa-headset"></i>Support responsif</span>
           </div>

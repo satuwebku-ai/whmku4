@@ -29,14 +29,23 @@ class PaymentEligibilityService
             return ['allowed' => false, 'message' => 'Invoice ini sudah lunas.', 'domain' => null];
         }
 
-        // Overdue is deliberately not payable. Reopening an overdue invoice
-        // must be an explicit business action that creates a new invoice or
-        // reactivation flow, not an accidental gateway callback.
-        if (in_array($invoice->status, ['cancelled', 'overdue', 'refunded'], true)
-            || ($invoice->status === 'unpaid' && $invoice->due_date?->isPast())) {
-            return ['allowed' => false, 'message' => $invoice->status === 'refunded'
-                ? 'Invoice ini sudah direfund dan tidak bisa dibayar ulang.'
-                : 'Invoice ini sudah melewati batas pembayaran atau tidak lagi aktif.', 'domain' => null];
+        // Invoice unpaid/overdue TETAP bisa dibayar, termasuk yang jatuh
+        // temponya hari ini atau sudah lewat. Alur suspend memberi masa
+        // toleransi lalu "bayar -> reaktivasi"; kalau pembayaran ditolak di
+        // sini, klien yang menunggak tidak punya jalan untuk mengaktifkan
+        // layanannya lagi, dan uang dari gateway yang masuk setelah jam
+        // 00:00 hari jatuh tempo malah ditolak.
+        //
+        // Batas akhirnya bukan tanggal, melainkan pembatalan invoice:
+        // checkout baru yang overdue dibatalkan oleh
+        // lumora:cancel-overdue-checkouts sesudah masa toleransi, dan
+        // invoice yang sudah dibatalkan/refund memang tidak bisa dibayar.
+        if ($invoice->status === 'cancelled') {
+            return ['allowed' => false, 'message' => 'Invoice ini sudah dibatalkan dan tidak bisa dibayar.', 'domain' => null];
+        }
+
+        if ($invoice->status === 'refunded') {
+            return ['allowed' => false, 'message' => 'Invoice ini sudah direfund dan tidak bisa dibayar ulang.', 'domain' => null];
         }
 
         if ($domain = $this->documentBlocker($invoice)) {

@@ -174,6 +174,12 @@
         Matikan kalau bot boleh terus menjawab sampai admin ikut membalas.</span>
       </label>
 
+      <label class="d-flex align-items-start gap-2 mb-3" style="font-size:12px">
+        <input type="checkbox" name="ai_chat_whatsapp" value="1" @checked(Setting::get('ai_chat_whatsapp', '0') === '1') class="form-check-input" style="margin-top:.2rem">
+        <span><b>Bot AI juga membalas pesan WhatsApp masuk.</b> Default mati: AI hanya di widget Live Chat web.
+        Kalau dinyalakan, bot membalas ke nomor pengirim lewat gateway WhatsApp Anda.</span>
+      </label>
+
       <div>
         <label class="form-label small fw-medium text-dark">Info Bisnis untuk Bot</label>
         <textarea name="ai_chat_context" rows="6" class="form-control form-control-sm" placeholder="Contoh:

@@ -23,6 +23,7 @@ class Setting extends Model
      */
     public const SECRET_KEYS = [
         'wa_token',
+        'wa_webhook_secret',
         'recaptcha_secret_key',
         'ai_chat_api_key',
         'ai_chat_openai_api_key',

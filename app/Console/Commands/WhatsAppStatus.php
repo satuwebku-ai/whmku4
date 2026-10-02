@@ -29,10 +29,12 @@ class WhatsAppStatus extends Command
         $this->newLine();
         $this->line('── Bot AI ──');
         $this->line("  ai_chat_enabled = " . var_export($aiEnabled, true) . ($aiEnabled === '1' ? ' ✓' : ' ✗'));
+        $this->line("  ai_chat_whatsapp = " . var_export(Setting::get('ai_chat_whatsapp', '0'), true) . ' (bot AI membalas WhatsApp hanya bila "1")');
 
         $this->newLine();
         $this->line('── Alamat Webhook (daftarkan ini di dashboard gateway) ──');
-        $this->line('  ' . route('webhook.whatsapp'));
+        $this->line('  ' . \App\Http\Controllers\Site\WhatsAppWebhookController::url());
+        $this->line('  (kunci rahasia ikut di alamat; webhook tanpa kunci ditolak 403)');
 
         $this->newLine();
 

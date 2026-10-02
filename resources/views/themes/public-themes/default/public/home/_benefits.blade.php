@@ -4,7 +4,7 @@
         @php
           $benefits = [
             ['icon' => 'fa-bolt',          'title' => 'Aktif Otomatis',    'desc' => 'Akun hosting dibuat otomatis begitu pembayaran masuk.'],
-            ['icon' => 'fa-shield-halved', 'title' => 'Aman & Terjaga',    'desc' => 'SSL gratis, backup rutin, dan proteksi berlapis.'],
+            ['icon' => 'fa-shield-halved', 'title' => 'Aman & Terjaga',    'desc' => 'Sertifikat SSL tersedia, backup rutin, dan proteksi berlapis.'],
             ['icon' => 'fa-headset',       'title' => 'Dukungan Responsif','desc' => 'Tim support siap membantu lewat tiket dan chat.'],
             ['icon' => 'fa-wallet',        'title' => 'Bayar Mudah',       'desc' => 'Transfer bank, e-wallet, kartu kredit, dan QRIS.'],
           ];

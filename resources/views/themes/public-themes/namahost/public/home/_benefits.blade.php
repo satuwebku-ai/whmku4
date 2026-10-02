@@ -2,7 +2,7 @@
 @php
   $features = [
     ['t-teal',   'bi-lightning-charge', 'Server cepat',          'LiteSpeed dan NVMe membuat website terbuka di bawah 1 detik.'],
-    ['t-coral',  'bi-shield-check',     'Aman',                  'SSL gratis, firewall, dan pemindai malware otomatis.'],
+    ['t-coral',  'bi-shield-check',     'Aman',                  'Sertifikat SSL tersedia, firewall, dan pemindai malware otomatis.'],
     ['t-indigo', 'bi-arrow-repeat',     'Backup otomatis',       'Pulihkan file dan database sendiri dari area klien.'],
     ['t-amber',  'bi-headset',          'Bantuan ramah',         'Tim support siap membantu lewat tiket dan chat.'],
     ['t-teal',   'bi-rocket-takeoff',   'Aktif otomatis',        'Akun hosting dibuat otomatis begitu pembayaran masuk.'],

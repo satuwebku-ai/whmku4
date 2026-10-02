@@ -4,7 +4,7 @@
     <div class="row align-items-center g-5">
       <div class="col-lg-7">
         <h1 class="display-4 mb-3">{{ $tagline }}</h1>
-        <p class="lead mb-4">Hosting SSD NVMe, SSL gratis, dan aktivasi otomatis. Cek nama domain Anda sekarang.</p>
+        <p class="lead mb-4">Hosting SSD NVMe, aktivasi otomatis, dan sertifikat SSL siap dipesan. Cek nama domain Anda sekarang.</p>
 
         <form id="heroDomainForm" method="GET" action="{{ route('domain.search') }}" class="domain-box d-flex flex-wrap flex-sm-nowrap gap-2" role="search">
           <label for="heroDomain" class="visually-hidden">Nama domain</label>
@@ -35,7 +35,7 @@
         @endif
 
         <ul class="list-inline mb-0 mt-3">
-          <li class="list-inline-item me-3"><i class="bi bi-check-circle-fill text-warning me-1"></i>SSL gratis</li>
+          <li class="list-inline-item me-3"><i class="bi bi-check-circle-fill text-warning me-1"></i>SSL tersedia</li>
           <li class="list-inline-item me-3"><i class="bi bi-check-circle-fill text-warning me-1"></i>Aktif otomatis</li>
           <li class="list-inline-item"><i class="bi bi-check-circle-fill text-warning me-1"></i>Dukungan responsif</li>
         </ul>

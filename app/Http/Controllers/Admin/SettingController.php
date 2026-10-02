@@ -472,7 +472,11 @@ class SettingController extends Controller
 
     public function notificationsBootstrap(): View
     {
-        return view('admin.settings.notifications');
+        return view('admin.settings.notifications', [
+            // Dibuat otomatis kalau belum ada, supaya admin langsung bisa
+            // menyalin alamat webhook yang sudah berisi kunci rahasia.
+            'waWebhookUrl' => \App\Http\Controllers\Site\WhatsAppWebhookController::url(),
+        ]);
     }
 
     public function updateNotifications(Request $request): RedirectResponse
@@ -525,6 +529,12 @@ class SettingController extends Controller
             'auto_suspend_enabled', 'notify_suspend',
         ] as $toggle) {
             $data[$toggle] = $request->boolean($toggle) ? '1' : '0';
+        }
+
+        // Endpoint dipanggil dari server: tolak alamat internal/localhost
+        // (SSRF), sama seperti supplier_api_url.
+        if (filled($data['wa_endpoint'] ?? null) && ! \App\Support\UrlGuard::isPublicHttpUrl($data['wa_endpoint'])) {
+            return back()->withInput()->withErrors(['wa_endpoint' => 'Endpoint harus berupa alamat http(s) publik, bukan alamat internal.']);
         }
 
         // Token kosong saat sudah ada nilai = tidak diganti.
@@ -906,6 +916,7 @@ class SettingController extends Controller
             // provider.
             'ai_chat_enabled'     => ['nullable', 'boolean'],
             'ai_chat_first_only'  => ['nullable', 'boolean'],
+            'ai_chat_whatsapp'    => ['nullable', 'boolean'],
             'ai_chat_provider'    => ['nullable', 'in:anthropic,openai'],
             'ai_chat_api_key'     => ['nullable', 'string', 'max:255'],
             'ai_chat_openai_api_key' => ['nullable', 'string', 'max:255'],
@@ -919,6 +930,7 @@ class SettingController extends Controller
 
         $data['ai_chat_enabled'] = $request->boolean('ai_chat_enabled') ? '1' : '0';
         $data['ai_chat_first_only'] = $request->boolean('ai_chat_first_only') ? '1' : '0';
+        $data['ai_chat_whatsapp'] = $request->boolean('ai_chat_whatsapp') ? '1' : '0';
 
         // Pilihan di layar awal widget: checkbox yang tidak dicentang tidak
         // dikirim browser, jadi harus ditulis eksplisit sebagai '0'.

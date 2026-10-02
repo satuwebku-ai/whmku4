@@ -263,6 +263,25 @@ class InvoiceController extends Controller
                 ->lockForUpdate()
                 ->first();
 
+            // Transaksi di gateway sudah punya nominal sendiri. Kalau total
+            // invoice berubah sesudahnya (kupon, saldo, biaya admin), nominal
+            // di sini TIDAK boleh ditimpa: callback gateway akan membawa nominal
+            // lama, ditolak "nominal tidak cocok", dan uang klien tersangkut.
+            // Payment lama ditutup dan dibuat yang baru. Transfer manual
+            // dikecualikan karena sedang menunggu verifikasi admin.
+            if ($payment && ! $gateway->isManual()
+                && (filled($payment->external_id) || filled($payment->payment_url))
+                && abs((float) $payment->total - ($amount + $fee)) > 0.009) {
+                $payment->update([
+                    'status' => 'expired',
+                    'admin_note' => trim(($payment->admin_note ? $payment->admin_note . ' ' : '')
+                        . '[Otomatis] Diganti karena total invoice berubah dari Rp '
+                        . number_format((float) $payment->total, 0, ',', '.') . ' menjadi Rp '
+                        . number_format($amount + $fee, 0, ',', '.') . '.'),
+                ]);
+                $payment = null;
+            }
+
             if ($payment) {
                 $payment->update([
                     'amount' => $amount,

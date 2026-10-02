@@ -108,23 +108,35 @@ class Payment extends Model
                 return false;
             }
 
-            if ($invoice->status === 'cancelled') {
-                throw new \App\Exceptions\Billing\InvoiceException(
-                    "Invoice {$invoice->invoice_number} sudah dibatalkan dan tidak bisa dibayar."
-                );
-            }
-
             // Webhook/callback tidak boleh menjadi jalur pembayaran alternatif
             // yang melewati aturan invoice dan dokumen. Semua entry point
             // memakai service yang sama sebelum fulfillment dijalankan.
-            $eligibility = app(\App\Services\Payment\PaymentEligibilityService::class)->check($invoice);
+            // Invoice batal tidak melempar exception: webhook yang gagal 500
+            // akan dikirim ulang gateway tanpa henti, jadi ditutup dan
+            // dicatat supaya admin bisa memeriksa/refund.
+            $eligibility = $invoice->status === 'cancelled'
+                ? ['allowed' => false, 'message' => "Invoice {$invoice->invoice_number} sudah dibatalkan dan tidak bisa dibayar."]
+                : app(\App\Services\Payment\PaymentEligibilityService::class)->check($invoice);
+
             if (! $eligibility['allowed']) {
                 $payment->update([
                     'status' => 'expired',
                     'gateway_response' => $raw ?: $payment->gateway_response,
                     'admin_note' => trim(($payment->admin_note ? $payment->admin_note . ' ' : '')
-                        . '[Otomatis] Callback ditolak: ' . ($eligibility['message'] ?? 'invoice tidak dapat dibayar.')),
+                        . '[Otomatis] Pembayaran masuk tidak dapat diterapkan: ' . ($eligibility['message'] ?? 'invoice tidak dapat dibayar.')
+                        . ' Periksa dan refund manual bila dana sudah diterima.'),
                 ]);
+
+                // Dana mungkin sudah masuk di gateway tetapi tidak dipakai
+                // melunasi apa pun -- harus terlihat admin, bukan diam-diam.
+                \App\Models\ActivityLog::record(
+                    'payment',
+                    'Pembayaran masuk ditolak: ' . $payment->reference,
+                    ($eligibility['message'] ?? 'Invoice tidak dapat dibayar.') . ' Rp ' . number_format((float) $payment->total, 0, ',', '.'),
+                    route('admin.payments.details', $payment),
+                    'danger',
+                    $payment->client_id,
+                );
 
                 return false;
             }

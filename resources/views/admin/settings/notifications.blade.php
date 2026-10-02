@@ -229,6 +229,16 @@
           <p class="text-muted mt-1 mb-0" style="font-size:11px">Tujuan notifikasi admin lewat WhatsApp.</p>
         </div>
       </div>
+
+      <div class="mt-3">
+        <label class="form-label small fw-medium text-dark">Alamat Webhook Pesan Masuk</label>
+        <input type="text" readonly value="{{ $waWebhookUrl ?? '' }}" onclick="this.select()" class="form-control form-control-sm" style="font-family:monospace">
+        <p class="text-muted mt-1 mb-0" style="font-size:11px">
+          Daftarkan alamat ini <b>lengkap dengan ?key=…</b> di dashboard Fonnte/Wablas sebagai URL webhook.
+          Kunci di belakangnya adalah rahasia; pesan masuk tanpa kunci yang benar ditolak. Jangan dibagikan.
+          Kalau webhook lama masih memakai alamat tanpa kunci, ganti dengan alamat ini.
+        </p>
+      </div>
     </div>
 
     {{-- SMS --}}

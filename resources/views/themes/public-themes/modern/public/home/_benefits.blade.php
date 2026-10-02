@@ -2,7 +2,7 @@
 @php
   $benefits = [
     ['title' => 'Aktif Otomatis',     'desc' => 'Akun hosting dibuat otomatis begitu pembayaran masuk.'],
-    ['title' => 'Aman & Terjaga',     'desc' => 'SSL gratis, backup rutin, dan proteksi berlapis.'],
+    ['title' => 'Aman & Terjaga',     'desc' => 'Sertifikat SSL tersedia, backup rutin, dan proteksi berlapis.'],
     ['title' => 'Dukungan Responsif', 'desc' => 'Tim support siap membantu lewat tiket dan chat.'],
     ['title' => 'Bayar Mudah',        'desc' => 'Transfer bank, e-wallet, kartu kredit, dan QRIS.'],
   ];
