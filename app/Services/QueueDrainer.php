@@ -110,6 +110,7 @@ class QueueDrainer
             Log::info('Antrean: proses terpisah tidak tersedia, memakai proses ini — ' . $e->getMessage());
 
             Artisan::call('queue:work', [
+                '--queue' => 'billing,default',
                 '--stop-when-empty' => true,
                 '--max-time' => self::MAX_TIME,
                 '--sleep' => 1,
