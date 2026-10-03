@@ -115,6 +115,141 @@ class ServerController extends Controller
     }
 
     /**
+     * Halaman branding cPanel (logo tema Jupiter) untuk server WHM ini.
+     */
+    public function branding(Server $server): View|RedirectResponse
+    {
+        if ($guard = $this->brandingGuard($server)) {
+            return $guard;
+        }
+
+        return view('admin.servers.branding', ['server' => $server]);
+    }
+
+    public function applyBranding(Request $request, Server $server): RedirectResponse
+    {
+        if ($guard = $this->brandingGuard($server)) {
+            return $guard;
+        }
+
+        $data = $request->validate([
+            'source' => ['required', 'in:site_logo,upload'],
+            'logo_light' => ['nullable', 'file', 'mimes:svg', 'max:512'],
+            'logo_dark' => ['nullable', 'file', 'mimes:svg', 'max:512'],
+            'description' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $light = $dark = null;
+
+        if ($data['source'] === 'upload') {
+            if (! $request->hasFile('logo_light')) {
+                return back()->withInput()->with('error', 'Pilih file SVG untuk logo latar terang.');
+            }
+
+            $light = $this->readSafeSvg($request->file('logo_light')->get());
+            $dark = $request->hasFile('logo_dark') ? $this->readSafeSvg($request->file('logo_dark')->get()) : null;
+
+            if ($light === null || ($request->hasFile('logo_dark') && $dark === null)) {
+                return back()->withInput()->with('error', 'File SVG tidak valid atau mengandung skrip. Pakai SVG bersih (tanpa <script>), lengkap dengan width/height atau viewBox.');
+            }
+        } else {
+            $light = $this->svgFromSiteLogo();
+
+            if ($light === null) {
+                return back()->withInput()->with('error', 'Logo situs belum diatur atau filenya tidak ada. Atur di Pengaturan → Umum.');
+            }
+        }
+
+        $result = HostingPanelFactory::make($server)->updateBrandingLogo(
+            $light,
+            $dark,
+            $data['description'] ?: \App\Models\Setting::get('site_name', config('app.name'))
+        );
+
+        if (! $result['success']) {
+            \Illuminate\Support\Facades\Log::warning('Update branding WHM gagal', ['server_id' => $server->id, 'raw' => $result['raw']]);
+
+            return back()->withInput()->with('error', 'WHM menolak: ' . $result['message'] . ' — pastikan server memakai cPanel versi yang mendukung tema Jupiter, dan API token punya hak root/reseller.');
+        }
+
+        return back()->with('success', 'Logo cPanel berhasil dikirim ke WHM. Login ke salah satu akun cPanel (tema Jupiter) untuk melihat hasilnya.');
+    }
+
+    public function resetBranding(Server $server): RedirectResponse
+    {
+        if ($guard = $this->brandingGuard($server)) {
+            return $guard;
+        }
+
+        $result = HostingPanelFactory::make($server)->resetBrandingLogo();
+
+        return back()->with(
+            $result['success'] ? 'success' : 'error',
+            $result['success'] ? 'Logo kustom dihapus, cPanel kembali memakai logo bawaan.' : 'Gagal menghapus logo: ' . $result['message']
+        );
+    }
+
+    private function brandingGuard(Server $server): ?RedirectResponse
+    {
+        if ($server->isCloud() || $server->panel !== 'cpanel') {
+            return redirect()->route('admin.servers.index')->with('error', 'Branding lewat sistem hanya tersedia untuk server cPanel/WHM.');
+        }
+
+        return null;
+    }
+
+    /**
+     * Tolak SVG yang bisa menjalankan skrip; cPanel menampilkan logo ini
+     * ke semua klien.
+     */
+    private function readSafeSvg(string $svg): ?string
+    {
+        if (! preg_match('/<svg[\s>]/i', $svg)) {
+            return null;
+        }
+
+        if (preg_match('/<script|on[a-z]+\s*=|javascript:|<foreignObject/i', $svg)) {
+            return null;
+        }
+
+        return $svg;
+    }
+
+    /**
+     * cPanel hanya menerima SVG, sedangkan logo situs biasanya PNG/JPG —
+     * dibungkus jadi SVG berisi gambar tertanam, ukuran mengikuti anjuran
+     * cPanel (maks 200x100) dengan proporsi tetap.
+     */
+    private function svgFromSiteLogo(): ?string
+    {
+        $file = \App\Models\Setting::get('site_logo');
+        $path = $file ? \Illuminate\Support\Facades\Storage::disk('local')->path('branding/' . $file) : null;
+
+        if (! $path || ! is_file($path)) {
+            return null;
+        }
+
+        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'svg') {
+            return $this->readSafeSvg((string) file_get_contents($path));
+        }
+
+        $info = @getimagesize($path);
+
+        if (! $info || empty($info[0]) || empty($info[1]) || empty($info['mime'])) {
+            return null;
+        }
+
+        $scale = min(200 / $info[0], 100 / $info[1]);
+        $w = max(1, (int) round($info[0] * $scale));
+        $h = max(1, (int) round($info[1] * $scale));
+        $b64 = base64_encode((string) file_get_contents($path));
+
+        return '<?xml version="1.0" encoding="UTF-8"?>'
+            . "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{$w}\" height=\"{$h}\" viewBox=\"0 0 {$w} {$h}\">"
+            . "<image width=\"{$w}\" height=\"{$h}\" xlink:href=\"data:{$info['mime']};base64,{$b64}\"/></svg>";
+    }
+
+    /**
      * Bandingkan nama panel_package yang diketik di form Produk dengan
      * paket yang BENAR-BENAR ada di server — sumber error paling sering
      * saat provisioning otomatis gagal diam-diam.

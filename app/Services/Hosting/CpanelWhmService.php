@@ -309,6 +309,65 @@ class CpanelWhmService implements HostingPanelInterface
      * Panggil WHM API 1 dengan autentikasi token.
      * Format header: Authorization: whm {api_username}:{api_token}
      */
+    /**
+     * Ambil data branding (logo/warna) tema Jupiter yang sedang aktif di WHM.
+     */
+    public function retrieveBranding(): array
+    {
+        return $this->call('retrieve_customizations', ['application' => 'cpanel', 'theme' => 'jupiter']);
+    }
+
+    /**
+     * Pasang logo cPanel (tema Jupiter) lewat WHM API 1 update_customizations.
+     * Logo WAJIB SVG (diterima sebagai isi SVG mentah, dikirim base64).
+     * Data branding yang sudah ada (warna/favicon) dipertahankan kalau
+     * bentuknya dikenali; kalau tidak, hanya bagian logo yang dikirim.
+     */
+    public function updateBrandingLogo(string $svgLight, ?string $svgDark = null, ?string $description = null): array
+    {
+        $current = $this->retrieveBranding();
+        $existing = $current['raw']['data']['customizations'] ?? $current['raw']['data'] ?? [];
+        $data = (is_array($existing) && isset($existing['brand'])) ? $existing : [];
+
+        $data['brand']['logo'] = array_filter([
+            'forLightBackground' => base64_encode($svgLight),
+            'forDarkBackground' => base64_encode($svgDark ?? $svgLight),
+            'description' => $description,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return $this->post('update_customizations', ['application' => 'cpanel', 'data' => $data]);
+    }
+
+    /**
+     * Hapus logo kustom (kembali ke logo cPanel bawaan).
+     */
+    public function resetBrandingLogo(): array
+    {
+        return $this->call('delete_customizations', ['application' => 'cpanel', 'theme' => 'jupiter', 'path' => 'brand.logo']);
+    }
+
+    protected function post(string $function, array $json): array
+    {
+        try {
+            $response = $this->client()->timeout(30)->asJson()
+                ->post("/json-api/{$function}?api.version=1", $json);
+
+            $body = $response->json();
+            $result = $body['metadata'] ?? null;
+            $success = $response->successful() && (($result['result'] ?? null) === 1);
+
+            return [
+                'success' => $success,
+                'message' => $result['reason'] ?? ($success ? 'Berhasil.' : 'Panel menolak permintaan (respons tidak dikenali).'),
+                'raw' => $body,
+            ];
+        } catch (Throwable $e) {
+            Log::warning("WHM API [{$function}] gagal: " . $e->getMessage(), ['server_id' => $this->server->id]);
+
+            return ['success' => false, 'message' => 'Tidak bisa terhubung ke server WHM: ' . $e->getMessage(), 'raw' => null];
+        }
+    }
+
     protected function call(string $function, array $params): array
     {
         try {

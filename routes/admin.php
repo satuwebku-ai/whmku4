@@ -243,6 +243,9 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::resource('servers', ServerController::class)->except('show');
         Route::post('servers/{server}/test-connection', [ServerController::class, 'testConnection'])->name('servers.test-connection');
         Route::post('servers/{server}/login-whm', [ServerController::class, 'loginWhm'])->name('servers.login-whm');
+        Route::get('servers/{server}/branding', [ServerController::class, 'branding'])->name('servers.branding');
+        Route::post('servers/{server}/branding', [ServerController::class, 'applyBranding'])->name('servers.branding.apply');
+        Route::post('servers/{server}/branding/reset', [ServerController::class, 'resetBranding'])->name('servers.branding.reset');
         Route::get('servers/{server}/diagnostics', [ServerController::class, 'diagnosticsBootstrap'])->name('servers.diagnostics');
         Route::post('servers/{server}/sync-cost', [ServerController::class, 'syncCost'])->name('servers.sync-cost');
 

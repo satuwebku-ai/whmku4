@@ -71,6 +71,11 @@
                       </button>
                     </form>
                   @endif
+                  @if ($server->panel === 'cpanel' && ! $server->isCloud())
+                    <a href="{{ route('admin.servers.branding', $server) }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Branding cPanel (logo)">
+                      <i class="fa-solid fa-paintbrush" style="font-size:12px"></i>
+                    </a>
+                  @endif
                   <form method="POST" action="{{ route('admin.servers.test-connection', $server) }}">
                     @csrf
                     <button type="submit" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0" title="Tes Koneksi">
