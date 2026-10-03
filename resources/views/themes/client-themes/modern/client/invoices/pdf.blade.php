@@ -40,7 +40,7 @@
              disk 'local' dibaca langsung dari server, tidak lewat HTTP. --}}
         @php $logoPath = \Illuminate\Support\Facades\Storage::disk('local')->path('branding/' . $pdfLogo); @endphp
         @if (file_exists($logoPath))
-          <img src="{{ $logoPath }}" style="max-height:50px;max-width:220px;margin-bottom:6px;" alt="{{ config('app.name') }}">
+          <img src="{{ $logoPath }}" style="height:{{ max(16, min(200, (int) \App\Models\Setting::get('pdf_logo_height', 50))) }}px;width:auto;margin-bottom:6px;" alt="{{ config('app.name') }}">
         @else
           <div class="brand">{{ config('app.name') }}</div>
         @endif

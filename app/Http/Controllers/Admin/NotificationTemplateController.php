@@ -25,6 +25,26 @@ class NotificationTemplateController extends Controller
         return view('admin.notification-templates.index', compact('templates'));
     }
 
+    /**
+     * Ukuran (tinggi, px) logo di tiap tampilan notifikasi: email dan PDF
+     * invoice. Lebar mengikuti otomatis supaya proporsi logo tidak gepeng.
+     */
+    public function updateLogoSizes(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'email_logo_height' => ['required', 'integer', 'min:16', 'max:200'],
+            'pdf_logo_height' => ['required', 'integer', 'min:16', 'max:200'],
+        ]);
+
+        \App\Models\Setting::putMany([
+            'email_logo_height' => (string) $data['email_logo_height'],
+            'pdf_logo_height' => (string) $data['pdf_logo_height'],
+            'email_show_logo' => $request->boolean('email_show_logo') ? '1' : '0',
+        ], 'general');
+
+        return back()->with('success', 'Ukuran logo notifikasi berhasil disimpan.');
+    }
+
     public function edit(string $key): View
     {
         $defaults = NotificationTemplate::defaults();
@@ -150,7 +170,8 @@ class NotificationTemplateController extends Controller
             'bodyWhatsapp' => $bodyWhatsapp,
             'bodySms' => $bodySms,
             'siteName' => \App\Models\Setting::get('site_name', config('app.name')),
-            'siteLogo' => \App\Models\Setting::get('site_logo'),
+            'siteLogo' => \App\Models\Setting::get('email_show_logo', '1') === '1' ? \App\Models\Setting::get('site_logo') : null,
+            'emailLogoHeight' => (int) \App\Models\Setting::get('email_logo_height', 40),
             'promoBanner' => \App\Models\PromoBanner::live()->forPage('email')->orderBy('sort_order')->first(),
         ]);
     }

@@ -24,7 +24,7 @@
     <div style="height:5px;background:#4f46e5"></div>
     <div class="px-4 py-3 text-center" style="background:#1e293b">
       @if ($siteLogo)
-        <img src="{{ route('branding.file', $siteLogo) }}" alt="{{ $siteName }}" style="height:32px">
+        <img src="{{ route('branding.file', $siteLogo) }}" alt="{{ $siteName }}" style="height:{{ $emailLogoHeight ?? 40 }}px;width:auto;max-width:100%">
       @else
         <p class="text-white fw-bold mb-0">{{ $siteName }}</p>
       @endif

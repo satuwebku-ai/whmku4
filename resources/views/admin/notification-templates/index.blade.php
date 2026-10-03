@@ -21,6 +21,31 @@
     <div class="col-sm-4"><div class="card border rounded-4 p-3"><p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Kanal aktif</p><p class="h5 fw-bold text-accent mb-0">Email · WA · SMS</p></div></div>
   </div>
 
+  @php use App\Models\Setting; @endphp
+  <form method="POST" action="{{ route('admin.notification-templates.logo-sizes') }}" class="card border rounded-4 p-3 mb-3" style="max-width:56rem">
+    @csrf
+    <p class="fw-semibold text-dark mb-1" style="font-size:14px"><i class="fa-regular fa-image text-accent"></i> Ukuran Logo di Notifikasi</p>
+    <p class="text-muted mb-3" style="font-size:11px">Tinggi logo dalam piksel &mdash; lebar menyesuaikan otomatis. Logo diambil dari Pengaturan &rarr; Umum.</p>
+    <div class="row g-3 align-items-end">
+      <div class="col-sm-4">
+        <label class="form-label small fw-medium text-dark mb-1">Logo Email (px)</label>
+        <input type="number" name="email_logo_height" min="16" max="200" value="{{ old('email_logo_height', Setting::get('email_logo_height', 40)) }}" class="form-control form-control-sm" required>
+        @error('email_logo_height') <p class="text-danger mt-1 mb-0" style="font-size:11px">{{ $message }}</p> @enderror
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small fw-medium text-dark mb-1">Logo PDF Invoice (px)</label>
+        <input type="number" name="pdf_logo_height" min="16" max="200" value="{{ old('pdf_logo_height', Setting::get('pdf_logo_height', 50)) }}" class="form-control form-control-sm" required>
+        @error('pdf_logo_height') <p class="text-danger mt-1 mb-0" style="font-size:11px">{{ $message }}</p> @enderror
+      </div>
+      <div class="col-sm-4 d-flex flex-column gap-2">
+        <label class="d-flex align-items-center gap-2 small fw-medium text-dark mb-0" style="cursor:pointer">
+          <input type="checkbox" name="email_show_logo" value="1" @checked(Setting::get('email_show_logo', '1') === '1') class="form-check-input" style="margin-top:0"> Tampilkan logo di email
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:fit-content">Simpan</button>
+      </div>
+    </div>
+  </form>
+
   <div class="card border rounded-4 overflow-hidden">
     <div>
       @foreach ($templates as $tpl)

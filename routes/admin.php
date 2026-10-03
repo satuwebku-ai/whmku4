@@ -619,6 +619,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         ->controller(\App\Http\Controllers\Admin\NotificationTemplateController::class)
         ->prefix('notification-templates')->name('notification-templates.')->group(function () {
             Route::get('/', 'index')->name('index');
+            Route::post('logo-sizes', 'updateLogoSizes')->name('logo-sizes');
             Route::get('{key}/edit', 'edit')->name('edit');
             Route::get('{key}/preview', 'preview')->name('preview');
             Route::post('{key}/preview', 'previewDraft')->name('preview.draft');
