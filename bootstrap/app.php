@@ -36,6 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // token (Xendit) di dalam service masing-masing.
         $middleware->validateCsrfTokens(except: [
             'payment/webhook/*',
+            // Sebagian gateway (mis. DANA via Duitku) mengembalikan browser klien dengan POST.
+            'payment/finish',
             'webhook/whatsapp',
             'csp-report',
         ]);

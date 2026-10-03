@@ -155,7 +155,7 @@ Route::post('payment/webhook/{driver}', [WebhookController::class, 'handle'])
     ->middleware('throttle:120,1')
     ->name('payment.webhook');
 
-Route::get('payment/finish', [WebhookController::class, 'finish'])
+Route::match(['get', 'post'], 'payment/finish', [WebhookController::class, 'finish'])
     ->name('payment.finish');
 
 /*

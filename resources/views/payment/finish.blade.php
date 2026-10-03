@@ -37,6 +37,19 @@
         <div class="flex justify-between text-slate-500"><span>Total</span><span class="text-slate-800 font-semibold">Rp {{ number_format($payment->total, 0, ',', '.') }}</span></div>
       </div>
     @endif
+
+    <div class="mt-6 flex flex-col gap-2">
+      @if ($payment && $payment->invoice_id)
+        <a href="{{ route('client.invoices.show', $payment->invoice_id) }}"
+           class="block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Lihat Invoice
+        </a>
+      @endif
+      <a href="{{ route('client.dashboard') }}"
+         class="block w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+        &larr; Kembali ke Dashboard
+      </a>
+    </div>
   </div>
 
 </body>

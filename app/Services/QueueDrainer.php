@@ -76,6 +76,10 @@ class QueueDrainer
     private function runWorker(): array
     {
         $options = [
+            // Job pembayaran (ProcessPaidInvoice) masuk antrean 'billing'.
+            // Tanpa --queue, worker hanya membaca 'default' dan saldo/layanan
+            // tidak pernah diproses setelah bayar.
+            '--queue=billing,default',
             '--stop-when-empty',
             '--max-time=' . self::MAX_TIME,
             '--sleep=1',
