@@ -98,8 +98,9 @@
             </div>
 
             <div class="pr-code">
-              <code id="promoCode{{ $c->id }}">{{ $c->code }}</code>
-              <button type="button" data-promo-copy="{{ $c->code }}">Salin</button>
+              <code id="promoCodeText{{ $c->id }}">{{ $c->code }}</code>
+              <input type="hidden" id="promoCode{{ $c->id }}" value="{{ $c->code }}">
+              <button type="button" data-action="copy" data-target="promoCode{{ $c->id }}" data-promo-copy="{{ $c->code }}">Salin</button>
             </div>
 
             <button type="button" class="pr-more" data-promo-more aria-expanded="false">Lihat detail ▾</button>

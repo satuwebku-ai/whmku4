@@ -135,7 +135,7 @@
           <label class="form-label small fw-medium text-dark">Password Akun cPanel</label>
           <div class="d-flex gap-2">
             <input type="password" name="provision_password" id="pwField" placeholder="Password untuk akun baru di server" class="form-control form-control-sm">
-            <button type="button" onclick="lumoraGeneratePassword('pwField', null, 'pwChecklist')" class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
+            <button type="button" data-action="call" data-call="lumoraGeneratePassword" data-args='["pwField",null,"pwChecklist"]' class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0">
               <i class="fa-solid fa-dice" style="font-size:11px"></i> Buatkan Otomatis
             </button>
           </div>
@@ -211,7 +211,7 @@
     </div>
   </form>
 
-  <script>
+  <script @nonce>
     function lumoraPasswordChecks(pw) {
       return [
         { label: 'Minimal 8 karakter', ok: pw.length >= 8 },
@@ -254,6 +254,8 @@
       lumoraRenderChecklist(pw, checklistId);
     }
 
+    (window.LumoraActions = window.LumoraActions || {}).lumoraGeneratePassword = lumoraGeneratePassword;
+
     document.addEventListener('DOMContentLoaded', () => {
       const pwField = document.getElementById('pwField');
       if (pwField) {
@@ -262,7 +264,7 @@
     });
   </script>
 
-  <script>
+  <script @nonce>
     // Tampilkan kolom Tarif per Jam hanya saat mode "Potong Saldo per Jam" dipilih.
     (function () {
       const radios = document.querySelectorAll('[data-billing-mode-radio]');

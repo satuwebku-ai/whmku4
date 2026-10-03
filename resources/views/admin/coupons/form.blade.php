@@ -273,8 +273,8 @@
     </div>
   </div>
 
-  <script type="application/json" id="tldData">{!! json_encode($tldData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) !!}</script>
-  <script type="application/json" id="tldSelected">{!! json_encode($checkedTlds) !!}</script>
+  <script type="application/json" id="tldData" @nonce>{!! json_encode($tldData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) !!}</script>
+  <script type="application/json" id="tldSelected" @nonce>{!! json_encode($checkedTlds) !!}</script>
 
   <script @nonce>
     (function () {

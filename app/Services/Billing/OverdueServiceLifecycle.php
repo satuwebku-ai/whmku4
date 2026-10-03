@@ -11,6 +11,7 @@ use App\Services\Hosting\HostingPanelFactory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -44,6 +45,7 @@ class OverdueServiceLifecycle
                     'id' => $locked->id,
                     'domain' => $locked->domain,
                     'client_id' => $locked->client_id,
+                    'server_id' => $locked->server_id,
                     'renewal_invoice_id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
                     'username' => $locked->username,
@@ -56,18 +58,23 @@ class OverdueServiceLifecycle
             }
 
             $message = 'Disuspend otomatis: invoice ' . $snapshot['invoice_number'] . ' belum dibayar melewati batas toleransi.';
-            if ($snapshot['server'] && $snapshot['username']) {
+            if ($snapshot['server_id']) {
+                if (! $snapshot['server'] || ! $snapshot['username']) {
+                    throw new RuntimeException('Server panel atau username layanan belum tersedia.');
+                }
+
                 $result = HostingPanelFactory::make($snapshot['server'])->suspendAccount(
                     $snapshot['username'],
                     'Tagihan belum dibayar: ' . $snapshot['invoice_number']
                 );
 
-                if (! $result['success']) {
+                if (! ($result['success'] ?? false)) {
+                    $message = $result['message'] ?? 'Panel menolak permintaan suspend.';
                     Log::warning('Suspend API gagal; layanan tidak ditandai suspended di database.', [
                         'hosting_account_id' => $snapshot['id'],
-                        'message' => $result['message'] ?? 'Unknown provider error',
+                        'message' => $message,
                     ]);
-                    return false;
+                    throw new RuntimeException($message);
                 }
 
                 $message = $result['message'] ?? $message;

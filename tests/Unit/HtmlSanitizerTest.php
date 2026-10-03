@@ -3,11 +3,12 @@
 namespace Tests\Unit;
 
 use App\Support\HtmlSanitizer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class HtmlSanitizerTest extends TestCase
 {
-    /** @dataProvider xssVectors */
+    #[DataProvider('xssVectors')]
     public function test_it_neutralises_xss_vectors(string $input, string $mustNotContain): void
     {
         $this->assertStringNotContainsStringIgnoringCase($mustNotContain, HtmlSanitizer::clean($input));

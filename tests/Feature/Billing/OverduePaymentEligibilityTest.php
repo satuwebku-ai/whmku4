@@ -63,6 +63,7 @@ class OverduePaymentEligibilityTest extends TestCase
 
         $invoice = $this->invoice('overdue', now()->subDays(2), 'INV-LATE-PAY');
         $payment = Payment::create([
+            'reference' => 'REF-OVERDUE-LATE',
             'invoice_id' => $invoice->id,
             'client_id' => $invoice->client_id,
             'amount' => 100,
@@ -84,6 +85,7 @@ class OverduePaymentEligibilityTest extends TestCase
 
         $invoice = $this->invoice('cancelled', now()->subDays(2), 'INV-CANCELLED-PAY');
         $payment = Payment::create([
+            'reference' => 'REF-CANCELLED-LATE',
             'invoice_id' => $invoice->id,
             'client_id' => $invoice->client_id,
             'amount' => 100,

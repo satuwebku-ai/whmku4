@@ -50,6 +50,7 @@ class ExpirePrivacyProtection extends Command
         $this->info("Ditemukan {$expired->count()} domain dengan ID Protection kedaluwarsa.");
 
         $count = 0;
+        $failed = 0;
 
         foreach ($expired as $domain) {
             $this->line("  - {$domain->domain_name} (habis {$domain->privacy_expires_at->format('d M Y')})");
@@ -73,6 +74,7 @@ class ExpirePrivacyProtection extends Command
                     $result = $service->disablePrivacyProtection($domain->domain_name);
 
                     if (! $result['success']) {
+                        $failed++;
                         $this->error("      gagal di registrar: {$result['message']}");
                         Log::warning('Gagal mematikan ID Protection kedaluwarsa: ' . $result['message'], [
                             'domain_id' => $domain->id,
@@ -80,11 +82,20 @@ class ExpirePrivacyProtection extends Command
 
                         continue;
                     }
+                } else {
+                    $failed++;
+                    $this->error('      registrar tidak mendukung penonaktifan ID Protection; status lokal tidak diubah.');
+                    Log::warning('Registrar tidak menyediakan operasi disablePrivacyProtection untuk domain kedaluwarsa.', [
+                        'domain_id' => $domain->id,
+                    ]);
+
+                    continue;
                 }
 
                 $domain->update(['whois_privacy' => false]);
                 $count++;
             } catch (Throwable $e) {
+                $failed++;
                 $this->error("      error: {$e->getMessage()}");
                 Log::error('Error mematikan ID Protection kedaluwarsa: ' . $e->getMessage(), [
                     'domain_id' => $domain->id,
@@ -93,8 +104,10 @@ class ExpirePrivacyProtection extends Command
         }
 
         $this->newLine();
-        $this->info($dry ? 'Mode simulasi — tidak ada yang diubah.' : "Selesai. {$count} ID Protection dimatikan.");
+        $this->info($dry
+            ? 'Mode simulasi — tidak ada yang diubah.'
+            : "Selesai. {$count} ID Protection dimatikan, {$failed} gagal.");
 
-        return self::SUCCESS;
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

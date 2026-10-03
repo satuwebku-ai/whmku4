@@ -34,7 +34,7 @@
   {{-- Pencarian --}}
   <form method="GET" class="d-flex flex-wrap gap-2 mb-3">
     <input type="search" name="q" value="{{ $q }}" class="form-control form-control-sm" style="max-width:18rem" placeholder="Cari judul atau isi…">
-    <select name="category" class="form-select form-select-sm" style="max-width:12rem" onchange="this.form.submit()">
+    <select name="category" class="form-select form-select-sm" style="max-width:12rem" data-auto-submit>
       <option value="">Semua kategori</option>
       @foreach ($categories as $c)<option value="{{ $c }}" @selected($category === $c)>{{ $c }}</option>@endforeach
     </select>

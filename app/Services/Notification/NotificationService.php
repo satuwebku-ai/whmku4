@@ -86,22 +86,27 @@ class NotificationService
      * Pengingat memakai event key stabil per invoice, tanggal jatuh tempo,
      * dan tahap agar retry cron tidak membuat pengiriman baru untuk tahap sama.
      */
-    public function invoiceReminder(Invoice $invoice, int $daysLeft, string $stageKey): bool
+    /** @return 'queued'|'already_handled'|'failed' */
+    public function invoiceReminder(Invoice $invoice, int $daysLeft, string $stageKey): string
     {
         $client = $invoice->client;
         $dueDate = $invoice->due_date?->toDateString();
 
         if (! $client || ! $dueDate || ! $this->enabled('notify_reminder')) {
-            return false;
+            return 'failed';
         }
 
         $eventKey = "invoice:reminder:{$invoice->id}:{$dueDate}:{$stageKey}";
+        $duplicate = false;
 
-        return $this->send(
+        $queued = $this->send(
             $client,
             new InvoiceDueReminder($invoice, $daysLeft),
             $eventKey,
+            $duplicate,
         );
+
+        return $queued ? 'queued' : ($duplicate ? 'already_handled' : 'failed');
     }
 
     /**
@@ -293,8 +298,12 @@ class NotificationService
      * Kirim lewat antrean dengan deduplikasi; antrean pending tidak dikirim
      * ulang tiap kali pemicu yang sama dipanggil.
      */
-    private function send(object $notifiable, $notification, ?string $eventKey = null): bool
+    private function send(object $notifiable, $notification, ?string $eventKey = null, ?bool &$duplicate = null): bool
     {
+        if ($duplicate !== null) {
+            $duplicate = false;
+        }
+
         $delivery = null;
 
         try {
@@ -320,6 +329,10 @@ class NotificationService
 
             if ($delivery->status === 'sent'
                 || ($delivery->status === 'pending' && ! $delivery->wasRecentlyCreated)) {
+                if ($duplicate !== null) {
+                    $duplicate = true;
+                }
+
                 return false;
             }
 

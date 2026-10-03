@@ -49,18 +49,7 @@ class BackupRegistrarCustomers extends Command
 
     public function handle(): int
     {
-        ob_start();
-        $result = $this->handleJob();
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution(
-            'registrar:backup-customers',
-            $result === self::SUCCESS,
-            $output
-        );
-
-        return $result;
+        return $this->handleJob();
     }
 
     private function handleJob(): int
@@ -78,13 +67,15 @@ class BackupRegistrarCustomers extends Command
         $folder = trim((string) $this->option('path'), '/');
         $stamp = now()->format('Y-m-d_His');
         $totalRows = 0;
+        $failed = 0;
 
         foreach ($registrars as $registrar) {
             $this->info("Mengambil dari: {$registrar->name} ({$registrar->provider})");
 
             try {
-                $rows = $this->collect($registrar);
+                $rows = $this->collect($registrar, $failed);
             } catch (Throwable $e) {
+                $failed++;
                 $this->error("  Gagal: {$e->getMessage()}");
                 continue;
             }
@@ -95,7 +86,17 @@ class BackupRegistrarCustomers extends Command
             }
 
             $path = "{$folder}/{$stamp}_{$registrar->provider}_{$registrar->id}.csv";
-            Storage::disk('local')->put($path, $this->toCsv($rows));
+            try {
+                if (! Storage::disk('local')->put($path, $this->toCsv($rows))) {
+                    $failed++;
+                    $this->error("  Gagal menyimpan backup registrar {$registrar->name}.");
+                    continue;
+                }
+            } catch (Throwable $e) {
+                $failed++;
+                $this->error("  Gagal menyimpan backup registrar {$registrar->name}: {$e->getMessage()}");
+                continue;
+            }
 
             $this->line('  Tersimpan: ' . count($rows) . " baris -> storage/app/{$path}");
             $totalRows += count($rows);
@@ -107,16 +108,16 @@ class BackupRegistrarCustomers extends Command
             return self::FAILURE;
         }
 
-        $this->info("Selesai. Total {$totalRows} baris tersimpan.");
+        $this->info("Selesai. Total {$totalRows} baris tersimpan, {$failed} sumber/registrar gagal.");
         $this->line('Unduh file-nya lewat cPanel File Manager di storage/app/' . $folder);
 
-        return self::SUCCESS;
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function collect(Registrar $registrar): array
+    private function collect(Registrar $registrar, int &$failed): array
     {
         $service = DomainRegistrarFactory::make($registrar);
 
@@ -139,6 +140,7 @@ class BackupRegistrarCustomers extends Command
                 ], $result['customers']);
             }
 
+            $failed++;
             $this->warn('  Daftar customer gagal diambil: ' . $result['message']);
         }
 
@@ -167,8 +169,13 @@ class BackupRegistrarCustomers extends Command
                 if (! array_key_exists($username, $cache)) {
                     try {
                         $res = $service->getCustomer($username);
-                        $cache[$username] = $res['success'] ? ($res['raw']['data'] ?? null) : null;
+                        $success = $res['success'] ?? false;
+                        if (! $success) {
+                            $failed++;
+                        }
+                        $cache[$username] = $success ? ($res['raw']['data'] ?? null) : null;
                     } catch (Throwable) {
+                        $failed++;
                         $cache[$username] = null;
                     }
                 }

@@ -329,7 +329,7 @@
     @if (Setting::get('vapid_public_key'))
       <div class="mb-3">
         <label class="form-label small fw-medium text-dark">Kunci Publik VAPID</label>
-        <input type="text" value="{{ Setting::get('vapid_public_key') }}" class="form-control form-control-sm bg-light" readonly onclick="this.select()">
+        <input type="text" value="{{ Setting::get('vapid_public_key') }}" class="form-control form-control-sm bg-light" readonly data-action="select">
       </div>
     @endif
 
@@ -359,7 +359,7 @@
     </p>
   </div>
 
-  <script>
+  <script @nonce>
     // Endpoint hanya relevan untuk Wablas dan gateway custom.
     (function () {
       const provider = document.getElementById('waProvider');

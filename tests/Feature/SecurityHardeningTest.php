@@ -9,6 +9,7 @@ use App\Support\UrlGuard;
 use Database\Seeders\AdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class SecurityHardeningTest extends TestCase
@@ -316,7 +317,7 @@ class SecurityHardeningTest extends TestCase
         ])->assertNoContent();
     }
 
-    /** @dataProvider blockedUrls */
+    #[DataProvider('blockedUrls')]
     public function test_url_guard_blocks_internal_targets(string $url): void
     {
         $this->assertFalse(UrlGuard::isPublicHttpUrl($url), $url);

@@ -79,7 +79,7 @@
         <article class="pr-card">
           <div class="pr-top {{ $kind }}">
             <span class="pr-kind">{{ $kindLabel }}</span>
-            <div class="pr-off">{{ $c->value_label }}<small>OFF</small></div>
+            <div class="pr-off">Diskon {{ $c->value_label }}</div>
           </div>
 
           <div class="pr-body">
@@ -98,8 +98,9 @@
             </div>
 
             <div class="pr-code">
-              <code id="promoCode{{ $c->id }}">{{ $c->code }}</code>
-              <button type="button" data-promo-copy="{{ $c->code }}">Salin</button>
+              <code id="promoCodeText{{ $c->id }}">{{ $c->code }}</code>
+              <input type="hidden" id="promoCode{{ $c->id }}" value="{{ $c->code }}">
+              <button type="button" data-action="copy" data-target="promoCode{{ $c->id }}" data-promo-copy="{{ $c->code }}">Salin</button>
             </div>
 
             <button type="button" class="pr-more" data-promo-more aria-expanded="false">Lihat detail ▾</button>
@@ -113,7 +114,7 @@
                   <span class="pr-tag">
                     <strong>{{ $t['extension'] }}</strong>
                     @if ($t['after'] !== null && $t['after'] < $t['before'])
-                      <s>{{ $rp($t['before']) }}</s> <em>{{ $rp($t['after']) }}</em>
+                      <s class="text-decoration-line-through text-muted ms-1">{{ $rp($t['before']) }}</s> <em>{{ $rp($t['after']) }}</em>
                     @else
                       {{ $rp($t['before']) }}
                     @endif

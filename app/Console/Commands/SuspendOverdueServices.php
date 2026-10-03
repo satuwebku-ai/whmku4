@@ -49,22 +49,23 @@ class SuspendOverdueServices extends Command
         $this->info("Masa toleransi: {$graceDays} hari setelah jatuh tempo invoice.");
         $this->newLine();
 
-        $suspended = $this->suspendHosting($graceDays, $dry);
-        $expired = $this->expireDomains($dry);
+        $failed = 0;
+        $suspended = $this->suspendHosting($graceDays, $dry, $failed);
+        $expired = $this->expireDomains($dry, $failed);
 
         $this->newLine();
         $this->info($dry
             ? "Simulasi selesai — {$suspended} hosting AKAN disuspend, {$expired} domain AKAN ditandai kedaluwarsa."
-            : "Selesai — {$suspended} hosting disuspend, {$expired} domain ditandai kedaluwarsa.");
+            : "Selesai — {$suspended} hosting disuspend, {$expired} domain ditandai kedaluwarsa, {$failed} gagal.");
 
-        return self::SUCCESS;
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     /**
      * Hosting aktif dengan invoice perpanjangan yang masih menunggu
      * dibayar, dan sudah lewat jatuh tempo + masa toleransi.
      */
-    private function suspendHosting(int $graceDays, bool $dry): int
+    private function suspendHosting(int $graceDays, bool $dry, int &$failed): int
     {
         $accounts = HostingAccount::with(['client', 'renewalInvoice'])
             ->where('status', 'active')
@@ -80,6 +81,8 @@ class SuspendOverdueServices extends Command
 
         foreach ($accounts as $hosting) {
             if (! $hosting->client) {
+                $failed++;
+                $this->error("        hosting #{$hosting->id} tidak memiliki klien.");
                 continue;
             }
 
@@ -96,6 +99,7 @@ class SuspendOverdueServices extends Command
                     $count++;
                 }
             } catch (Throwable $e) {
+                $failed++;
                 $this->error('        gagal: ' . $e->getMessage());
                 Log::error('Auto-suspend gagal: ' . $e->getMessage(), ['hosting_account_id' => $hosting->id]);
             }
@@ -112,7 +116,7 @@ class SuspendOverdueServices extends Command
      * memakai masa toleransi terpisah karena expiry_date registrar itu
      * sendiri sudah jadi batas kerasnya.
      */
-    private function expireDomains(bool $dry): int
+    private function expireDomains(bool $dry, int &$failed): int
     {
         $domains = Domain::with('client', 'renewalInvoice')
             ->where('status', 'active')
@@ -126,6 +130,8 @@ class SuspendOverdueServices extends Command
 
         foreach ($domains as $domain) {
             if (! $domain->client) {
+                $failed++;
+                $this->error("        domain #{$domain->id} tidak memiliki klien.");
                 continue;
             }
 
@@ -141,6 +147,7 @@ class SuspendOverdueServices extends Command
                     $count++;
                 }
             } catch (Throwable $e) {
+                $failed++;
                 $this->error('        gagal: ' . $e->getMessage());
                 Log::error('Auto-expire domain gagal: ' . $e->getMessage(), ['domain_id' => $domain->id]);
             }

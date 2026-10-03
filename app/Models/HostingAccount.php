@@ -13,7 +13,7 @@ class HostingAccount extends Model
 
     protected $fillable = [
         'client_id', 'product_id', 'server_id', 'domain', 'package', 'server', 'panel',
-        'username', 'price', 'billing_cycle', 'billing_mode', 'hourly_rate', 'last_billed_at', 'status', 'next_due_date',
+        'username', 'price', 'billing_cycle', 'billing_mode', 'hourly_rate', 'last_billed_at', 'panel_suspend_error', 'status', 'next_due_date',
         'provision_status', 'provision_message', 'provisioning_started_at', 'provisioning_finished_at', 'provisioning_attempts', 'provisioning_key', 'client_details', 'internal_notes',
         'cancellation_status', 'cancellation_reason', 'cancellation_requested_at',
         'cancellation_admin_note', 'renewal_invoice_id',

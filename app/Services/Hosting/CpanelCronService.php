@@ -42,7 +42,7 @@ class CpanelCronService
     {
         $php = Setting::get('cpanel_php_path') ?: 'php';
 
-        return sprintf('cd %s && %s artisan lumora:cron >> /dev/null 2>&1', base_path(), $php);
+        return sprintf('cd %s && %s artisan lumora:cron >> /dev/null 2>&1', escapeshellarg(base_path()), $php);
     }
 
     /**
@@ -94,13 +94,14 @@ class CpanelCronService
         foreach ($lines as $line) {
             $installedCommand = (string) ($line['command'] ?? '');
 
-            // Abaikan cron dari aplikasi lain pada akun cPanel yang sama.
-            if (! str_contains($installedCommand, base_path())) {
+            // Cocokkan path kerja secara utuh; pencarian substring bisa
+            // menganggap /app-lain sebagai /app yang sedang dipasang.
+            if (! $this->belongsToThisApp($installedCommand)) {
                 continue;
             }
 
-            $hasCentralCron = $hasCentralCron || str_contains($installedCommand, 'lumora:cron');
-            $hasLegacyScheduler = $hasLegacyScheduler || str_contains($installedCommand, 'artisan schedule:run');
+            $hasCentralCron = $hasCentralCron || $this->runsArtisanCommand($installedCommand, 'lumora:cron');
+            $hasLegacyScheduler = $hasLegacyScheduler || $this->runsArtisanCommand($installedCommand, 'schedule:run');
         }
 
         if ($hasLegacyScheduler) {
@@ -131,6 +132,23 @@ class CpanelCronService
         }
 
         return ['success' => true, 'message' => 'Cron berhasil dipasang di cPanel dan akan berjalan tiap menit.'];
+    }
+
+    private function belongsToThisApp(string $command): bool
+    {
+        $command = ltrim($command);
+        $path = base_path();
+
+        return str_starts_with($command, 'cd ' . $path . ' &&')
+            || str_starts_with($command, 'cd ' . escapeshellarg($path) . ' &&');
+    }
+
+    private function runsArtisanCommand(string $line, string $artisanCommand): bool
+    {
+        return preg_match(
+            '/(?:^|[\s;&|])artisan\s+' . preg_quote($artisanCommand, '/') . '(?:\s|$)/',
+            $line,
+        ) === 1;
     }
 
     /**

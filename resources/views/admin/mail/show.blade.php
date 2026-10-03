@@ -109,7 +109,7 @@
         @error('attachments.*')<div class="ix-err mb-2">{{ $message }}</div>@enderror
 
         <div class="ix-actions">
-          <button type="submit" class="ix-btn pri"><i class="fa-solid fa-paper-plane" style="font-size:11px"></i> Kirim</button>
+          <button type="submit" class="ix-btn pri"><i class="fa-solid fa-paper-plane" style="font-size:11px"></i> Kirim Balasan</button>
           <span style="font-size:11px;color:#94a3b8">Balasan pelanggan akan kembali ke thread ini.</span>
         </div>
       </form>

@@ -52,12 +52,6 @@ class CronJob extends Model
             'command' => 'lumora:suspend-overdue',
             'interval_minutes' => 1440,
         ],
-        'expire_trials' => [
-            'name' => 'Suspend Trial Habis',
-            'description' => 'Suspend layanan trial yang masa percobaannya habis dan invoice pertama belum dibayar.',
-            'command' => 'lumora:expire-trials',
-            'interval_minutes' => 60,
-        ],
         'clean_activity' => [
             'name' => 'Bersihkan Log Aktivitas',
             'description' => 'Hapus catatan aktivitas lama yang sudah dibaca.',
@@ -85,7 +79,7 @@ class CronJob extends Model
         'reconcile_billing' => [
             'name' => 'Rekonsiliasi Billing',
             'description' => 'Audit dan perbaiki gap deterministik antara payment, invoice, transaction ledger, dan top-up.',
-            'command' => 'lumora:reconcile-billing --repair',
+            'command' => 'lumora:reconcile-billing',
             'interval_minutes' => 60,
         ],
         'close_inactive_chats' => [
@@ -112,6 +106,15 @@ class CronJob extends Model
             'command' => 'registrar:backup-customers',
             'interval_minutes' => 10080, // seminggu
         ],
+    ];
+
+    /**
+     * Parameter Artisan untuk job bawaan. Nama command tetap disimpan
+     * terpisah dari opsi; Artisan::call() tidak menerima opsi sebagai
+     * bagian dari nama command.
+     */
+    public const COMMAND_OPTIONS = [
+        'reconcile_billing' => ['--repair' => true],
     ];
 
     /**

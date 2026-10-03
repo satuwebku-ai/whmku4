@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\CronJob;
 use App\Models\Setting;
+use App\Console\Commands\RunCron;
 use App\Services\Hosting\CpanelCronService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,11 @@ class CronController extends Controller
         // Tugas baru dari update aplikasi otomatis muncul di sini.
         CronJob::syncBuiltIn();
 
-        $jobs = CronJob::orderBy('name')->get();
+        // Baris dari job yang sudah dikeluarkan dari registry tetap disimpan
+        // sebagai riwayat, tetapi tidak ditampilkan atau dapat diatur lagi.
+        $jobs = CronJob::whereIn('key', array_keys(CronJob::BUILT_IN))
+            ->orderBy('name')
+            ->get();
 
         return [
             'jobs' => $jobs,
@@ -90,15 +95,32 @@ class CronController extends Controller
     public function runNow(CronJob $job): RedirectResponse
     {
         try {
-            Artisan::call('lumora:cron', ['--job' => $job->key]);
+            $runCountBefore = (int) $job->run_count;
+            $exitCode = Artisan::call('lumora:cron', ['--job' => $job->key]);
+            $output = trim(Artisan::output());
 
             $job->refresh();
 
+            if (str_contains($output, RunCron::SKIPPED_MARKER)) {
+                return back()->with('info', "Tugas {$job->name} sedang berjalan di proses lain; permintaan ini dilewati.");
+            }
+
+            if ($exitCode !== 0 || $job->last_status === 'failed') {
+                $detail = $output !== '' ? $output : $job->last_output;
+
+                return back()->with(
+                    'error',
+                    "Tugas {$job->name} gagal dijalankan." . ($detail ? ' ' . $detail : '')
+                );
+            }
+
+            if ((int) $job->run_count <= $runCountBefore) {
+                return back()->with('error', "Tugas {$job->name} tidak mencatat eksekusi baru; hasil sebelumnya tidak dianggap sukses.");
+            }
+
             return back()->with(
-                $job->last_status === 'failed' ? 'error' : 'success',
-                $job->last_status === 'failed'
-                    ? "Tugas {$job->name} gagal: " . $job->last_output
-                    : "Tugas {$job->name} selesai dijalankan."
+                'success',
+                "Tugas {$job->name} selesai dijalankan."
             );
         } catch (Throwable $e) {
             return back()->with('error', 'Gagal menjalankan tugas: ' . $e->getMessage());

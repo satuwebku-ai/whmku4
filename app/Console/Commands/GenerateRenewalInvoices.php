@@ -47,21 +47,22 @@ class GenerateRenewalInvoices extends Command
         $this->info("Jendela pembuatan invoice: H-{$daysBefore} sebelum jatuh tempo.");
         $this->newLine();
 
-        $hostingCount = $this->processHosting($daysBefore, $dry);
-        $domainCount = $this->processDomains(min($daysBefore, self::MAX_DOMAIN_DAYS_BEFORE), $dry);
+        $failed = 0;
+        $hostingCount = $this->processHosting($daysBefore, $dry, $failed);
+        $domainCount = $this->processDomains(min($daysBefore, self::MAX_DOMAIN_DAYS_BEFORE), $dry, $failed);
 
         $this->newLine();
         $this->info($dry
             ? "Simulasi selesai — {$hostingCount} invoice hosting + {$domainCount} invoice domain AKAN dibuat."
-            : "Selesai — {$hostingCount} invoice hosting + {$domainCount} invoice domain berhasil dibuat.");
+            : "Selesai — {$hostingCount} invoice hosting + {$domainCount} invoice domain berhasil dibuat, {$failed} gagal.");
 
-        return self::SUCCESS;
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     /**
      * Proses hosting account yang aktif dan mendekati next_due_date.
      */
-    private function processHosting(int $daysBefore, bool $dry): int
+    private function processHosting(int $daysBefore, bool $dry, int &$failed): int
     {
         $accounts = HostingAccount::with('client')
             ->where('status', 'active')
@@ -74,6 +75,8 @@ class GenerateRenewalInvoices extends Command
 
         foreach ($accounts as $hosting) {
             if (! $hosting->client) {
+                $failed++;
+                $this->error("        hosting #{$hosting->id} tidak memiliki klien.");
                 continue;
             }
 
@@ -88,6 +91,7 @@ class GenerateRenewalInvoices extends Command
                 DB::transaction(fn () => $hosting->createRenewalInvoice());
                 $count++;
             } catch (Throwable $e) {
+                $failed++;
                 $this->error('        gagal: ' . $e->getMessage());
                 Log::error('Gagal membuat invoice perpanjangan hosting: ' . $e->getMessage(), ['hosting_account_id' => $hosting->id]);
             }
@@ -101,7 +105,7 @@ class GenerateRenewalInvoices extends Command
      * maksimal H-30. Jendela domain sengaja tidak mengikuti nilai hosting
      * sampai H-60 agar invoice tidak muncul terlalu dini.
      */
-    private function processDomains(int $daysBefore, bool $dry): int
+    private function processDomains(int $daysBefore, bool $dry, int &$failed): int
     {
         $domains = Domain::with('client', 'tld')
             ->where('status', 'active')
@@ -116,6 +120,8 @@ class GenerateRenewalInvoices extends Command
 
         foreach ($domains as $domain) {
             if (! $domain->client) {
+                $failed++;
+                $this->error("        domain #{$domain->id} tidak memiliki klien.");
                 continue;
             }
 
@@ -130,6 +136,7 @@ class GenerateRenewalInvoices extends Command
                 DB::transaction(fn () => $domain->createRenewalInvoice());
                 $count++;
             } catch (Throwable $e) {
+                $failed++;
                 $this->error('        gagal: ' . $e->getMessage());
                 Log::error('Gagal membuat invoice perpanjangan domain: ' . $e->getMessage(), ['domain_id' => $domain->id]);
             }

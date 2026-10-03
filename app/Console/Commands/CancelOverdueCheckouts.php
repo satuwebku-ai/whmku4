@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Enums\OrderStatus;
-use App\Models\CronJob;
 use App\Models\Domain;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -30,14 +29,7 @@ class CancelOverdueCheckouts extends Command
 
     public function handle(InvoiceService $invoices): int
     {
-        ob_start();
-        $result = $this->handleJob($invoices);
-        $output = ob_get_clean();
-        echo $output;
-
-        CronJob::recordExecution('lumora:cancel-overdue-checkouts', $result === self::SUCCESS, $output);
-
-        return $result;
+        return $this->handleJob($invoices);
     }
 
     private function handleJob(InvoiceService $invoices): int

@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\CronJob;
 use App\Services\Mail\MailAutomation;
 use Illuminate\Console\Command;
 
@@ -21,7 +20,6 @@ class CloseInactiveMail extends Command
     {
         if (! MailAutomation::on('mail_autoclose_enabled')) {
             $this->line('Tutup otomatis email nonaktif — dilewati.');
-            CronJob::recordExecution('lumora:close-inactive-mail', true, 'Nonaktif.');
 
             return self::SUCCESS;
         }
@@ -30,7 +28,6 @@ class CloseInactiveMail extends Command
         $msg = $closed . ' email ditutup otomatis (batas ' . MailAutomation::closeHours() . ' jam tanpa balasan).';
 
         $this->info($msg);
-        CronJob::recordExecution('lumora:close-inactive-mail', true, $msg);
 
         return self::SUCCESS;
     }

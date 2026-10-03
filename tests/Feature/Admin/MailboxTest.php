@@ -89,7 +89,7 @@ class MailboxTest extends TestCase
         $this->process($this->mime('budi@contoh.test', 'Re: Pertanyaan hosting', 'Terima kasih.'));
 
         $this->assertSame(1, MailThread::count());
-        $this->assertSame(2, MailMessage::count());
+        $this->assertSame(2, MailMessage::where('direction', 'in')->count());
         $this->assertSame(2, MailThread::first()->unread_count);
     }
 

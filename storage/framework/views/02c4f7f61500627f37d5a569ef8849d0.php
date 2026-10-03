@@ -1,0 +1,545 @@
+<?php
+  use App\Models\Setting;
+
+  $provider   = Setting::get('livechat_provider', 'none');
+  $propertyId = Setting::get('livechat_property_id');
+  $waNumber   = Setting::get('livechat_whatsapp');
+  $greeting   = Setting::get('livechat_greeting', 'Halo, saya ingin bertanya tentang layanan hosting.');
+
+  $siteName    = Setting::get('site_name', config('app.name'));
+  // Warna tema ini: utama dari Pengaturan → Umum, ujung gradasi tetap.
+  $themeColor  = Setting::get('theme_color', '#6366F1');
+  $themeColor2 = '#4c1d95';
+  $supportMail = Setting::get('support_email');
+  $jamOperasi  = Setting::get('support_hours');
+
+  // Pilihan di layar awal. Tiap pilihan bisa dimatikan admin di
+  // Pengaturan -> Live Chat (kunci livechat_menu_*), default aktif.
+  $menuOn = fn ($k) => Setting::get('livechat_menu_'.$k, '1') !== '0';
+  $canEmail = $supportMail || filled(Setting::get('mail_host'));
+  $waLink = $waNumber
+      ? 'https://wa.me/'.preg_replace('/\D/', '', $waNumber).'?text='.urlencode($greeting)
+      : null;
+
+  $menuItems = [];
+  if ($provider === 'widget' && $menuOn('chat')) {
+      $menuItems[] = ['key'=>'chat','icon'=>'fa-solid fa-comment-dots','title'=>'Live Chat','sub'=>'Ngobrol langsung dengan tim kami','bg'=>'#eef2ff','fg'=>'#4338ca'];
+  }
+  if ($provider === 'widget' && $canEmail && $menuOn('email')) {
+      $menuItems[] = ['key'=>'email','icon'=>'fa-regular fa-envelope','title'=>'Email','sub'=>'Balasan dikirim ke email Anda','bg'=>'#fef3c7','fg'=>'#b45309'];
+  }
+  if ($menuOn('ticket')) {
+      $menuItems[] = ['key'=>'ticket','icon'=>'fa-solid fa-ticket','title'=>'Support / Ticket','sub'=>auth('client')->check() ? 'Buat tiket bantuan' : 'Masuk untuk membuat tiket','bg'=>'#f3e8ff','fg'=>'#7e22ce','href'=>route('client.tickets.create')];
+  }
+  if ($waLink && $menuOn('wa')) {
+      $menuItems[] = ['key'=>'wa','icon'=>'fa-brands fa-whatsapp','title'=>'WhatsApp','sub'=>'Balasan cepat lewat WhatsApp','bg'=>'#dcfce7','fg'=>'#047857','href'=>$waLink,'blank'=>true];
+  }
+  // Satu-satunya pilihan "chat" -> langsung ke percakapan tanpa layar pilihan.
+  $skipMenu = count($menuItems) <= 1 && collect($menuItems)->every(fn ($m) => in_array($m['key'], ['chat','email'], true));
+  $defaultView = $skipMenu ? ($menuItems[0]['key'] ?? 'chat') : 'menu';
+?>
+
+<?php if($provider === 'tawkto' && $propertyId): ?>
+  <script <?php echo 'nonce="' . e(app(\App\Support\CspNonce::class)->value()) . '"'; ?>>
+    var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
+    (function(){
+      var s1 = document.createElement("script"), s0 = document.getElementsByTagName("script")[0];
+      s1.async = true;
+      s1.src = 'https://embed.tawk.to/<?php echo e($propertyId); ?>';
+      s1.charset = 'UTF-8';
+      s1.setAttribute('crossorigin', '*');
+      s0.parentNode.insertBefore(s1, s0);
+    })();
+  </script>
+
+<?php elseif($provider === 'crisp' && $propertyId): ?>
+  <script <?php echo 'nonce="' . e(app(\App\Support\CspNonce::class)->value()) . '"'; ?>>
+    window.$crisp = [];
+    window.CRISP_WEBSITE_ID = "<?php echo e($propertyId); ?>";
+    (function(){
+      var d = document, s = d.createElement("script");
+      s.src = "https://client.crisp.chat/l.js";
+      s.async = 1;
+      d.getElementsByTagName("head")[0].appendChild(s);
+    })();
+  </script>
+
+<?php elseif(in_array($provider, ['widget', 'whatsapp'], true)): ?>
+  
+
+  <style>
+    #chatWidget{ font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    #chatPanel{
+      transform:translateY(16px) scale(.96); opacity:0; pointer-events:none;
+      transition:transform .22s cubic-bezier(.22,1,.36,1), opacity .22s ease;
+      border:1px solid rgba(99,102,241,.14);
+      box-shadow:0 24px 70px rgba(30,27,75,.22)!important;
+    }
+    #chatPanel.chat-open{
+      transform:translateY(0) scale(1); opacity:1; pointer-events:auto;
+    }
+    #chatToggle{ transition:transform .15s ease, box-shadow .15s ease; box-shadow:0 12px 28px rgba(76,29,149,.3)!important; }
+    #chatToggle:hover{ transform:translateY(-3px) scale(1.03); box-shadow:0 16px 30px -6px rgba(76,29,149,.5)!important; }
+    #chatToggle.has-unread::before{
+      content:''; position:absolute; inset:-4px; border-radius:50%;
+      border:2px solid <?php echo e($themeColor); ?>; opacity:.55; animation:chatRing 1.8s ease-out infinite;
+    }
+    @keyframes chatRing{
+      0%{ transform:scale(.85); opacity:.55; }
+      100%{ transform:scale(1.35); opacity:0; }
+    }
+    #chatBadge{ animation:chatPop .25s ease; }
+    @keyframes chatPop{
+      0%{ transform:scale(.5); }
+      70%{ transform:scale(1.15); }
+      100%{ transform:scale(1); }
+    }
+    #chatHeader{ position:relative; overflow:hidden; }
+    #chatHeader::before{
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:radial-gradient(circle at 85% 20%, rgba(255,255,255,.1) 1px, transparent 1px);
+      background-size:16px 16px;
+    }
+    #chatHeader::after{
+      content:''; position:absolute; width:130px; height:130px; right:-48px; top:-64px;
+      border:1px solid rgba(255,255,255,.16); border-radius:50%;
+      box-shadow:0 0 0 18px rgba(255,255,255,.04),0 0 0 36px rgba(255,255,255,.03);
+      pointer-events:none;
+    }
+    .chat-online-dot{ width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.18); display:inline-block; }
+    .chat-quick-action{ transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease; border:1px solid #e8eaf8; }
+    .chat-quick-action:hover{ transform:translateY(-1px); background:#f5f3ff!important; box-shadow:0 5px 12px rgba(79,70,229,.08); }
+    .chat-menu-item{ transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease; border:1px solid #e8eaf8; background:#fff; width:100%; text-align:left; cursor:pointer; }
+    .chat-menu-item:hover{ transform:translateY(-1px); box-shadow:0 6px 16px rgba(30,27,75,.09); border-color:<?php echo e($themeColor); ?>66; }
+    .chat-menu-item .chat-menu-arrow{ color:#cbd5e1; transition:transform .15s ease,color .15s ease; }
+    .chat-menu-item:hover .chat-menu-arrow{ transform:translateX(2px); color:<?php echo e($themeColor); ?>; }
+    #chatBack{ opacity:.85; } #chatBack:hover{ opacity:1; }
+    .chat-identity{ background:linear-gradient(135deg,#f8faff,#f5f3ff); border:1px solid #e5e7ff; }
+    #chatBody::-webkit-scrollbar{ width:5px; }
+    #chatBody::-webkit-scrollbar-thumb{ background:#c7d2fe; border-radius:9px; }
+    #chatBody{ scrollbar-color:#c7d2fe transparent; scrollbar-width:thin; }
+    @media (max-width:480px){
+      #chatWidget{ right:12px!important; bottom:12px!important; }
+      #chatPanel{ width:calc(100vw - 24px)!important; max-width:none!important; height:min(600px,78vh)!important; }
+    }
+    #chatInput{ transition:border-color .15s ease; }
+    #chatInput:focus{ border-color:<?php echo e($themeColor); ?>; box-shadow:0 0 0 3px <?php echo e($themeColor); ?>22; outline:none; }
+  </style>
+
+  <div id="chatWidget" class="position-fixed d-flex flex-column align-items-end gap-3" style="right:24px;bottom:24px;z-index:1080">
+
+    <div id="chatPanel" class="d-none flex-column rounded-4 bg-white shadow overflow-hidden" style="width:380px;max-width:calc(100vw - 40px);height:min(610px,78vh)">
+
+      
+      <div id="chatHeader" class="px-4 py-3 text-white flex-shrink-0" style="background:linear-gradient(135deg,<?php echo e($themeColor); ?>,<?php echo e($themeColor2); ?>)">
+        <div class="d-flex align-items-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-2 min-w-0">
+            <button type="button" id="chatBack" class="btn btn-link p-0 text-white flex-shrink-0 d-none" aria-label="Kembali ke pilihan" title="Kembali ke pilihan">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <span class="rounded-4 d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)">
+              <i class="fa-solid fa-headset"></i>
+            </span>
+            <div class="min-w-0">
+              <p class="fw-bold text-truncate mb-1" style="font-size:14px"><?php echo e($siteName); ?></p>
+              <p class="mb-0 d-flex align-items-center gap-2" style="font-size:11px;color:rgba(255,255,255,.78)"><span class="chat-online-dot"></span> <?php echo e($jamOperasi ?: 'Tim support siap membantu'); ?></p>
+            </div>
+          </div>
+          <button type="button" id="chatClose" class="btn btn-link p-0 text-white flex-shrink-0" style="opacity:.7" aria-label="Tutup">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      
+      <div id="chatMenu" class="flex-grow-1 overflow-y-auto px-3 py-3 <?php echo e($defaultView === 'menu' ? 'd-flex' : 'd-none'); ?> flex-column gap-2" style="background:linear-gradient(180deg,#f8faff 0%,#f8fafc 100%)">
+        <div class="rounded-4 p-3 mb-1" style="background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid #e0e7ff">
+          <p class="fw-bold mb-1" style="font-size:13px;color:#312e81">Halo, 👋</p>
+          <p class="mb-0" style="font-size:12px;line-height:1.6;color:#64748b">Mau menghubungi kami lewat mana?</p>
+        </div>
+        <?php $__currentLoopData = $menuItems; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $m): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+          <?php
+            $inner = '<span class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;background:'.$m['bg'].';color:'.$m['fg'].'"><i class="'.$m['icon'].'"></i></span>'
+                   . '<span class="flex-grow-1 min-w-0"><b class="d-block" style="font-size:13px;color:#1e293b">'.e($m['title']).'</b><span class="d-block text-muted" style="font-size:11px">'.e($m['sub']).'</span></span>'
+                   . '<i class="fa-solid fa-chevron-right chat-menu-arrow flex-shrink-0" style="font-size:11px"></i>';
+          ?>
+          <?php if(isset($m['href'])): ?>
+            <a href="<?php echo e($m['href']); ?>" <?php if(!empty($m['blank'])): ?> target="_blank" rel="noopener noreferrer" <?php endif; ?>
+               class="chat-menu-item d-flex align-items-center gap-3 px-3 py-3 rounded-4 text-decoration-none"><?php echo $inner; ?></a>
+          <?php else: ?>
+            <button type="button" data-chat-view="<?php echo e($m['key']); ?>" class="chat-menu-item d-flex align-items-center gap-3 px-3 py-3 rounded-4"><?php echo $inner; ?></button>
+          <?php endif; ?>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+      </div>
+
+      
+      <div id="chatConv" class="flex-grow-1 <?php echo e($defaultView === 'menu' ? 'd-none' : 'd-flex'); ?> flex-column" style="min-height:0">
+      
+      <div id="chatBody" class="flex-grow-1 overflow-y-auto px-3 py-3 d-flex flex-column gap-2" style="background:linear-gradient(180deg,#f8faff 0%,#f8fafc 100%)">
+        <div id="chatWelcome" class="rounded-4 p-3 mb-1" style="background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid #e0e7ff">
+          <p class="fw-bold mb-1" style="font-size:12px;color:#312e81">Halo, 👋</p>
+          <p class="mb-0" style="font-size:11px;line-height:1.6;color:#64748b">Ceritakan kebutuhan Anda. Tim kami akan membantu secepat mungkin.</p>
+        </div>
+        <div id="chatLoading" class="text-center text-muted py-4" style="font-size:12px">Memuat percakapan…</div>
+      </div>
+
+      
+      <form id="chatForm" class="p-3 border-top flex-shrink-0 bg-white">
+        <?php if(auth()->guard('client')->guest()): ?>
+          <div id="chatIdentity" class="chat-identity rounded-3 p-2 d-flex flex-column gap-2 mb-2">
+            <p class="mb-0 text-muted" style="font-size:10px"><i class="fa-solid fa-lock me-1"></i>Data ini hanya dipakai agar tim bisa menghubungi Anda.</p>
+            <input type="text" name="name" id="chatName" placeholder="Nama Anda" required class="form-control form-control-sm">
+            <input type="email" name="email" id="chatEmail" placeholder="Email aktif" required class="form-control form-control-sm">
+            <input type="tel" name="phone" id="chatPhone" placeholder="Nomor WhatsApp/Telepon" required class="form-control form-control-sm">
+            <p id="chatIdentityError" class="d-none text-danger mb-0" style="font-size:11px"></p>
+          </div>
+        <?php endif; ?>
+
+        <input type="hidden" name="via_email" id="chatViaEmail" value="0">
+        <p id="chatEmailNote" class="d-none mb-2 px-2 py-1 rounded-3" style="font-size:10px;background:#eef2ff;color:#4338ca"><i class="fa-regular fa-envelope me-1"></i>Mode email: balasan tim juga dikirim ke email Anda, dan Anda bisa membalasnya langsung dari email.</p>
+
+        <div id="chatFileChip" class="d-none align-items-center gap-2 mb-2 px-2 py-2 rounded-3" style="background:#f1f5f9;font-size:12px;color:#475569">
+          <i class="fa-solid fa-paperclip"></i>
+          <span id="chatFileName" class="flex-grow-1 text-truncate"></span>
+          <button type="button" id="chatFileRemove" class="btn btn-link p-0 text-muted"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="d-flex align-items-end gap-2">
+          <label class="rounded-3 border d-flex align-items-center justify-content-center flex-shrink-0 text-muted" style="width:36px;height:36px;cursor:pointer"
+                 title="Lampirkan bukti transfer atau tangkapan layar">
+            <i class="fa-solid fa-paperclip" style="font-size:13px"></i>
+            <input type="file" id="chatFile" name="attachment" accept="image/*,application/pdf" class="d-none">
+          </label>
+
+          <textarea id="chatInput" name="message" rows="1" placeholder="Tulis pesan…"
+                    class="form-control form-control-sm flex-grow-1" style="resize:none;max-height:6rem"></textarea>
+
+          <button type="submit" id="chatSend"
+                  class="rounded-3 border-0 text-white d-flex align-items-center justify-content-center flex-shrink-0"
+                  style="width:36px;height:36px;background:<?php echo e($themeColor); ?>">
+            <i class="fa-solid fa-paper-plane" style="font-size:13px"></i>
+          </button>
+        </div>
+
+        <p id="chatError" class="d-none text-danger mt-2 mb-0" style="font-size:11px"></p>
+      </form>
+      </div>
+    </div>
+
+    
+    <button type="button" id="chatToggle" aria-label="Buka chat"
+            class="rounded-circle text-white border-0 shadow d-flex align-items-center justify-content-center position-relative"
+            style="width:56px;height:56px;background:linear-gradient(135deg,<?php echo e($themeColor); ?>,<?php echo e($themeColor2); ?>)">
+      <i id="chatIcon" class="fa-solid fa-comment-dots" style="font-size:20px"></i>
+      <span id="chatBadge" class="d-none position-absolute rounded-circle align-items-center justify-content-center fw-bold text-white"
+            style="top:-4px;right:-4px;min-width:20px;height:20px;padding:0 4px;font-size:10px;background:#f43f5e;border:2px solid #fff"></span>
+    </button>
+  </div>
+
+  <script <?php echo 'nonce="' . e(app(\App\Support\CspNonce::class)->value()) . '"'; ?>>
+    (function () {
+      const panel  = document.getElementById('chatPanel');
+      const toggle = document.getElementById('chatToggle');
+      const icon   = document.getElementById('chatIcon');
+      const badge  = document.getElementById('chatBadge');
+      const body   = document.getElementById('chatBody');
+      const form   = document.getElementById('chatForm');
+      const input  = document.getElementById('chatInput');
+      const fileIn = document.getElementById('chatFile');
+      const chip   = document.getElementById('chatFileChip');
+      const chipNm = document.getElementById('chatFileName');
+      const errBox = document.getElementById('chatError');
+      const sendBt = document.getElementById('chatSend');
+
+      const token = document.querySelector('meta[name="csrf-token"]')?.content;
+      const urlFetch = <?php echo json_encode(route('chat.fetch'), 15, 512) ?>;
+      const urlSend  = <?php echo json_encode(route('chat.send'), 15, 512) ?>;
+
+      let lastId = 0;
+      let timer = null;
+      let isOpen = false;
+      // Penanda terpisah dari lastId — sebelum ada percakapan tersimpan,
+      // lastId selamanya 0, jadi memeriksa lastId saja membuat sambutan
+      // ditambahkan ulang setiap kali polling berjalan (tiap 5 detik).
+      let greetingShown = false;
+      let hasConversation = false;
+      let hadUnread = false;
+
+      function esc(t) {
+        const d = document.createElement('div');
+        d.textContent = t ?? '';
+        return d.innerHTML;
+      }
+
+      function bubble(msg) {
+        const mine = msg.sender === 'user';
+        const bot  = msg.sender === 'bot';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'd-flex ' + (mine ? 'justify-content-end' : 'justify-content-start');
+
+        let inner = '';
+
+        if (!mine && msg.author) {
+          inner += '<p class="mb-1" style="font-size:10px;color:#94a3b8">' + esc(msg.author) + '</p>';
+        }
+
+        const bubbleStyle = mine ? 'background:' + <?php echo json_encode($themeColor, 15, 512) ?> + ';color:#fff'
+                           : (bot ? 'background:#eef2ff;color:#334155;border:1px solid #e0e7ff'
+                                  : 'background:#fff;color:#334155;border:1px solid #e2e8f0');
+
+        let content = '';
+
+        if (msg.message) {
+          // Tautan dibuat bisa diklik, tapi teksnya di-escape dulu supaya
+          // pesan tidak bisa menyuntikkan HTML.
+          content += esc(msg.message).replace(
+            /(https?:\/\/[^\s]+)/g,
+            '<a href="$1" target="_blank" rel="noopener" style="text-decoration:underline;color:inherit">$1</a>'
+          ).replace(/\n/g, '<br>');
+        }
+
+        if (msg.attachment_url) {
+          if (msg.is_image) {
+            content += '<a href="' + msg.attachment_url + '" target="_blank" rel="noopener">'
+                     + '<img src="' + msg.attachment_url + '" class="mt-1 rounded-3" style="max-width:100%;max-height:10rem;object-fit:cover"></a>';
+          } else {
+            content += '<a href="' + msg.attachment_url + '" target="_blank" rel="noopener" class="mt-1 d-flex align-items-center gap-1" style="text-decoration:underline;font-size:11px;color:inherit">'
+                     + '<i class="fa-solid fa-file-arrow-down"></i>' + esc(msg.attachment_name) + '</a>';
+          }
+        }
+
+        inner += '<div class="rounded-4 px-3 py-2 small" style="max-width:100%;line-height:1.6;' + bubbleStyle + '">'
+               + content
+               + '<span class="d-block mt-1" style="font-size:10px;' + (mine ? 'color:rgba(255,255,255,.6)' : 'color:#94a3b8') + '">' + esc(msg.time || '') + '</span>'
+               + '</div>';
+
+        wrap.innerHTML = '<div style="max-width:80%' + (mine ? ';text-align:right' : '') + '">' + inner + '</div>';
+        return wrap;
+      }
+
+      function append(msg) {
+        body.appendChild(bubble(msg));
+        body.scrollTop = body.scrollHeight;
+        if (msg.id) lastId = Math.max(lastId, msg.id);
+      }
+
+      async function load() {
+        try {
+          const res = await fetch(urlFetch + '?after=' + lastId, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+          const data = await res.json();
+
+          document.getElementById('chatLoading')?.remove();
+
+          if (data.conversation) hasConversation = true;
+
+          // Sambutan otomatis hanya ditampilkan sekali per kunjungan,
+          // bukan setiap kali polling mengambil data.
+          if (data.greeting && data.greeting.length && !greetingShown) {
+            greetingShown = true;
+            data.greeting.forEach(function (line, i) {
+              setTimeout(() => append({ sender: 'bot', message: line, time: '' }), i * 500);
+            });
+          }
+
+          (data.messages || []).forEach(append);
+
+          // Badge hanya saat panel tertutup.
+          const unread = (data.messages || []).filter(m => m.sender !== 'user').length;
+          if (!isOpen && unread > 0) {
+            badge.textContent = unread;
+            badge.classList.remove('d-none');
+            badge.classList.add('d-flex');
+            toggle.classList.add('has-unread');
+            hadUnread = true;
+          }
+
+          // Polling berkala baru dimulai setelah ada percakapan sungguhan
+          // (klien sudah pernah kirim pesan). Sebelum itu tidak ada balasan
+          // admin yang mungkin datang, jadi polling tiap 5 detik hanya
+          // membebani server tanpa alasan.
+          if (hasConversation) startPolling();
+        } catch (e) {
+          document.getElementById('chatLoading')?.remove();
+        }
+      }
+
+      function startPolling() {
+        if (timer) return;
+        timer = setInterval(load, 5000);
+      }
+
+      function setOpen(open) {
+        isOpen = open;
+
+        if (open) {
+          panel.classList.remove('d-none');
+          panel.classList.add('d-flex');
+          // requestAnimationFrame supaya transisi CSS sempat terpicu
+          // (menambahkan class di frame yang sama dengan d-none->d-flex
+          // tidak akan dianimasikan browser).
+          requestAnimationFrame(() => panel.classList.add('chat-open'));
+        } else {
+          panel.classList.remove('chat-open');
+          setTimeout(() => {
+            if (!isOpen) { panel.classList.add('d-none'); panel.classList.remove('d-flex'); }
+          }, 180);
+        }
+
+        icon.className = open ? 'fa-solid fa-xmark' : 'fa-solid fa-comment-dots';
+        icon.style.fontSize = '20px';
+
+        if (open) {
+          badge.classList.add('d-none');
+          badge.classList.remove('d-flex');
+          toggle.classList.remove('has-unread');
+          if (hadUnread && view === 'menu') showView('chat');
+          hadUnread = false;
+          load();
+          if (view !== 'menu') setTimeout(() => input.focus(), 100);
+        }
+      }
+
+      toggle.addEventListener('click', () => setOpen(panel.classList.contains('d-none')));
+      document.getElementById('chatClose').addEventListener('click', () => setOpen(false));
+
+      // Layar pilihan: menu -> chat / email. Pesan tetap lewat widget;
+      // di mode email balasan staf juga dikirim ke email pengunjung.
+      const menuBox   = document.getElementById('chatMenu');
+      const convBox   = document.getElementById('chatConv');
+      const backBtn   = document.getElementById('chatBack');
+      const viaEmail  = document.getElementById('chatViaEmail');
+      const emailNote = document.getElementById('chatEmailNote');
+      const hasMenu   = !!menuBox && menuBox.querySelectorAll('[data-chat-view], a').length > 0;
+      let view = <?php echo json_encode($defaultView, 15, 512) ?>;
+
+      function showView(v, silent) {
+        view = v;
+        const conv = v === 'chat' || v === 'email';
+        menuBox?.classList.toggle('d-none', conv);
+        menuBox?.classList.toggle('d-flex', !conv);
+        convBox.classList.toggle('d-none', !conv);
+        convBox.classList.toggle('d-flex', conv);
+        // Tombol kembali hanya kalau memang ada layar pilihan.
+        backBtn.classList.toggle('d-none', !(conv && hasMenu && <?php echo json_encode(!$skipMenu, 15, 512) ?>));
+        const on = v === 'email';
+        viaEmail.value = on ? '1' : '0';
+        emailNote.classList.toggle('d-none', !on);
+        input.placeholder = on ? 'Tulis pesan email…' : 'Tulis pesan…';
+        if (conv && !silent) { body.scrollTop = body.scrollHeight; setTimeout(() => input.focus(), 50); }
+      }
+
+      document.querySelectorAll('[data-chat-view]').forEach(function (btn) {
+        btn.addEventListener('click', function () { showView(btn.dataset.chatView); });
+      });
+      backBtn.addEventListener('click', function () { showView('menu'); });
+      showView(view, true);
+
+      // Lampiran
+      fileIn.addEventListener('change', function () {
+        if (!fileIn.files.length) return;
+        chipNm.textContent = fileIn.files[0].name;
+        chip.classList.remove('d-none');
+        chip.classList.add('d-flex');
+      });
+
+      document.getElementById('chatFileRemove').addEventListener('click', function () {
+        fileIn.value = '';
+        chip.classList.add('d-none');
+        chip.classList.remove('d-flex');
+      });
+
+      // Enter mengirim, Shift+Enter baris baru.
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      });
+
+      function validIdentity() {
+        const identityBox = document.getElementById('chatIdentity');
+        const errIdentity = document.getElementById('chatIdentityError');
+
+        // Sudah pernah terisi & tersimpan sebelumnya (kotaknya sudah
+        // disembunyikan setelah pesan pertama berhasil) -- tidak perlu
+        // divalidasi ulang untuk pesan-pesan berikutnya.
+        if (!identityBox || identityBox.classList.contains('d-none')) return true;
+
+        const name = document.getElementById('chatName')?.value.trim();
+        const email = document.getElementById('chatEmail')?.value.trim();
+        const phone = document.getElementById('chatPhone')?.value.trim();
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '');
+        const phoneOk = (phone || '').replace(/\D/g, '').length >= 8;
+
+        if (!name || !email || !phone) {
+          errIdentity.textContent = 'Nama, email, dan nomor telepon wajib diisi sebelum mengirim pesan.';
+          errIdentity.classList.remove('d-none');
+          return false;
+        }
+        if (!emailOk) {
+          errIdentity.textContent = 'Masukkan alamat email yang valid (contoh: nama@email.com).';
+          errIdentity.classList.remove('d-none');
+          return false;
+        }
+        if (!phoneOk) {
+          errIdentity.textContent = 'Masukkan nomor telepon yang valid (minimal 8 digit).';
+          errIdentity.classList.remove('d-none');
+          return false;
+        }
+
+        errIdentity.classList.add('d-none');
+        return true;
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        errBox.classList.add('d-none');
+
+        if (!validIdentity()) return;
+
+        const fd = new FormData(form);
+
+        if (!fd.get('message')?.trim() && !fileIn.files.length) return;
+
+        sendBt.disabled = true;
+
+        try {
+          const res = await fetch(urlSend, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          });
+
+          const data = await res.json();
+
+          if (!res.ok || !data.ok) {
+            errBox.textContent = data.message || 'Gagal mengirim pesan.';
+            errBox.classList.remove('d-none');
+            return;
+          }
+
+          append(data.message);
+          if (data.bot_message) append(data.bot_message);
+          input.value = '';
+          fileIn.value = '';
+          chip.classList.add('d-none');
+          chip.classList.remove('d-flex');
+          document.getElementById('chatIdentity')?.classList.add('d-none');
+          startPolling();
+        } catch (err) {
+          errBox.textContent = 'Tidak bisa terhubung. Periksa koneksi Anda.';
+          errBox.classList.remove('d-none');
+        } finally {
+          sendBt.disabled = false;
+        }
+      });
+
+      // Ambil sekali di awal supaya badge muncul walau panel belum dibuka.
+      // Polling berkala baru menyusul otomatis lewat load() kalau memang
+      // sudah ada percakapan (lihat hasConversation di atas).
+      load();
+    })();
+  </script>
+<?php endif; ?>
+<?php /**PATH /home/runner/workspace/whmku4/whmku4/resources/views/themes/public-themes/default/public/partials/livechat.blade.php ENDPATH**/ ?>

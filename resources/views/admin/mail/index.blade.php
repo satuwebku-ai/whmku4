@@ -65,6 +65,7 @@
               <span class="ix-who">
                 @if ($sentLast)<i class="fa-solid fa-reply" style="font-size:10px;color:#94a3b8"></i>@endif
                 {{ $thread->display_name }}
+                <small class="text-muted">({{ $thread->contact_email }})</small>
               </span>
               <span class="ix-subj">
                 <b>{{ $thread->subject }}</b>

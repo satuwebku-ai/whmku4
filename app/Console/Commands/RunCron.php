@@ -18,6 +18,8 @@ use Throwable;
  */
 class RunCron extends Command
 {
+    public const SKIPPED_MARKER = '[LUMORA_CRON_SKIPPED]';
+
     protected $signature = 'lumora:cron
                             {--job= : Jalankan satu tugas tertentu berdasarkan key, abaikan jadwal}
                             {--force : Jalankan meski belum waktunya}';
@@ -45,10 +47,22 @@ class RunCron extends Command
 
     private function runDueJobs(): int
     {
+        $requestedJob = $this->option('job');
+        if ($requestedJob && ! array_key_exists($requestedJob, CronJob::BUILT_IN)) {
+            $this->error("Tugas [{$requestedJob}] tidak ada di registry Cron bawaan.");
 
-        $jobs = $this->option('job')
-            ? CronJob::where('key', $this->option('job'))->get()
-            : ($this->option('force') ? CronJob::where('is_enabled', true)->get() : CronJob::due()->get());
+            return self::FAILURE;
+        }
+
+        // Hanya job yang masih terdaftar di kode boleh dijalankan. Baris
+        // lama yang tertinggal di database tetap dipertahankan untuk audit,
+        // tetapi tidak dapat hidup kembali setelah dikeluarkan dari registry.
+        $query = CronJob::whereIn('key', array_keys(CronJob::BUILT_IN));
+        $jobs = $requestedJob
+            ? $query->where('key', $requestedJob)->get()
+            : ($this->option('force')
+                ? $query->where('is_enabled', true)->get()
+                : $query->due()->get());
 
         if ($jobs->isEmpty()) {
             $this->line('Tidak ada tugas yang perlu dijalankan.');
@@ -78,7 +92,7 @@ class RunCron extends Command
         $lock = Cache::lock("lumora:cron:{$job->key}", 21600);
 
         if (! $lock->get()) {
-            $this->warn("  dilewati: {$job->name} sedang berjalan di proses lain.");
+            $this->warn(self::SKIPPED_MARKER . " {$job->key}: {$job->name} sedang berjalan di proses lain.");
             return true;
         }
 
@@ -91,7 +105,10 @@ class RunCron extends Command
         try {
             // Output ditangkap supaya bisa ditampilkan di panel admin —
             // tanpa ini, kegagalan tugas hanya terlihat di log server.
-            $exitCode = Artisan::call($job->command);
+            $exitCode = Artisan::call(
+                $job->command,
+                CronJob::COMMAND_OPTIONS[$job->key] ?? [],
+            );
             $output = trim(Artisan::output());
 
             if ($exitCode !== self::SUCCESS) {
@@ -100,19 +117,15 @@ class RunCron extends Command
                 );
             }
 
-            // Sebagian command mencatat eksekusinya sendiri agar pemanggilan
-            // manual ikut terlihat di panel. Jangan menambah run_count kedua
-            // kali ketika command tersebut dipanggil dari lumora:cron.
-            $job->refresh();
+            // Hanya dispatcher ini yang memiliki status eksekusi Cron; satu
+            // pemanggilan job selalu menghasilkan tepat satu run_count.
             $job->update([
                 'last_status' => 'success',
                 'last_output' => mb_substr($output, 0, 2000),
                 'last_run_at' => now(),
                 'next_run_at' => now()->addMinutes($job->interval_minutes),
                 'last_duration_ms' => (int) ((microtime(true) - $mulai) * 1000),
-                'run_count' => $job->run_count > $runCountBefore
-                    ? $job->run_count
-                    : $runCountBefore + 1,
+                'run_count' => $runCountBefore + 1,
             ]);
 
             $this->info('  selesai');
@@ -129,9 +142,7 @@ class RunCron extends Command
                 // sendiri tanpa perlu diutak-atik manual.
                 'next_run_at' => now()->addMinutes($job->interval_minutes),
                 'last_duration_ms' => (int) ((microtime(true) - $mulai) * 1000),
-                'run_count' => $job->run_count > $runCountBefore
-                    ? $job->run_count
-                    : $runCountBefore + 1,
+                'run_count' => $runCountBefore + 1,
             ]);
 
             $this->error('  gagal: ' . $e->getMessage());

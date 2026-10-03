@@ -59,7 +59,7 @@ class MailboxMailer
         $stored = self::storeFiles($files);
 
         try {
-            Mail::raw($text, function ($mail) use ($thread, $wireSubject, $messageId, $inReplyTo, $references, $stored) {
+            Mail::raw($text, function ($mail) use ($thread, $wireSubject, $messageId, $inReplyTo, $references, $stored, $auto) {
                 $mail->to($thread->contact_email, $thread->contact_name ?: null)->subject($wireSubject);
 
                 $headers = $mail->getSymfonyMessage()->getHeaders();

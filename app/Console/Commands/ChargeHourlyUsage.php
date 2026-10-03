@@ -9,6 +9,7 @@ use App\Services\Hosting\HostingPanelFactory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -33,18 +34,7 @@ class ChargeHourlyUsage extends Command
 
     public function handle(): int
     {
-        ob_start();
-        $result = $this->handleJob();
-        $output = ob_get_clean();
-        echo $output;
-
-        \App\Models\CronJob::recordExecution(
-            'lumora:charge-hourly-usage',
-            $result === self::SUCCESS,
-            $output
-        );
-
-        return $result;
+        return $this->handleJob();
     }
 
     private function handleJob(): int
@@ -55,7 +45,7 @@ class ChargeHourlyUsage extends Command
             ->where('status', 'active')
             ->with(['client', 'serverModel'])
             ->get()
-            ->filter(fn ($a) => $this->effectiveRate($a) > 0);
+            ->filter(fn ($a) => filled($a->panel_suspend_error) || $this->effectiveRate($a) > 0);
 
         if ($accounts->isEmpty()) {
             $this->info('Tidak ada layanan deposit yang aktif saat ini.');
@@ -102,11 +92,14 @@ class ChargeHourlyUsage extends Command
 
         $charged = 0;
         $suspended = 0;
+        $failed = 0;
 
         foreach ($accounts as $account) {
             $client = $account->client;
 
             if (! $client) {
+                $failed++;
+                $this->error("  !! Layanan #{$account->id} tidak memiliki klien yang dapat ditagih.");
                 continue;
             }
 
@@ -117,6 +110,26 @@ class ChargeHourlyUsage extends Command
             $hours = $since->diffInSeconds(now()) / 3600;
 
             if ($hours <= 0) {
+                // Kegagalan suspend sebelumnya tidak boleh hilang hanya
+                // karena cron dijalankan ulang sebelum satu jam berlalu.
+                if ($account->panel_suspend_error && ! $dry) {
+                    try {
+                        $this->suspendProvisioned($account);
+                        $account->update([
+                            'status' => 'suspended',
+                            'panel_suspend_error' => null,
+                        ]);
+                        $suspended++;
+                    } catch (Throwable $e) {
+                        $failed++;
+                        $account->update(['panel_suspend_error' => mb_substr($e->getMessage(), 0, 4000)]);
+                        Log::error("Gagal mencoba ulang suspend panel untuk hosting_account #{$account->id}: " . $e->getMessage());
+                        $this->error("  !! Gagal mencoba ulang suspend: {$e->getMessage()}");
+                    }
+                } elseif ($account->panel_suspend_error) {
+                    $this->line("  [DRY RUN] #{$account->id} menunggu percobaan ulang suspend panel.");
+                }
+
                 continue;
             }
 
@@ -134,12 +147,17 @@ class ChargeHourlyUsage extends Command
                 continue;
             }
 
+            $shouldSuspend = false;
+
             try {
-                DB::transaction(function () use ($account, $client, $charge, $balance, &$charged, &$suspended) {
+                DB::transaction(function () use ($account, $client, $charge, $balance, &$charged, &$shouldSuspend) {
                     if ($balance >= $charge) {
                         // Saldo cukup -- potong penuh, layanan tetap jalan.
                         $this->applyCharge($client, $account, $charge, "Pemakaian {$account->domain}");
-                        $account->update(['last_billed_at' => now()]);
+                        $account->update([
+                            'last_billed_at' => now(),
+                            'panel_suspend_error' => null,
+                        ]);
                         $charged++;
 
                         return;
@@ -154,22 +172,38 @@ class ChargeHourlyUsage extends Command
                         $this->applyCharge($client, $account, $balance, "Pemakaian {$account->domain} (saldo habis di tengah siklus)");
                     }
 
-                    $account->update(['last_billed_at' => now(), 'status' => 'suspended']);
-                    $suspended++;
-
-                    $this->suspendProvisioned($account);
+                    $account->update(['last_billed_at' => now()]);
+                    $shouldSuspend = true;
                 });
+
+                if ($shouldSuspend) {
+                    try {
+                        $this->suspendProvisioned($account);
+                        $account->update([
+                            'status' => 'suspended',
+                            'panel_suspend_error' => null,
+                        ]);
+                        $suspended++;
+                    } catch (Throwable $e) {
+                        // Jangan tandai suspended secara lokal bila panel
+                        // menolak permintaan. Status active membuat layanan
+                        // tetap masuk proses tagihan dan retry berikutnya.
+                        $account->update(['panel_suspend_error' => mb_substr($e->getMessage(), 0, 4000)]);
+                        throw $e;
+                    }
+                }
             } catch (Throwable $e) {
+                $failed++;
                 Log::error("Gagal memproses tagihan jam untuk hosting_account #{$account->id}: " . $e->getMessage());
                 $this->error("  !! Gagal: {$e->getMessage()}");
             }
         }
 
         if (! $dry) {
-            $this->info("Selesai. {$charged} layanan ditagih, {$suspended} disuspend karena saldo habis.");
+            $this->info("Selesai. {$charged} layanan ditagih, {$suspended} disuspend karena saldo habis, {$failed} layanan gagal diproses.");
         }
 
-        return self::SUCCESS;
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     /**
@@ -207,15 +241,24 @@ class ChargeHourlyUsage extends Command
      */
     private function suspendProvisioned(HostingAccount $account): void
     {
-        if (! $account->server_id || ! $account->username) {
+        if (! $account->server_id) {
             return;
         }
 
         try {
+            if (! $account->serverModel || ! $account->username) {
+                throw new RuntimeException('Server panel atau username layanan belum tersedia.');
+            }
+
             $service = HostingPanelFactory::make($account->serverModel);
-            $service->suspendAccount($account->username, 'Saldo deposit habis');
+            $result = $service->suspendAccount($account->username, 'Saldo deposit habis');
+
+            if (! ($result['success'] ?? false)) {
+                throw new RuntimeException($result['message'] ?? 'Panel menolak permintaan suspend.');
+            }
         } catch (Throwable $e) {
-            Log::warning("Layanan #{$account->id} ditandai suspended di database, tapi panggilan suspend ke panel gagal: " . $e->getMessage());
+            Log::warning("Layanan #{$account->id} belum disuspend di panel; akan dicoba ulang: " . $e->getMessage());
+            throw $e;
         }
     }
 }

@@ -48,6 +48,7 @@ class SendInvoiceReminders extends Command
         $dry = $this->option('dry');
         $eligible = 0;
         $queued = 0;
+        $failed = 0;
 
         $this->info('Pengingat sebelum jatuh tempo: H-' . $beforeDays->implode(', H-'));
         $this->info('Pengingat setelah jatuh tempo: H+' . $afterDays->implode(', H+'));
@@ -59,7 +60,7 @@ class SendInvoiceReminders extends Command
         Invoice::with('client')
             ->whereIn('status', ['unpaid', 'overdue'])
             ->whereDate('due_date', '<=', $cutoff)
-            ->chunkById(100, function ($invoices) use ($beforeDays, $afterDays, $dry, $notifications, &$eligible, &$queued) {
+            ->chunkById(100, function ($invoices) use ($beforeDays, $afterDays, $dry, $notifications, &$eligible, &$queued, &$failed) {
                 foreach ($invoices as $invoice) {
                     $daysUntilDue = (int) today()->diffInDays($invoice->due_date->copy()->startOfDay(), false);
 
@@ -71,7 +72,13 @@ class SendInvoiceReminders extends Command
 
                     $stage = $this->latestApplicableStage($daysUntilDue, $beforeDays, $afterDays);
 
-                    if (! $stage || ! $invoice->client) {
+                    if (! $stage) {
+                        continue;
+                    }
+
+                    if (! $invoice->client) {
+                        $failed++;
+                        $this->error("  Invoice {$invoice->invoice_number} tidak memiliki klien untuk pengiriman pengingat.");
                         continue;
                     }
 
@@ -79,8 +86,15 @@ class SendInvoiceReminders extends Command
                     $this->line("  [{$label}; {$stage['key']}] {$invoice->invoice_number} → {$invoice->client->email}");
                     $eligible++;
 
-                    if (! $dry && $notifications->invoiceReminder($invoice, $daysUntilDue, $stage['key'])) {
-                        $queued++;
+                    if (! $dry) {
+                        $result = $notifications->invoiceReminder($invoice, $daysUntilDue, $stage['key']);
+
+                        if ($result === 'queued') {
+                            $queued++;
+                        } elseif ($result === 'failed') {
+                            $failed++;
+                            $this->error("  Gagal mengantrikan pengingat {$invoice->invoice_number} ({$stage['key']}).");
+                        }
                     }
                 }
             });
@@ -88,9 +102,9 @@ class SendInvoiceReminders extends Command
         $this->newLine();
         $this->info($dry
             ? "Simulasi selesai — {$eligible} invoice memenuhi syarat; tidak ada pesan dikirim."
-            : "Selesai — {$queued} pengingat baru diantrikan dari {$eligible} invoice yang memenuhi syarat.");
+            : "Selesai — {$queued} pengingat baru diantrikan dari {$eligible} invoice yang memenuhi syarat, {$failed} gagal.");
 
-        return self::SUCCESS;
+        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     /**
