@@ -408,10 +408,19 @@ class HostingAccountController extends Controller
 
         try {
             $hostingAccount->client->notify(new OrderProvisioned([
-                ['domain' => $hostingAccount->domain, 'username' => $hostingAccount->username, 'password' => $newPassword],
+                [
+                    'domain' => $hostingAccount->domain,
+                    'username' => $hostingAccount->username,
+                    'password' => $newPassword,
+                    'panel_login_url' => $hostingAccount->serverModel->panel_login_url,
+                    'nameservers' => array_values(array_filter([$hostingAccount->serverModel->ns1, $hostingAccount->serverModel->ns2])),
+                ],
             ], []));
+
+            $hostingAccount->update(['credentials_sent_at' => now(), 'credentials_email_failed_at' => null]);
         } catch (Throwable $e) {
             Log::error('Gagal mengirim ulang info akun: ' . $e->getMessage(), ['hosting_account_id' => $hostingAccount->id]);
+            $hostingAccount->update(['credentials_email_failed_at' => now()]);
 
             return back()->with('error', 'Password berhasil direset, tapi email ke klien gagal terkirim. Sampaikan manual: ' . $newPassword);
         }

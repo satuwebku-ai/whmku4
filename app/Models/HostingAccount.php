@@ -18,6 +18,7 @@ class HostingAccount extends Model
         'cancellation_status', 'cancellation_reason', 'cancellation_requested_at',
         'cancellation_admin_note', 'renewal_invoice_id',
         'pending_upgrade_product_id', 'pending_upgrade_invoice_id',
+        'credentials_sent_at', 'credentials_email_failed_at',
     ];
 
     protected function casts(): array
@@ -32,6 +33,8 @@ class HostingAccount extends Model
             'next_due_date' => 'date',
             'cancellation_requested_at' => 'datetime',
             'client_details' => 'encrypted',
+            'credentials_sent_at' => 'datetime',
+            'credentials_email_failed_at' => 'datetime',
         ];
     }
 

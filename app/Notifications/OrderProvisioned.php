@@ -18,7 +18,7 @@ class OrderProvisioned extends Notification
     use Queueable, UsesNotificationTemplate;
 
     /**
-     * @param  array<int, array{domain: string, username: string, password: string}>  $hostingCredentials
+     * @param  array<int, array{domain: string, username: string, password: string, panel_login_url?: ?string, ip?: ?string, nameservers?: array<int, string>}>  $hostingCredentials
      * @param  array<int, array{domain: string, success: bool, message: string}>  $domainResults
      */
     public function __construct(
@@ -39,6 +39,19 @@ class OrderProvisioned extends Notification
             $lines[] = "**Hosting — {$cred['domain']}**";
             $lines[] = "Username cPanel: `{$cred['username']}`";
             $lines[] = "Password: `{$cred['password']}`";
+
+            if (! empty($cred['panel_login_url'])) {
+                $lines[] = "Login cPanel: [{$cred['panel_login_url']}]({$cred['panel_login_url']})";
+            }
+
+            if (! empty($cred['ip'])) {
+                $lines[] = "IP Server: `{$cred['ip']}`";
+            }
+
+            if (! empty($cred['nameservers'])) {
+                $lines[] = 'Nameserver: `' . implode('`, `', $cred['nameservers']) . '`';
+            }
+
             $lines[] = '⚠️ Segera login dan ganti password ini. Kami tidak menyimpan password Anda, jadi simpan email ini sampai Anda menggantinya.';
         }
 

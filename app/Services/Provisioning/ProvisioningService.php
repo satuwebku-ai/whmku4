@@ -241,12 +241,15 @@ class ProvisioningService
                 'provisioning_finished_at' => now(),
             ];
 
+            // Password SENGAJA tidak ikut disimpan di client_details: password
+            // hanya dikirim sekali lewat email, dan klien bisa menggantinya
+            // sendiri sehingga salinan di sini cepat basi. Kalau email gagal,
+            // admin memakai tombol "kirim info" (membuat password baru).
             if ($success && ! empty($result['ip'])) {
                 $updates['client_details'] = trim(
                     (string) $account->client_details . "\n"
                     . "IP Server: {$result['ip']}\n"
-                    . "Username: {$username}\n"
-                    . "Password: {$password}"
+                    . "Username: {$username}"
                 );
             }
 
@@ -279,9 +282,13 @@ class ProvisioningService
             }
 
             return [
+                'account_id' => $account->id,
                 'domain' => $account->domain,
                 'username' => $username,
                 'password' => $password,
+                'panel_login_url' => $server->panel_login_url,
+                'nameservers' => array_values($nameservers),
+                'ip' => $result['ip'] ?? null,
             ];
         });
     }
@@ -573,14 +580,34 @@ class ProvisioningService
             return;
         }
 
+        $accountIds = collect($hostingCredentials)->pluck('account_id')->filter()->all();
+
         try {
             $client->notify(new OrderProvisioned($hostingCredentials, $domainResults));
+
+            if ($accountIds) {
+                HostingAccount::whereIn('id', $accountIds)->update([
+                    'credentials_sent_at' => now(),
+                    'credentials_email_failed_at' => null,
+                ]);
+            }
         } catch (Throwable $e) {
-            // Sama seperti OTP (Fase 6a): email bisa gagal kalau SMTP belum
-            // dikonfigurasi. Kredensial tetap TIDAK disimpan di database
-            // (hanya sekali dikirim), jadi kalau email gagal, admin perlu
-            // reset password akun cPanel manual dan infokan ke klien.
+            // Password TIDAK disimpan di database (hanya sekali dikirim), jadi
+            // kalau email gagal admin harus kirim ulang lewat tombol "kirim
+            // info" (membuat password baru). Karena itu kegagalan ditandai di
+            // akun dan admin diberi tahu, bukan cuma masuk log.
             Log::error('Gagal mengirim email kredensial provisioning: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
+
+            if ($accountIds) {
+                HostingAccount::whereIn('id', $accountIds)->update(['credentials_email_failed_at' => now()]);
+            }
+
+            try {
+                app(\App\Services\Notification\NotificationService::class)
+                    ->credentialEmailFailed($invoice, collect($hostingCredentials)->pluck('domain')->all(), $e->getMessage());
+            } catch (Throwable $inner) {
+                Log::warning('Gagal memberi tahu admin soal email kredensial: ' . $inner->getMessage());
+            }
         }
     }
 

@@ -112,4 +112,20 @@ class Server extends Model
     {
         return "https://{$this->hostname}:{$this->port}";
     }
+
+    /**
+     * URL login panel untuk klien (bukan URL API WHM). Null kalau jenis
+     * panel tidak punya URL baku.
+     */
+    public function getPanelLoginUrlAttribute(): ?string
+    {
+        $port = match ($this->panel) {
+            'cpanel' => 2083,
+            'directadmin' => 2222,
+            'plesk' => 8443,
+            default => null,
+        };
+
+        return ($port && $this->hostname) ? "https://{$this->hostname}:{$port}" : null;
+    }
 }

@@ -22,6 +22,18 @@
   <div class="row g-3">
     <div class="col-12 col-lg-8">
 
+      @if ($account->credentials_email_failed_at)
+        <div class="card border rounded-4 p-4 mb-3" style="background:#fef2f2;border-color:#fecaca!important">
+          <p class="small fw-bold mb-1" style="color:#991b1b">
+            <i class="fa-solid fa-envelope-circle-check"></i> Email info akun ke klien gagal terkirim
+          </p>
+          <p class="mb-0" style="font-size:12px;color:#b91c1c">
+            Percobaan terakhir {{ $account->credentials_email_failed_at->format('d M Y H:i') }}. Password tidak disimpan, jadi gunakan tombol kirim info
+            (membuat password baru lalu mengirimnya ke klien).
+          </p>
+        </div>
+      @endif
+
       @if ($account->cancellation_status === 'requested')
         <div class="card border rounded-4 p-4 mb-3" style="background:#fffbeb;border-color:#fde68a!important">
           <p class="small fw-bold mb-1" style="color:#92400e">

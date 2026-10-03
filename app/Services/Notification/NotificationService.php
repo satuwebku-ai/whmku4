@@ -174,6 +174,33 @@ class NotificationService
     }
 
     /**
+     * Hosting sudah dibuat tapi email kredensial ke klien GAGAL terkirim.
+     * Password tidak disimpan, jadi admin perlu kirim ulang (tombol
+     * "kirim info" di detail akun, yang membuat password baru).
+     * Dicatat juga di log aktivitas karena email admin bisa ikut gagal
+     * kalau penyebabnya SMTP.
+     */
+    public function credentialEmailFailed(Invoice $invoice, array $domains, string $reason): void
+    {
+        ActivityLog::record(
+            'service',
+            'Email kredensial hosting GAGAL terkirim',
+            'Invoice ' . $invoice->invoice_number . ' — ' . implode(', ', $domains) . '. Kirim ulang dari detail hosting account.',
+            route('admin.hosting-accounts'),
+            'danger',
+            $invoice->client_id,
+        );
+
+        $this->alertAdmins('notify_admin_payment', 'Email kredensial hosting GAGAL terkirim', [
+            'Invoice' => $invoice->invoice_number,
+            'Klien' => $invoice->client->name ?? '—',
+            'Domain' => implode(', ', $domains),
+            'Alasan' => $reason,
+            'Tindakan' => 'Buka detail hosting account lalu klik kirim info (membuat password baru).',
+        ], route('admin.hosting-accounts'), 'danger');
+    }
+
+    /**
      * Domain untuk TLD yang mewajibkan data kelayakan menunggu tindakan admin.
      */
     public function domainNeedsEligibility(\App\Models\Domain $domain, string $tldExt): void
