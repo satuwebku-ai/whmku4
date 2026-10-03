@@ -15,13 +15,14 @@ class Ticket extends Model
     protected $fillable = [
         'ticket_number', 'client_id', 'assigned_to', 'subject', 'department',
         'priority', 'status', 'hosting_account_id', 'domain_id', 'invoice_id',
-        'last_reply_at', 'closed_at',
+        'last_reply_at', 'idle_prompted_at', 'closed_at',
     ];
 
     protected function casts(): array
     {
         return [
             'last_reply_at' => 'datetime',
+            'idle_prompted_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
     }

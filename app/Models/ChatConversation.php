@@ -12,13 +12,13 @@ class ChatConversation extends Model
 {
     protected $fillable = [
         'guest_token', 'client_id', 'name', 'email', 'phone', 'status', 'channel',
-        'last_message_at', 'unread_for_admin', 'unread_for_user',
+        'last_message_at', 'idle_prompted_at', 'unread_for_admin', 'unread_for_user',
         'page_url', 'ip_address', 'assigned_admin_id', 'assigned_at', 'ticket_id',
     ];
 
     protected function casts(): array
     {
-        return ['last_message_at' => 'datetime', 'assigned_at' => 'datetime'];
+        return ['last_message_at' => 'datetime', 'idle_prompted_at' => 'datetime', 'assigned_at' => 'datetime'];
     }
 
     public function messages(): HasMany

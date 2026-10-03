@@ -116,7 +116,16 @@ class MailboxController extends Controller
             'mail_autoreply_body' => ['required', 'string', 'max:3000'],
             'mail_autoclose_hours' => ['required', 'integer', 'between:1,720'],
             'mail_autoclose_body' => ['required', 'string', 'max:3000'],
+            'mail_idle_grace_hours' => ['nullable', 'integer', 'between:1,336'],
+            'mail_idle_prompt_body' => ['nullable', 'string', 'max:3000'],
         ]);
+
+        // Kolom baru boleh kosong (form lama): pakai nilai bawaan.
+        $data['mail_idle_grace_hours'] = $data['mail_idle_grace_hours'] ?? MailAutomation::DEFAULTS['mail_idle_grace_hours'];
+        $data['mail_idle_prompt_body'] = filled($data['mail_idle_prompt_body'] ?? null)
+            ? $data['mail_idle_prompt_body']
+            : MailAutomation::DEFAULTS['mail_idle_prompt_body'];
+        $data['mail_idle_prompt_enabled'] = $request->boolean('mail_idle_prompt_enabled') ? '1' : '0';
 
         $data['mail_autoreply_enabled'] = $request->boolean('mail_autoreply_enabled') ? '1' : '0';
         $data['mail_autoclose_enabled'] = $request->boolean('mail_autoclose_enabled') ? '1' : '0';

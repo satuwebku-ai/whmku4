@@ -7,8 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChatMessage extends Model
 {
+    public const KIND_IDLE_PROMPT = 'idle_prompt';
+    public const REPLY_CONTINUE = 'Lanjut';
+    public const REPLY_DECLINE = 'Tidak, terima kasih';
+
     protected $fillable = [
-        'chat_conversation_id', 'sender', 'admin_id', 'message',
+        'chat_conversation_id', 'sender', 'kind', 'admin_id', 'message',
         'attachment_path', 'attachment_name', 'attachment_mime', 'read_at',
     ];
 
@@ -50,6 +54,10 @@ class ChatMessage extends Model
             'attachment_url' => $this->attachment_url,
             'attachment_name' => $this->attachment_name,
             'is_image' => $this->isImage(),
+            // Tombol pilihan cepat di widget (hanya untuk pertanyaan "mau lanjut?").
+            'quick_replies' => $this->kind === self::KIND_IDLE_PROMPT
+                ? [self::REPLY_CONTINUE, self::REPLY_DECLINE]
+                : [],
             'time' => $this->created_at->format('H:i'),
         ];
     }

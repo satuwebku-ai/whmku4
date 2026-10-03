@@ -17,12 +17,12 @@ class MailThread extends Model
 
     protected $fillable = [
         'subject', 'contact_email', 'contact_name', 'client_id',
-        'status', 'unread_count', 'last_message_at', 'chat_conversation_id',
+        'status', 'unread_count', 'last_message_at', 'idle_prompted_at', 'chat_conversation_id',
     ];
 
     protected function casts(): array
     {
-        return ['last_message_at' => 'datetime'];
+        return ['last_message_at' => 'datetime', 'idle_prompted_at' => 'datetime'];
     }
 
     public function messages(): HasMany

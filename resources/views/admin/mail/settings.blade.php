@@ -38,6 +38,18 @@
         </div>
         @error('mail_autoclose_hours')<div class="ix-err">{{ $message }}</div>@enderror
         <label class="d-flex align-items-center gap-2 mb-2" style="font-size:13px">
+          <input type="checkbox" class="ix-chk" name="mail_idle_prompt_enabled" value="1" @checked($v['mail_idle_prompt_enabled'] === '1')> Tanya dulu "masih perlu bantuan?" sebelum menutup
+        </label>
+        <div class="d-flex align-items-center gap-2 mb-2" style="font-size:13px">
+          Kirim pertanyaan
+          <input type="number" name="mail_idle_grace_hours" min="1" max="336" value="{{ old('mail_idle_grace_hours', $v['mail_idle_grace_hours']) }}" class="form-control form-control-sm" style="width:90px">
+          jam sebelum batas tutup
+        </div>
+        @error('mail_idle_grace_hours')<div class="ix-err">{{ $message }}</div>@enderror
+        <textarea name="mail_idle_prompt_body" rows="7" class="form-control mb-1" style="font-size:13px">{{ old('mail_idle_prompt_body', $v['mail_idle_prompt_body']) }}</textarea>
+        <p style="font-size:11px;color:#94a3b8">Penanda: <code>{nama}</code> <code>{site}</code> <code>{ref}</code> <code>{jam_sisa}</code>. Kalau pelanggan membalas, penutupan dibatalkan.</p>
+
+        <label class="d-flex align-items-center gap-2 mb-2" style="font-size:13px">
           <input type="checkbox" class="ix-chk" name="mail_autoclose_notice" value="1" @checked($v['mail_autoclose_notice'] === '1')> Kirim email pemberitahuan ke pelanggan saat ditutup
         </label>
         <textarea name="mail_autoclose_body" rows="7" class="form-control mb-1" style="font-size:13px" required>{{ old('mail_autoclose_body', $v['mail_autoclose_body']) }}</textarea>

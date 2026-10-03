@@ -88,6 +88,18 @@ class CronJob extends Model
             'command' => 'lumora:close-inactive-chats',
             'interval_minutes' => 5,
         ],
+        'close_inactive_mail' => [
+            'name' => 'Tutup Email Tanpa Balasan',
+            'description' => 'Kirim email "masih perlu bantuan?" lalu tutup otomatis thread Inbox Email yang tidak dibalas pelanggan.',
+            'command' => 'lumora:close-inactive-mail',
+            'interval_minutes' => 60,
+        ],
+        'close_inactive_tickets' => [
+            'name' => 'Tutup Tiket Tidak Aktif',
+            'description' => 'Tanya klien "masih perlu bantuan?" pada tiket yang tidak dibalas, lalu tutup otomatis kalau tetap diam.',
+            'command' => 'lumora:close-inactive-tickets',
+            'interval_minutes' => 60,
+        ],
         'backup' => [
             'name' => 'Backup Otomatis',
             'description' => 'Cadangkan database dan file upload ke ZIP (opsional ikut unggah ke Google Drive).',

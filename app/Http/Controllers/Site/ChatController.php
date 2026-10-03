@@ -139,7 +139,38 @@ class ChatController extends Controller
 
         $conversation->messages()->save($message);
 
-        $conversation->update(['last_message_at' => now()]);
+        // Klien menjawab pertanyaan bot "mau lanjut atau tidak?".
+        $wasIdlePrompted = $conversation->idle_prompted_at !== null;
+        $answer = mb_strtolower(trim((string) ($data['message'] ?? '')));
+
+        $conversation->update(['last_message_at' => now(), 'idle_prompted_at' => null]);
+
+        if ($wasIdlePrompted && in_array($answer, [mb_strtolower(ChatMessage::REPLY_DECLINE), 'tidak', 'tidak, terima kasih'], true)) {
+            $bye = $conversation->messages()->save(new ChatMessage([
+                'sender' => 'bot',
+                'message' => 'Baik, terima kasih sudah menghubungi kami. Percakapan ditutup. Silakan kirim pesan baru kapan saja kalau butuh bantuan.',
+            ]));
+            $conversation->update(['status' => 'closed']);
+
+            return response()->json([
+                'ok' => true,
+                'message' => $message->load('admin')->toWidgetArray(),
+                'bot_message' => $bye->toWidgetArray(),
+            ]);
+        }
+
+        if ($wasIdlePrompted && $answer === mb_strtolower(ChatMessage::REPLY_CONTINUE)) {
+            $cont = $conversation->messages()->save(new ChatMessage([
+                'sender' => 'bot',
+                'message' => 'Baik, silakan lanjutkan. Tim kami siap membantu.',
+            ]));
+
+            return response()->json([
+                'ok' => true,
+                'message' => $message->load('admin')->toWidgetArray(),
+                'bot_message' => $cont->toWidgetArray(),
+            ]);
+        }
 
         // Jalur Email -> masuk Inbox Email (bukan daftar Live Chat).
         $viaEmail = \App\Services\Mail\ChatMailMirror::isEmailChat($conversation);

@@ -317,10 +317,36 @@
                + '</div>';
 
         wrap.innerHTML = '<div style="max-width:80%' + (mine ? ';text-align:right' : '') + '">' + inner + '</div>';
+
+        // Tombol pilihan cepat (mis. "Lanjut" / "Tidak, terima kasih" dari
+        // pertanyaan bot saat chat lama tidak aktif). Teks tombol dikirim
+        // sebagai pesan biasa lewat form yang sama.
+        if (Array.isArray(msg.quick_replies) && msg.quick_replies.length) {
+          const box = document.createElement('div');
+          box.setAttribute('data-quick', '1');
+          box.className = 'd-flex flex-wrap gap-2 mt-2';
+          msg.quick_replies.forEach(function (label) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn btn-sm btn-outline-secondary rounded-pill';
+            b.style.fontSize = '12px';
+            b.textContent = label;
+            b.addEventListener('click', function () {
+              box.remove();
+              input.value = label;
+              form.requestSubmit();
+            });
+            box.appendChild(b);
+          });
+          wrap.firstElementChild.appendChild(box);
+        }
+
         return wrap;
       }
 
       function append(msg) {
+        // Pesan baru membuat tombol pilihan lama tidak relevan lagi.
+        body.querySelectorAll('[data-quick]').forEach(function (el) { el.remove(); });
         body.appendChild(bubble(msg));
         body.scrollTop = body.scrollHeight;
         if (msg.id) lastId = Math.max(lastId, msg.id);

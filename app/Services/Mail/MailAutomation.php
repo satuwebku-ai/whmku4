@@ -22,6 +22,12 @@ class MailAutomation
         'mail_autoclose_enabled' => '1',
         'mail_autoclose_hours' => '72',
         'mail_autoclose_notice' => '1',
+        // Tahap "masih perlu bantuan?" sebelum ditutup: dikirim {jam_sisa} jam
+        // SEBELUM batas tutup otomatis. Kalau dimatikan, thread langsung
+        // ditutup di batas jam (perilaku lama).
+        'mail_idle_prompt_enabled' => '1',
+        'mail_idle_grace_hours' => '24',
+        'mail_idle_prompt_body' => "Halo {nama},\n\nApakah masalah Anda sudah teratasi?\n\nKalau masih membutuhkan bantuan, cukup balas email ini dan kami akan melanjutkan. Kalau tidak ada balasan dalam {jam_sisa} jam, percakapan ini akan kami tutup otomatis.\n\nSalam,\n{site}",
         'mail_autoclose_body' => "Halo {nama},\n\nKarena belum ada balasan dari Anda dalam {jam} jam terakhir, percakapan ini kami anggap selesai dan ditutup otomatis.\n\nKalau masih membutuhkan bantuan, cukup balas email ini kapan saja dan percakapan akan dibuka kembali.\n\nSalam,\n{site}",
     ];
 
@@ -43,6 +49,15 @@ class MailAutomation
     }
 
     /**
+     * Jeda antara email "masih perlu bantuan?" dan penutupan. Selalu lebih
+     * kecil dari batas tutup supaya pertanyaan terkirim sebelum batas habis.
+     */
+    public static function graceHours(): int
+    {
+        return max(1, min((int) self::get('mail_idle_grace_hours'), self::closeHours() - 1));
+    }
+
+    /**
      * Ganti penanda {nama} {site} {ref} {jam} {jam_kerja} di teks template.
      */
     public static function fill(string $text, MailThread $thread): string
@@ -54,6 +69,7 @@ class MailAutomation
             '{site}' => (string) Setting::get('site_name', config('app.name')),
             '{ref}' => trim($thread->token(), '[]'),
             '{jam}' => (string) self::closeHours(),
+            '{jam_sisa}' => (string) self::graceHours(),
             '{jam_kerja}' => $hours !== '' ? ' (jam layanan: ' . $hours . ')' : '',
         ]);
     }
@@ -98,10 +114,97 @@ class MailAutomation
     }
 
     /**
-     * Thread terbuka yang pesan terakhirnya balasan ADMIN (bukan robot) dan
-     * sudah lebih lama dari batas jam -> pelanggan tidak membalas.
+     * Penutupan thread yang tidak dibalas pelanggan, dua tahap:
+     *
+     *  1. Pesan terakhir balasan ADMIN (bukan robot) dan pelanggan diam
+     *     selama (batas tutup - jeda) jam -> kirim email "masih perlu bantuan?".
+     *  2. Sesudah jeda itu pelanggan tetap tidak membalas -> kirim
+     *     pemberitahuan dan tutup.
+     *
+     * Kalau tahap pertanyaan dimatikan (mail_idle_prompt_enabled=0), thread
+     * langsung ditutup di batas jam, seperti sebelumnya.
+     *
+     * @return int jumlah thread yang DITUTUP
      */
     public static function closeStale(): int
+    {
+        if (! self::on('mail_idle_prompt_enabled')) {
+            return self::closeLegacy();
+        }
+
+        self::promptStale();
+
+        return self::closePrompted();
+    }
+
+    private static function promptStale(): void
+    {
+        $limit = now()->subHours(self::closeHours() - self::graceHours());
+
+        MailThread::open()
+            ->whereNull('idle_prompted_at')
+            ->where('last_message_at', '<', $limit)
+            ->with('latestMessage')
+            ->chunkById(100, function ($threads) {
+                foreach ($threads as $thread) {
+                    $last = $thread->latestMessage;
+
+                    // Bola di admin (pesan terakhir dari pelanggan) atau
+                    // yang terakhir cuma balasan robot -> jangan ditanya.
+                    if (! $last || $last->direction !== 'out' || $last->is_auto) {
+                        continue;
+                    }
+
+                    $body = self::fill(self::get('mail_idle_prompt_body'), $thread);
+
+                    try {
+                        MailboxMailer::send($thread, 'Re: ' . $thread->subject, $body, [], null, null, true);
+                    } catch (Throwable $e) {
+                        report($e);
+
+                        continue;
+                    }
+
+                    $thread->update(['idle_prompted_at' => now()]);
+                    ChatMailMirror::toWidget($thread, 'bot', $body);
+                }
+            });
+    }
+
+    private static function closePrompted(): int
+    {
+        $closed = 0;
+
+        MailThread::open()
+            ->whereNotNull('idle_prompted_at')
+            ->where('idle_prompted_at', '<', now()->subHours(self::graceHours()))
+            ->chunkById(100, function ($threads) use (&$closed) {
+                foreach ($threads as $thread) {
+                    // Pelanggan sempat membalas sesudah ditanya -> batalkan.
+                    $replied = $thread->messages()
+                        ->where('direction', 'in')
+                        ->where('created_at', '>=', $thread->idle_prompted_at)
+                        ->exists();
+
+                    if ($replied) {
+                        $thread->update(['idle_prompted_at' => null]);
+
+                        continue;
+                    }
+
+                    self::closeThread($thread);
+                    $closed++;
+                }
+            });
+
+        return $closed;
+    }
+
+    /**
+     * Perilaku lama: tutup langsung kalau pesan terakhir balasan admin dan
+     * sudah lewat batas jam.
+     */
+    private static function closeLegacy(): int
     {
         $closed = 0;
 
@@ -116,23 +219,32 @@ class MailAutomation
                         continue;
                     }
 
-                    if (self::on('mail_autoclose_notice')) {
-                        $body = self::fill(self::get('mail_autoclose_body'), $thread);
-
-                        try {
-                            MailboxMailer::send($thread, 'Re: ' . $thread->subject, $body, [], null, null, true);
-                        } catch (Throwable $e) {
-                            report($e);
-                        }
-
-                        ChatMailMirror::toWidget($thread, 'bot', $body);
-                    }
-
-                    $thread->update(['status' => 'closed']);
+                    self::closeThread($thread);
                     $closed++;
                 }
             });
 
         return $closed;
+    }
+
+    private static function closeThread(MailThread $thread): void
+    {
+        if (self::on('mail_autoclose_notice')) {
+            $body = self::fill(self::get('mail_autoclose_body'), $thread);
+
+            try {
+                MailboxMailer::send($thread, 'Re: ' . $thread->subject, $body, [], null, null, true);
+            } catch (Throwable $e) {
+                report($e);
+            }
+
+            ChatMailMirror::toWidget($thread, 'bot', $body);
+        }
+
+        $thread->update(['status' => 'closed', 'idle_prompted_at' => null]);
+
+        // toWidget() membuka kembali chat cerminan thread ini; tutup lagi
+        // supaya tidak tertinggal "open" setelah thread-nya selesai.
+        $thread->chatConversation?->update(['status' => 'closed']);
     }
 }
