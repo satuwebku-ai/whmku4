@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Client;
 use App\Models\HostingAccount;
 use App\Services\Billing\HourlyRateCalculator;
 use App\Services\Billing\CreditService;
@@ -150,11 +151,32 @@ class ChargeHourlyUsage extends Command
             $shouldSuspend = false;
 
             try {
-                DB::transaction(function () use ($account, $client, $charge, $balance, &$charged, &$shouldSuspend) {
+                DB::transaction(function () use ($account, $since, $charge, &$charged, &$shouldSuspend) {
+                    // Kunci baris layanan lalu baca ulang last_billed_at: dua proses
+                    // yang tumpang tindih (cron + artisan manual) tidak boleh menagih
+                    // periode yang sama dua kali. Yang kedua melihat last_billed_at
+                    // sudah maju dan berhenti.
+                    $locked = HostingAccount::query()->lockForUpdate()->find($account->id);
+                    $lockedSince = $locked?->last_billed_at ?? $locked?->created_at;
+
+                    if (! $locked || $locked->status !== 'active' || ! $lockedSince || ! $lockedSince->equalTo($since)) {
+                        return;
+                    }
+
+                    // Saldo dibaca dari baris klien yang terkunci, bukan dari
+                    // instance yang dimuat di awal proses.
+                    $client = Client::query()->lockForUpdate()->find($locked->client_id);
+                    if (! $client) {
+                        return;
+                    }
+
+                    $balance = (float) $client->balance;
+                    $key = 'usage:' . $locked->id . ':' . $since->getTimestamp();
+
                     if (\App\Support\Money::gte($balance, $charge)) {
                         // Saldo cukup -- potong penuh, layanan tetap jalan.
-                        $this->applyCharge($client, $account, $charge, "Pemakaian {$account->domain}");
-                        $account->update([
+                        $this->applyCharge($client, $locked, $charge, "Pemakaian {$locked->domain}", $key);
+                        $locked->update([
                             'last_billed_at' => now(),
                             'panel_suspend_error' => null,
                         ]);
@@ -167,12 +189,23 @@ class ChargeHourlyUsage extends Command
                     // sisa saldo yang ada (sampai habis, tidak sampai
                     // minus), lalu suspend layanannya. Klien tetap kena
                     // tagih untuk waktu yang SUDAH terpakai, bukan
-                    // dibebaskan begitu saja.
+                    // dibebaskan begitu saja. Selisih yang tidak tertagih
+                    // dicatat di ledger dan log supaya kerugiannya terlihat.
+                    $shortfall = round($charge - max($balance, 0), 2);
+
                     if ($balance > 0) {
-                        $this->applyCharge($client, $account, $balance, "Pemakaian {$account->domain} (saldo habis di tengah siklus)");
+                        $this->applyCharge(
+                            $client,
+                            $locked,
+                            $balance,
+                            "Pemakaian {$locked->domain} (saldo habis di tengah siklus; kurang Rp " . number_format($shortfall, 2, ',', '.') . ' tidak tertagih)',
+                            $key,
+                        );
                     }
 
-                    $account->update(['last_billed_at' => now()]);
+                    Log::warning("Layanan #{$locked->id} {$locked->domain}: saldo habis, Rp " . number_format($shortfall, 2, ',', '.') . ' tidak tertagih.');
+
+                    $locked->update(['last_billed_at' => now()]);
                     $shouldSuspend = true;
                 });
 
@@ -225,11 +258,11 @@ class ChargeHourlyUsage extends Command
         return HourlyRateCalculator::forAccount($account) ?? 0.0;
     }
 
-    private function applyCharge($client, HostingAccount $account, float $amount, string $description): void
+    private function applyCharge($client, HostingAccount $account, float $amount, string $description, ?string $idempotencyKey = null): void
     {
         // Semua mutasi saldo wajib lewat CreditService/Client::adjustBalance()
         // agar balance dan ledger client_balance_logs tidak pernah berbeda.
-        $this->credits->debit($client, $amount, $description, 'usage_charge');
+        $this->credits->debit($client, $amount, $description, 'usage_charge', null, null, $idempotencyKey);
     }
 
     /**

@@ -21,7 +21,7 @@ class Client extends Authenticatable
         'city', 'state', 'postal_code', 'country', 'password', 'status', 'internal_notes',
         'email_verified_at', 'last_login_at', 'last_login_ip',
         'whatsapp_number', 'notify_promo', 'notify_whatsapp', 'notify_sms',
-        'google_id', 'avatar', 'balance', 'two_factor_enabled',
+        'google_id', 'avatar', 'two_factor_enabled',
         'pending_email', 'pending_email_code_hash', 'pending_email_expires_at', 'pending_email_attempts',
         'password_otp_enabled', 'password_set_by_user',
     ];
@@ -90,7 +90,9 @@ class Client extends Authenticatable
 
             $newBalance = \App\Support\Money::fromCents($newCents);
 
-            $client->update(['balance' => $newBalance]);
+            // balance sengaja tidak ada di $fillable: hanya method ini yang boleh
+            // menulisnya, supaya mass assignment tidak bisa melewati ledger.
+            $client->forceFill(['balance' => $newBalance])->save();
 
             // Samakan instance pemanggil supaya $client->balance langsung benar.
             $this->forceFill(['balance' => $newBalance])->syncOriginalAttribute('balance');

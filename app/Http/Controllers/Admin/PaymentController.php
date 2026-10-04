@@ -276,9 +276,67 @@ class PaymentController extends Controller
         ]);
 
         $payment = Payment::findOrFail($data['payment_id']);
+
+        // Payment yang sudah paid/refunded tidak boleh "ditolak": statusnya akan
+        // berbeda dari invoice dan ledger. Pakai aksi Refund untuk payment lunas.
+        if (! in_array($payment->status, ['initiated', 'pending'], true)) {
+            return back()->with('error', 'Hanya pembayaran berstatus initiated/pending yang bisa ditolak.');
+        }
+
         $payment->update(['status' => 'failed', 'admin_note' => $data['admin_note']]);
 
         return back()->with('success', "Pembayaran {$payment->reference} ditolak.");
+    }
+
+    /**
+     * Catat refund payment yang sudah lunas. Mengubah status menjadi
+     * `refunded`, yang memicu RefundService lewat hook model Payment:
+     * transaksi pembalik, invoice refunded, komisi affiliate dibalik, dan
+     * kredit top-up ditarik dari saldo klien. Ini HANYA mencatat di sistem;
+     * pengembalian dana ke klien dilakukan terpisah (dashboard Duitku /
+     * transfer), bukan oleh aksi ini.
+     */
+    public function refund(Request $request, Payment $payment): RedirectResponse
+    {
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'reason.required' => 'Tulis alasan refund.',
+            'reason.min' => 'Alasan refund minimal 5 karakter.',
+        ]);
+
+        $admin = auth('admin')->user();
+
+        $refunded = DB::transaction(function () use ($payment, $data, $admin): bool {
+            $locked = Payment::query()->lockForUpdate()->find($payment->id);
+
+            if (! $locked || $locked->status !== 'paid') {
+                return false;
+            }
+
+            $locked->update([
+                'status' => 'refunded',
+                'admin_note' => trim(($locked->admin_note ? $locked->admin_note . "\n" : '')
+                    . '[Refund oleh ' . ($admin->name ?? 'admin') . '] ' . $data['reason']),
+            ]);
+
+            return true;
+        });
+
+        if (! $refunded) {
+            return back()->with('error', 'Hanya pembayaran berstatus paid yang bisa direfund (atau sudah direfund sebelumnya).');
+        }
+
+        \App\Models\ActivityLog::record(
+            'payment',
+            "Payment {$payment->reference} direfund admin",
+            'Rp ' . number_format((float) $payment->total, 0, ',', '.') . " — {$data['reason']} (oleh " . ($admin->name ?? 'admin') . ')',
+            route('admin.payments.details', $payment),
+            'warning',
+            $payment->client_id,
+        );
+
+        return back()->with('success', "Refund {$payment->reference} dicatat. Saldo/invoice/komisi terkait sudah disesuaikan; kembalikan dana ke klien secara terpisah.");
     }
 
     /**
@@ -296,13 +354,24 @@ class PaymentController extends Controller
             return back()->with('error', 'Gagal cek status: ' . $result['message']);
         }
 
+        $payable = in_array($payment->status, ['initiated', 'pending'], true);
+
         if ($result['status'] === 'paid' && $payment->status !== 'paid') {
+            if (! $payable) {
+                return back()->with('error', "Gateway menyatakan LUNAS, tetapi payment berstatus \"{$payment->status}\" sehingga tidak diterapkan otomatis. Periksa invoice, lalu refund atau lunasi manual.");
+            }
+
             $payment->markAsPaid($payment->payment_method, $result['raw'] ?? []);
+
+            if ($payment->fresh()->status !== 'paid') {
+                return back()->with('error', 'Gateway menyatakan LUNAS, tetapi pembayaran tidak dapat diterapkan ke invoice (lihat catatan pada payment dan log aktivitas).');
+            }
 
             return back()->with('success', 'Status terverifikasi LUNAS di gateway. Invoice ikut ditandai lunas.');
         }
 
-        if ($result['status'] && $result['status'] !== $payment->status) {
+        // Payment final (paid/refunded/dst) tidak boleh ditimpa hasil polling.
+        if ($payable && $result['status'] && $result['status'] !== $payment->status) {
             $payment->update(['status' => $result['status'], 'gateway_response' => $result['raw']]);
         }
 

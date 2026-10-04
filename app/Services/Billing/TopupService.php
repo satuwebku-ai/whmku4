@@ -50,23 +50,31 @@ class TopupService
      */
     public function applyPaidInvoice(Invoice $invoice): void
     {
-        if (! $invoice->is_topup || $invoice->status !== 'paid') {
-            return;
-        }
+        // Baca ulang invoice di bawah lock: instance yang dilempar pemanggil bisa
+        // usang, dan RefundService mengunci invoice yang sama sebelum menandainya
+        // refunded. Urutan kunci (invoice lalu client) sama dengan RefundService
+        // dan BillingService sehingga tidak ada deadlock.
+        DB::transaction(function () use ($invoice): void {
+            $locked = Invoice::query()->lockForUpdate()->find($invoice->id);
 
-        $client = $invoice->client;
-        if (! $client) {
-            throw new BillingException('Client invoice isi ulang tidak ditemukan.');
-        }
+            if (! $locked || ! $locked->is_topup || $locked->status !== 'paid') {
+                return;
+            }
 
-        app(CreditService::class)->credit(
-            $client,
-            (float) $invoice->total,
-            "Isi ulang saldo — invoice {$invoice->invoice_number}",
-            'topup',
-            $invoice,
-            null,
-            "invoice:{$invoice->id}:topup",
-        );
+            $client = $locked->client;
+            if (! $client) {
+                throw new BillingException('Client invoice isi ulang tidak ditemukan.');
+            }
+
+            app(CreditService::class)->credit(
+                $client,
+                (float) $locked->total,
+                "Isi ulang saldo — invoice {$locked->invoice_number}",
+                'topup',
+                $locked,
+                null,
+                "invoice:{$locked->id}:topup",
+            );
+        });
     }
 }

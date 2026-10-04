@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Exceptions\Billing\BillingException;
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
 use App\Services\Billing\BillingService;
 use App\Services\Billing\TopupService;
 use Illuminate\Http\RedirectResponse;

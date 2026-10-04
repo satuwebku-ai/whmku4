@@ -361,6 +361,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::post('approve/payment', 'approve')->name('payment.approve');
             Route::post('reject/payment', 'reject')->name('payment.reject');
             Route::post('payment/{payment}/check-status', 'checkStatus')->name('payment.check.status');
+            Route::post('payment/{payment}/refund', 'refund')->name('payment.refund');
             Route::get('payment/{payment}/proof', 'proof')->name('payments.proof');
         });
 

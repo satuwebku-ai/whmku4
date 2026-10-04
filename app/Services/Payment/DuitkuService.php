@@ -326,7 +326,10 @@ class DuitkuService implements PaymentGatewayInterface
             return ['success' => false, 'message' => "Pembayaran {$orderId} tidak ditemukan.", 'status' => null, 'payment' => null];
         }
 
-        if (number_format((float) $amount, 2, '.', '') !== number_format((float) $payment->total, 2, '.', '')) {
+        // Transaksi dikirim ke Duitku sebagai rupiah bulat, jadi callback pun
+        // dibandingkan sebagai rupiah bulat. Membandingkan sampai sen akan menolak
+        // selamanya callback untuk total yang punya pecahan.
+        if ((int) round((float) $amount) !== (int) round((float) $payment->total)) {
             Log::warning('Duitku callback ditolak: nominal tidak cocok.', [
                 'payment_id' => $payment->id,
                 'expected' => (string) $payment->total,
@@ -335,11 +338,43 @@ class DuitkuService implements PaymentGatewayInterface
             return ['success' => false, 'message' => 'Nominal pembayaran tidak cocok.', 'status' => null, 'payment' => null];
         }
 
-        $status = $this->mapResultCode((string) ($data['resultCode'] ?? ''));
+        $status = $this->mapCallbackCode((string) ($data['resultCode'] ?? ''));
+        $payable = in_array($payment->status, ['initiated', 'pending'], true);
+
+        // Callback ganda / terlambat untuk payment yang sudah lunas: sudah beres.
+        if ($status === 'paid' && $payment->status === 'paid') {
+            return ['success' => true, 'message' => 'Pembayaran sudah diproses sebelumnya.', 'status' => 'paid', 'payment' => $payment];
+        }
 
         if ($status === 'paid') {
+            if (! $payable) {
+                // Dana sudah masuk di Duitku tetapi payment ini sudah ditutup
+                // (expired/failed/refunded). markAsPaid() akan menolak diam-diam,
+                // dan membalas "berhasil" ke Duitku menghentikan retry, jadi admin
+                // harus diberi tahu supaya dana tidak tersangkut tanpa jejak.
+                \App\Models\ActivityLog::record(
+                    'payment',
+                    'Dana masuk Duitku tidak bisa diterapkan: ' . $payment->reference,
+                    "Duitku melaporkan LUNAS sebesar Rp " . number_format((float) $amount, 0, ',', '.')
+                        . " tetapi payment berstatus \"{$payment->status}\". Periksa invoice dan lakukan refund atau lunasi manual.",
+                    route('admin.payments.details', $payment),
+                    'danger',
+                    $payment->client_id,
+                );
+
+                return ['success' => true, 'message' => 'Dana diterima tetapi payment tidak dapat diterapkan; dicatat untuk admin.', 'status' => $payment->status, 'payment' => $payment];
+            }
+
             $payment->markAsPaid($data['paymentCode'] ?? 'Duitku', $data);
-        } else {
+            $payment->refresh();
+
+            return ['success' => true, 'message' => 'Webhook diproses.', 'status' => $payment->status, 'payment' => $payment];
+        }
+
+        // Status non-lunas hanya boleh mengubah payment yang masih berjalan.
+        // Tanpa guard ini callback gagal yang terlambat bisa menimpa payment
+        // yang sudah paid / refunded.
+        if ($payable) {
             $payment->update([
                 'status' => $status,
                 'external_id' => $data['reference'] ?? $payment->external_id,
@@ -347,7 +382,7 @@ class DuitkuService implements PaymentGatewayInterface
             ]);
         }
 
-        return ['success' => true, 'message' => 'Webhook diproses.', 'status' => $status, 'payment' => $payment];
+        return ['success' => true, 'message' => 'Webhook diproses.', 'status' => $payable ? $status : $payment->status, 'payment' => $payment];
     }
 
     public function checkStatus(Payment $payment): array
@@ -388,8 +423,18 @@ class DuitkuService implements PaymentGatewayInterface
     }
 
     /**
-     * "00" konsisten dipakai Duitku sebagai kode sukses, baik di respons
-     * transactionStatus (statusCode) maupun payload callback (resultCode).
+     * Arti kode di CALLBACK berbeda dari endpoint transactionStatus: di callback
+     * hanya "00" = sukses, "01" = gagal. (Di transactionStatus: 00 sukses,
+     * 01 menunggu, 02 gagal/kedaluwarsa -- lihat mapResultCode.)
+     */
+    protected function mapCallbackCode(string $code): string
+    {
+        return $code === '00' ? 'paid' : 'failed';
+    }
+
+    /**
+     * Untuk respons transactionStatus (statusCode): 00 sukses, 01 menunggu,
+     * 02 gagal/kedaluwarsa. Jangan dipakai untuk callback -- lihat mapCallbackCode.
      */
     protected function mapResultCode(string $code): string
     {

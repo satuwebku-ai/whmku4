@@ -72,7 +72,16 @@ class BillingService
 
             $payment->markAsPaid('Saldo');
 
-            return $payment->fresh();
+            // markAsPaid() menolak tanpa exception (mis. payment ditutup karena
+            // eligibility gagal). Tanpa pengecekan ini debit saldo tetap commit
+            // sementara invoice tidak lunas. Exception di sini membatalkan
+            // seluruh transaksi, termasuk debitnya.
+            $payment = $payment->fresh();
+            if ($payment->status !== 'paid') {
+                throw new BillingException('Pembayaran tidak dapat diproses; saldo tidak dipotong.');
+            }
+
+            return $payment;
         });
     }
 }

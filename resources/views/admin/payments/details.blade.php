@@ -150,6 +150,12 @@
           </form>
         @else
           <p class="text-success mb-3" style="font-size:13px"><i class="fa-solid fa-circle-check"></i> Pembayaran sudah terverifikasi lunas.</p>
+
+          <form method="POST" action="{{ route('admin.payment.refund', $payment) }}" data-confirm="Catat refund pembayaran ini? Saldo, invoice, dan komisi terkait akan disesuaikan. Pengembalian dana ke klien tetap dilakukan terpisah." data-confirm-title="Refund Pembayaran" data-confirm-style="warn" data-confirm-label="Ya, Catat Refund">
+            @csrf
+            <textarea name="reason" rows="2" minlength="5" maxlength="500" required class="form-control form-control-sm mb-2" placeholder="Alasan refund (wajib)">{{ old('reason') }}</textarea>
+            <button type="submit" class="btn btn-outline-danger btn-sm w-100 text-start"><i class="fa-solid fa-rotate-left" style="font-size:11px"></i> Refund Pembayaran</button>
+          </form>
         @endif
 
         @if ($payment->gateway && ! $payment->gateway->isManual())
