@@ -6,6 +6,7 @@ use App\Models\CronJob;
 use App\Console\Commands\RunCron;
 use App\Services\Billing\BillingReconciliationService;
 use App\Services\Hosting\CpanelCronService;
+use App\Services\SetupChecklistService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -99,6 +100,34 @@ class CronSchedulerPhase16Test extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertDatabaseHas('cron_jobs', ['id' => $legacy->id, 'run_count' => 0]);
+    }
+
+    public function test_setup_check_ignores_overdue_legacy_cron_jobs(): void
+    {
+        CronJob::syncBuiltIn();
+        CronJob::where('key', 'invoice_reminder')->update([
+            'last_run_at' => now(),
+            'next_run_at' => now()->addDay(),
+        ]);
+
+        CronJob::create([
+            'key' => 'removed_legacy_job',
+            'name' => 'Job lama',
+            'description' => 'Data historis',
+            'command' => 'command:that-no-longer-exists',
+            'interval_minutes' => 60,
+            'is_enabled' => true,
+            'run_count' => 1,
+            'last_run_at' => now()->subDays(2),
+            'next_run_at' => now()->subHours(2),
+        ]);
+
+        $cronItem = collect(app(SetupChecklistService::class)->summary()['items'])
+            ->firstWhere('key', 'cron');
+
+        $this->assertNotNull($cronItem);
+        $this->assertTrue($cronItem['ok']);
+        $this->assertNull($cronItem['detail']);
     }
 
     public function test_run_now_reports_a_busy_lock_instead_of_using_old_status_as_success(): void

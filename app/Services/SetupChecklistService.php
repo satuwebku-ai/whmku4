@@ -232,7 +232,9 @@ class SetupChecklistService
 
         CronJob::syncBuiltIn();
 
-        $jobs = CronJob::where('is_enabled', true)->get();
+        $jobs = CronJob::whereIn('key', array_keys(CronJob::BUILT_IN))
+            ->where('is_enabled', true)
+            ->get();
 
         if ($jobs->isEmpty()) {
             return [false, 'Semua tugas cron dinonaktifkan.'];
