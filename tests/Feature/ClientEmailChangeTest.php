@@ -57,7 +57,7 @@ class ClientEmailChangeTest extends TestCase
         $this->assertSame('lama@example.test', $client->fresh()->email);
     }
 
-    public function test_correct_password_changes_email_unverifies_it_and_warns_old_address(): void
+    public function test_correct_password_starts_pending_change_and_verification_swaps_email_and_warns_old_address(): void
     {
         Notification::fake();
         $client = $this->client();
@@ -66,9 +66,22 @@ class ClientEmailChangeTest extends TestCase
             ->post(route('client.profile.update'), $this->payload(['email' => 'baru@example.test', 'current_password' => 'Rahasia123']))
             ->assertSessionHasNoErrors();
 
+        // Email lama tetap aktif sampai kode dari alamat baru dikonfirmasi.
         $fresh = $client->fresh();
-        $this->assertSame('baru@example.test', $fresh->email);
-        $this->assertNull($fresh->email_verified_at);
+        $this->assertSame('lama@example.test', $fresh->email);
+        $this->assertSame('baru@example.test', $fresh->pending_email);
+        Notification::assertNotSentTo($client, ClientEmailChanged::class);
+
+        $code = $fresh->startEmailChange('baru@example.test');
+
+        $this->actingAs($fresh->fresh(), 'client')
+            ->post(route('client.profile.email.verify'), ['code' => $code])
+            ->assertSessionHas('success');
+
+        $done = $client->fresh();
+        $this->assertSame('baru@example.test', $done->email);
+        $this->assertNotNull($done->email_verified_at);
+        $this->assertNull($done->pending_email);
 
         Notification::assertSentOnDemand(ClientEmailChanged::class, function ($notification, $channels, $notifiable) {
             return $notifiable->routes['mail'] === 'lama@example.test'

@@ -85,6 +85,7 @@ class NotificationTemplateController extends Controller
             'amount' => 'Rp 100.000',
             'new_balance' => 'Rp 250.000',
             'code' => '482913',
+            'action' => 'ganti password',
             'judul' => 'Order Baru Masuk',
         ];
     }

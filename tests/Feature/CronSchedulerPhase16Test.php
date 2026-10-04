@@ -56,6 +56,7 @@ class CronSchedulerPhase16Test extends TestCase
 
         $reconciliation = \Mockery::mock(BillingReconciliationService::class);
         $reconciliation->shouldReceive('scan')->once()->andReturn([
+            'balance_ledger_mismatch' => 0,
             'paid_payment_invoice_mismatch' => 0,
             'paid_invoice_missing_charge' => 0,
             'paid_topup_missing_credit' => 0,

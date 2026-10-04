@@ -60,21 +60,10 @@ class CreditService
             throw new BillingException('Nominal debit saldo harus lebih dari 0.');
         }
 
-        if ($idempotencyKey) {
-            $existing = Credit::where('idempotency_key', $idempotencyKey)->first();
-            if ($existing) {
-                return $existing;
-            }
-        }
-
-        // Lock the client before checking the balance. This makes concurrent
-        // debits serialize instead of both observing the same old balance.
-        $lockedClient = Client::query()->lockForUpdate()->findOrFail($client->id);
-        if ((float) $lockedClient->balance < $amount) {
-            throw new BillingException('Saldo tidak cukup untuk transaksi ini.');
-        }
-
-        return $lockedClient->adjustBalance(-1 * $amount, $type, $description, $invoice, $admin, $idempotencyKey);
+        // Pengecekan saldo cukup (di bawah kunci klien) ada di
+        // Client::adjustBalance(), jadi tidak ada jalur yang bisa
+        // melewatinya. Melempar BillingException kalau tidak cukup.
+        return $client->adjustBalance(-1 * $amount, $type, $description, $invoice, $admin, $idempotencyKey);
     }
 
 }

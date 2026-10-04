@@ -2,6 +2,8 @@
 
 namespace App\Services\Billing;
 
+use App\Models\ActivityLog;
+use App\Models\Credit;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Transaction;
@@ -55,6 +57,14 @@ class RefundService
                 ]);
             }
 
+            // Top-up lewat gateway yang di-refund / chargeback: saldo yang
+            // sudah dikredit dari top-up itu harus ditarik lagi, kalau tidak
+            // klien memegang saldo tanpa uang masuk. Boleh jadi minus kalau
+            // saldonya sudah terpakai (utang yang terlihat admin).
+            if ($invoice->is_topup && $payment->payment_method !== 'Saldo') {
+                $this->reverseTopupCredit($payment, $invoice);
+            }
+
             if ($payment->payment_method === 'Saldo') {
                 app(CreditService::class)->credit(
                     $payment->client,
@@ -67,5 +77,49 @@ class RefundService
                 );
             }
         });
+    }
+
+    private function reverseTopupCredit(Payment $payment, Invoice $invoice): void
+    {
+        $credited = Credit::query()
+            ->where('invoice_id', $invoice->id)
+            ->where('type', 'topup')
+            ->first();
+
+        // Belum pernah dikredit (mis. refund datang sebelum top-up
+        // diproses): tidak ada yang perlu ditarik. Invoice sudah berstatus
+        // refunded sehingga kredit juga tidak akan diterapkan belakangan.
+        if (! $credited || ! $payment->client) {
+            return;
+        }
+
+        $client = $payment->client;
+
+        $reversal = $client->adjustBalance(
+            -1 * (float) $credited->amount,
+            'topup_reversal',
+            "Pembatalan isi ulang — refund/chargeback invoice {$invoice->invoice_number}",
+            $invoice,
+            null,
+            'payment:' . $payment->id . ':topup-reversal',
+            allowNegative: true,
+        );
+
+        if ((float) $reversal->balance_after < 0 && $reversal->wasRecentlyCreated) {
+            ActivityLog::record(
+                'payment',
+                "Saldo {$client->name} MINUS setelah refund/chargeback top-up",
+                'Saldo sekarang Rp ' . number_format((float) $reversal->balance_after, 0, ',', '.') . " — invoice {$invoice->invoice_number}. Saldo sudah terpakai sebelum dana ditarik.",
+                route('admin.clients.details', $client),
+                'danger',
+                $client->id,
+            );
+
+            try {
+                app(\App\Services\Notification\NotificationService::class)->negativeBalance($client, (float) $reversal->balance_after, $invoice->invoice_number);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Peringatan saldo minus gagal terkirim: ' . $e->getMessage());
+            }
+        }
     }
 }

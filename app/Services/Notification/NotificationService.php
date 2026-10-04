@@ -294,6 +294,54 @@ class NotificationService
     /**
      * Kirim peringatan ke semua admin aktif.
      */
+    /**
+     * Saldo klien jadi minus karena refund/chargeback top-up menarik dana
+     * yang sudah terpakai.
+     */
+    public function negativeBalance(Client $client, float $balance, string $invoiceNumber): void
+    {
+        $this->alertAdmins('notify_admin_payment', 'Saldo klien MINUS (refund/chargeback top-up)', [
+            'Klien' => $client->name,
+            'Saldo' => 'Rp ' . number_format($balance, 0, ',', '.'),
+            'Invoice' => $invoiceNumber,
+            'Tindakan' => 'Tagih selisihnya atau sesuaikan manual setelah dicek.',
+        ], route('admin.clients.details', $client), 'danger');
+    }
+
+    /**
+     * Penyesuaian saldo manual oleh admin — selalu diberi tahu ke admin
+     * lain supaya tidak ada perubahan uang yang diam-diam.
+     */
+    public function balanceAdjusted(Client $client, float $amount, string $reason, string $adminName): void
+    {
+        $this->alertAdmins('notify_admin_payment', 'Saldo klien disesuaikan manual', [
+            'Klien' => $client->name,
+            'Perubahan' => ($amount > 0 ? '+' : '-') . 'Rp ' . number_format(abs($amount), 0, ',', '.'),
+            'Saldo baru' => 'Rp ' . number_format((float) $client->balance, 0, ',', '.'),
+            'Alasan' => $reason,
+            'Oleh' => $adminName,
+        ], route('admin.clients.details', $client), 'warning');
+    }
+
+    /**
+     * Saldo di tabel clients tidak sama dengan jumlah buku besar.
+     *
+     * @param  array<int, array{client_id:int,name:string,balance:string,ledger:string}>  $rows
+     */
+    public function balanceMismatch(array $rows): void
+    {
+        $lines = array_map(
+            fn ($r) => "#{$r['client_id']} {$r['name']}: saldo Rp {$r['balance']} vs buku besar Rp {$r['ledger']}",
+            array_slice($rows, 0, 10),
+        );
+
+        $this->alertAdmins('notify_admin_payment', 'Saldo klien tidak cocok dengan buku besar', [
+            'Jumlah klien' => (string) count($rows),
+            'Contoh' => implode("\n", $lines),
+            'Tindakan' => 'Jalankan lumora:reconcile-billing untuk daftar lengkap, lalu periksa mutasi saldo.',
+        ], null, 'danger');
+    }
+
     private function alertAdmins(string $settingKey, string $judul, array $details, ?string $link = null, string $level = 'info'): void
     {
         if (! $this->enabled($settingKey)) {

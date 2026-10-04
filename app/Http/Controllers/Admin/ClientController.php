@@ -71,33 +71,68 @@ class ClientController extends Controller
     {
         $data = $request->validate([
             'amount' => ['required', 'numeric'],
-            'description' => ['required', 'string', 'max:255'],
+            'description' => ['required', 'string', 'min:5', 'max:255'],
+            'token' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9\-]+$/'],
         ], [
             'amount.required' => 'Isi nominal — boleh negatif untuk mengurangi saldo.',
+            'description.min' => 'Tulis alasan penyesuaian dengan jelas (minimal 5 karakter).',
         ]);
 
-        if ((float) $data['amount'] === 0.0) {
+        $amount = (float) $data['amount'];
+
+        if (\App\Support\Money::cents($amount) === 0) {
             return back()->with('error', 'Nominal tidak boleh nol.');
         }
 
         $admin = auth('admin')->user();
 
-        $client->adjustBalance(
-            (float) $data['amount'],
-            'admin_adjustment',
-            "[Admin] {$data['description']}",
-            null,
-            $admin,
-        );
+        // Batas nominal sekali sesuaikan. Superadmin boleh sampai batas
+        // keras; admin biasa dibatasi lebih rendah (atur di Setting
+        // `balance_adjust_admin_limit`).
+        $hardLimit = 50_000_000;
+        $adminLimit = (float) \App\Models\Setting::get('balance_adjust_admin_limit', 1_000_000);
+        $limit = $admin->role === 'superadmin' ? $hardLimit : min($adminLimit, $hardLimit);
+
+        if (abs($amount) > $limit) {
+            return back()->withInput()->with('error', 'Nominal melebihi batas penyesuaian Anda (' . \App\Support\Money::rupiah($limit) . ').'
+                . ($admin->role === 'superadmin' ? '' : ' Minta superadmin untuk nominal lebih besar.'));
+        }
+
+        try {
+            $credit = $client->adjustBalance(
+                $amount,
+                'admin_adjustment',
+                "[Admin] {$data['description']}",
+                null,
+                $admin,
+                // Token unik per tampilan form: dobel klik / kirim ulang
+                // tidak menggandakan penyesuaian.
+                "admin-adjust:{$client->id}:{$data['token']}",
+            );
+        } catch (\App\Exceptions\Billing\BillingException $e) {
+            return back()->withInput()->with('error', 'Penyesuaian dibatalkan: hasil akhir saldo tidak boleh minus (saldo sekarang '
+                . \App\Support\Money::rupiah($client->balance) . ').');
+        }
+
+        if (! $credit->wasRecentlyCreated) {
+            return back()->with('success', 'Penyesuaian ini sudah diproses sebelumnya.');
+        }
 
         \App\Models\ActivityLog::record(
             'payment',
             "Saldo {$client->name} disesuaikan admin",
-            ($data['amount'] > 0 ? '+' : '') . 'Rp ' . number_format($data['amount'], 0, ',', '.') . " — {$data['description']}",
+            ($amount > 0 ? '+' : '-') . \App\Support\Money::rupiah(abs($amount)) . " — {$data['description']} (oleh {$admin->name})",
             route('admin.clients.details', $client),
             'warning',
             $client->id,
         );
+
+        try {
+            app(\App\Services\Notification\NotificationService::class)
+                ->balanceAdjusted($client, $amount, $data['description'], (string) $admin->name);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Pemberitahuan penyesuaian saldo gagal: ' . $e->getMessage());
+        }
 
         return back()->with('success', 'Saldo klien berhasil disesuaikan.');
     }

@@ -176,6 +176,11 @@ Route::middleware('client')->group(function () {
         Route::get('profile', 'edit')->name('profile');
         Route::post('profile', 'update')->name('profile.update');
         Route::post('profile/password', 'updatePassword')->name('profile.password');
+        Route::post('profile/otp', 'sendOtp')->name('profile.otp');
+        Route::post('profile/password-otp', 'togglePasswordOtp')->name('profile.password-otp');
+        Route::post('profile/email/verify', 'verifyEmail')->name('profile.email.verify');
+        Route::post('profile/email/resend', 'resendEmailCode')->name('profile.email.resend');
+        Route::post('profile/email/cancel', 'cancelEmailChange')->name('profile.email.cancel');
         Route::post('profile/two-factor', 'toggleTwoFactor')->name('profile.two-factor');
     });
 

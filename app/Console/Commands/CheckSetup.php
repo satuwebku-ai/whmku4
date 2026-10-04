@@ -65,7 +65,7 @@ class CheckSetup extends Command
         'coupons'  => ['title', 'description', 'tld_ids', 'is_public'],
         'payment_gateways' => ['qris_method_code'],
         'admins'   => ['two_factor_enabled'],
-        'clients'  => ['internal_notes', 'whatsapp_number', 'notify_promo', 'notify_whatsapp', 'google_id', 'avatar', 'balance'],
+        'clients'  => ['internal_notes', 'whatsapp_number', 'notify_promo', 'notify_whatsapp', 'google_id', 'avatar', 'balance', 'pending_email', 'password_otp_enabled', 'password_set_by_user'],
         'hosting_accounts' => ['renewal_invoice_id', 'product_id', 'pending_upgrade_product_id', 'pending_upgrade_invoice_id', 'client_details', 'credentials_sent_at', 'credentials_email_failed_at'],
         'domains' => ['renewal_invoice_id', 'is_transfer', 'transfer_auth_code', 'eligibility_criteria', 'eligibility_extra', 'documents_verified_at', 'privacy_invoice_id', 'privacy_expires_at'],
         'invoices' => ['is_topup'],

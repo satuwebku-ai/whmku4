@@ -80,6 +80,7 @@ class GoogleAuthController extends Controller
                 'google_id' => $googleUser->getId(),
                 'avatar' => $googleUser->getAvatar(),
                 'password' => Str::password(32),
+                'password_set_by_user' => false,
                 'status' => 'active',
                 'email_verified_at' => now(),
             ]);

@@ -151,7 +151,7 @@ class ChargeHourlyUsage extends Command
 
             try {
                 DB::transaction(function () use ($account, $client, $charge, $balance, &$charged, &$shouldSuspend) {
-                    if ($balance >= $charge) {
+                    if (\App\Support\Money::gte($balance, $charge)) {
                         // Saldo cukup -- potong penuh, layanan tetap jalan.
                         $this->applyCharge($client, $account, $charge, "Pemakaian {$account->domain}");
                         $account->update([

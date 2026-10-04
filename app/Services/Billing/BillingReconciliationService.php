@@ -47,11 +47,41 @@ class BillingReconciliationService
             ->count();
 
         return [
+            'balance_ledger_mismatch' => count($this->balanceMismatches()),
             'paid_payment_invoice_mismatch' => $paidPaymentsWithUnpaidInvoice,
             'paid_invoice_missing_charge' => $paidInvoicesMissingCharge,
             'paid_topup_missing_credit' => $paidTopupsMissingCredit,
             'paid_invoice_with_unfinished_order' => $stuckOrders,
         ];
+    }
+
+    /**
+     * Klien yang saldonya (clients.balance) tidak sama dengan jumlah semua
+     * mutasi buku besar (credits). Hanya dilaporkan, TIDAK diperbaiki
+     * otomatis: tidak ada cara menebak mana yang benar, dan akun lama
+     * bisa punya saldo awal dari sebelum buku besar ada.
+     *
+     * @return array<int, array{client_id:int,name:string,balance:string,ledger:string}>
+     */
+    public function balanceMismatches(): array
+    {
+        $ledger = DB::table('credits')
+            ->selectRaw('client_id, SUM(amount) AS total')
+            ->groupBy('client_id');
+
+        return DB::table('clients')
+            ->leftJoinSub($ledger, 'l', 'l.client_id', '=', 'clients.id')
+            ->selectRaw('clients.id AS client_id, clients.name AS name, clients.balance AS balance, COALESCE(l.total, 0) AS ledger')
+            ->get()
+            ->filter(fn ($r) => \App\Support\Money::cents($r->balance) !== \App\Support\Money::cents($r->ledger))
+            ->map(fn ($r) => [
+                'client_id' => (int) $r->client_id,
+                'name' => (string) $r->name,
+                'balance' => \App\Support\Money::fromCents(\App\Support\Money::cents($r->balance)),
+                'ledger' => \App\Support\Money::fromCents(\App\Support\Money::cents($r->ledger)),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

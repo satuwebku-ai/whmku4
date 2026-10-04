@@ -76,7 +76,7 @@ class VpsController extends Controller
         $breakdown = ($vps->serverModel && $vps->hasVmSpec())
             ? HourlyRateCalculator::breakdown($vps->serverModel, $vps->vmSpec(), $vps->product)
             : [];
-        $hoursLeft = ($rate && $rate > 0) ? floor((float) $client->balance / $rate) : null;
+        $hoursLeft = ($rate && $rate > 0) ? max(0, floor((float) $client->balance / $rate)) : null;
 
         return view('client.vps.show', compact('vps', 'vmInfo', 'apiError', 'rate', 'breakdown', 'hoursLeft', 'client', 'osImages'));
     }

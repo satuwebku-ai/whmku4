@@ -18,11 +18,28 @@ class ReconcileBilling extends Command
             $scan = $service->scan();
 
             $this->table(['Check', 'Count'], [
+                ['Saldo klien ≠ jumlah buku besar', $scan['balance_ledger_mismatch'] ?? 0],
                 ['Paid payment → invoice belum paid', $scan['paid_payment_invoice_mismatch']],
                 ['Paid invoice → charge transaction hilang', $scan['paid_invoice_missing_charge']],
                 ['Paid top-up → credit hilang', $scan['paid_topup_missing_credit']],
                 ['Paid invoice → order belum selesai', $scan['paid_invoice_with_unfinished_order']],
             ]);
+
+            if (($scan['balance_ledger_mismatch'] ?? 0) > 0) {
+                $rows = $service->balanceMismatches();
+
+                $this->warn('Saldo tidak cocok dengan buku besar (tidak diperbaiki otomatis):');
+                $this->table(
+                    ['Klien', 'Nama', 'Saldo', 'Buku besar'],
+                    array_map(fn ($r) => [$r['client_id'], $r['name'], $r['balance'], $r['ledger']], array_slice($rows, 0, 50)),
+                );
+
+                try {
+                    app(\App\Services\Notification\NotificationService::class)->balanceMismatch($rows);
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            }
 
             if (! $this->option('repair')) {
                 $this->comment('Audit saja. Gunakan --repair untuk recovery gap yang deterministik.');

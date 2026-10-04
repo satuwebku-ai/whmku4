@@ -125,17 +125,8 @@ class WhatsAppChannel
      */
     private function normalizeNumber(string $number): string
     {
-        $digits = preg_replace('/\D/', '', $number);
-
-        if (str_starts_with($digits, '0')) {
-            return '62' . ltrim($digits, '0');
-        }
-
-        if (str_starts_with($digits, '62')) {
-            return $digits;
-        }
-
-        // Nomor tanpa kode negara diasumsikan Indonesia.
-        return '62' . $digits;
+        // Nomor Indonesia lokal (0812…/812…) jadi 62…; nomor yang sudah
+        // berkode negara lain (+60…, +65…) dibiarkan apa adanya.
+        return \App\Support\PhoneNumber::digits($number);
     }
 }

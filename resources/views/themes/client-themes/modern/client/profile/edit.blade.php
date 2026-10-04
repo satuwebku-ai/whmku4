@@ -14,8 +14,8 @@
       @endif
       <p class="text-muted mb-0" style="font-size:12px">
         <i class="fa-brands fa-google text-theme"></i>
-        Akun ini tertaut dengan Google (<b class="text-dark">{{ $client->email }}</b>). Anda tetap bisa mengatur password
-        di bawah kalau ingin bisa masuk tanpa Google juga.
+        Akun ini tertaut dengan Google (<b class="text-dark">{{ $client->email }}</b>). Anda bisa mengatur password
+        lewat kode OTP (email/WhatsApp) di bawah kalau ingin bisa masuk tanpa Google juga.
       </p>
     </div>
   @endif
@@ -25,6 +25,27 @@
     <div class="col-12 col-lg-6">
       <div class="card-public p-4">
         <h2 class="small fw-bold text-dark mb-3">Data Akun</h2>
+
+        @if ($client->pending_email)
+          <div class="rounded-3 border p-3 mb-3" style="border-color:#fde68a!important;background:#fffbeb">
+            <p class="fw-semibold mb-1" style="font-size:13px;color:#92400e"><i class="fa-solid fa-envelope-circle-check"></i> Menunggu verifikasi email baru</p>
+            <p class="mb-2" style="font-size:12px;color:#92400e">
+              Kami mengirim kode 6 digit ke <b>{{ $client->pending_email }}</b>. Email akun tetap
+              <b>{{ $client->email }}</b> sampai kode dimasukkan.
+            </p>
+            <form method="POST" action="{{ route('client.profile.email.verify') }}" class="d-flex gap-2 mb-2">
+              @csrf
+              <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Kode 6 digit" class="form-control form-control-sm" style="max-width:10rem" required>
+              <button type="submit" class="btn btn-theme btn-sm">Verifikasi</button>
+            </form>
+            @error('code') <p class="text-danger mb-2" style="font-size:12px">{{ $message }}</p> @enderror
+            <div class="d-flex gap-3">
+              <form method="POST" action="{{ route('client.profile.email.resend') }}">@csrf<button type="submit" class="btn btn-link p-0" style="font-size:12px">Kirim ulang kode</button></form>
+              <form method="POST" action="{{ route('client.profile.email.cancel') }}">@csrf<button type="submit" class="btn btn-link p-0 text-danger" style="font-size:12px">Batalkan</button></form>
+            </div>
+          </div>
+        @endif
+
         <form method="POST" action="{{ route('client.profile.update') }}" class="d-flex flex-column gap-3">
           @csrf
 
@@ -45,7 +66,7 @@
                 <label class="form-label" style="font-size:12px">Password saat ini <span class="text-danger">*</span></label>
                 <input type="password" name="current_password" autocomplete="current-password" class="form-control" placeholder="Wajib untuk mengganti email">
                 @error('current_password') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
-                <p class="text-muted mt-1 mb-0" style="font-size:11px">Email baru harus diverifikasi saat Anda masuk berikutnya. Alamat lama akan diberi tahu.</p>
+                <p class="text-muted mt-1 mb-0" style="font-size:11px">Kode verifikasi dikirim ke email baru. Email lama tetap dipakai sampai kode dimasukkan, dan alamat lama akan diberi tahu.</p>
               </div>
               <script @nonce>
                 (function () {
@@ -63,7 +84,7 @@
 
           <div>
             <label class="form-label">No. WhatsApp / Telepon</label>
-            <input type="text" name="phone" value="{{ old('phone', $client->phone) }}" required class="form-control">
+            <input type="text" name="phone" value="{{ old('phone', $client->phone) }}" required class="form-control" inputmode="tel" placeholder="081234567890 atau +60123456789">
             @error('phone') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
           </div>
 
@@ -84,7 +105,13 @@
             </div>
             <div class="col-sm-6">
               <label class="form-label">Negara</label>
-              <input type="text" name="country" value="{{ old('country', $client->country) }}" class="form-control">
+              <select name="country" class="form-select">
+                <option value="">— Pilih negara —</option>
+                @foreach ($countries as $code => $countryName)
+                  <option value="{{ $code }}" @selected(old('country', $selectedCountry) === $code)>{{ $countryName }}</option>
+                @endforeach
+              </select>
+              @error('country') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
             </div>
           </div>
 
@@ -111,7 +138,8 @@
               <div>
                 <label class="form-label">Nomor WhatsApp <span class="text-muted fw-normal">(opsional)</span></label>
                 <input type="text" name="whatsapp_number" value="{{ old('whatsapp_number', $client->whatsapp_number) }}"
-                       placeholder="081234567890" class="form-control">
+                       placeholder="081234567890 atau +60123456789" class="form-control" inputmode="tel">
+                <p class="text-muted mt-1 mb-0" style="font-size:11px">Nomor luar negeri awali dengan + dan kode negara. Nomor ini juga bisa dipakai menerima kode OTP.</p>
                 @error('whatsapp_number') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
               </div>
 
@@ -161,14 +189,36 @@
     <div class="col-12 col-lg-6 d-flex flex-column gap-4">
       <div class="card-public p-4">
         <h2 class="small fw-bold text-dark mb-3">Ganti Password</h2>
+
+        @php $pwViaOtp = $client->requiresOtpForSensitive(); @endphp
+
+        @if ($pwViaOtp)
+          <p class="text-muted mb-3" style="font-size:12px;line-height:1.6">
+            @if ($client->passwordKnownToUser())
+              Ganti password memakai kode verifikasi (OTP) yang dikirim ke email atau WhatsApp Anda.
+            @else
+              Akun Anda masuk lewat Google, jadi password diatur dengan kode verifikasi (OTP) yang dikirim ke email atau WhatsApp Anda.
+            @endif
+          </p>
+          @include('client.profile._otp', ['purpose' => 'password_change', 'pending' => $otpPending['password_change'], 'channels' => $otpChannels])
+        @endif
+
         <form method="POST" action="{{ route('client.profile.password') }}" class="d-flex flex-column gap-3">
           @csrf
 
-          <div>
-            <label class="form-label">Password Saat Ini</label>
-            <input type="password" name="current_password" required class="form-control">
-            @error('current_password') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
-          </div>
+          @if ($pwViaOtp)
+            <div>
+              <label class="form-label">Kode Verifikasi</label>
+              <input type="text" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digit" required class="form-control" style="max-width:12rem">
+              @error('otp') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+            </div>
+          @else
+            <div>
+              <label class="form-label">Password Saat Ini</label>
+              <input type="password" name="current_password" required class="form-control">
+              @error('current_password') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+            </div>
+          @endif
 
           <div>
             <label class="form-label">Password Baru</label>
@@ -188,7 +238,30 @@
           </div>
 
           <button type="submit" class="btn btn-theme" style="width:fit-content"><i class="fa-solid fa-key" style="font-size:11px"></i> Ganti Password</button>
+          <p class="text-muted mb-0" style="font-size:11px">Setelah diganti, perangkat lain otomatis keluar dan Anda diberi tahu lewat email.</p>
         </form>
+
+        @if ($client->passwordKnownToUser())
+          <div class="pt-3 mt-3 border-top">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <h3 class="fw-semibold text-dark mb-0" style="font-size:14px">Ganti password pakai kode OTP</h3>
+              <span class="badge {{ $client->password_otp_enabled ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $client->password_otp_enabled ? 'Aktif' : 'Nonaktif' }}</span>
+            </div>
+            <p class="text-muted mb-2" style="font-size:12px;line-height:1.6">
+              Saat aktif, mengganti password harus memasukkan kode yang dikirim ke email atau WhatsApp Anda, bukan password lama.
+            </p>
+            <form method="POST" action="{{ route('client.profile.password-otp') }}" class="d-flex flex-column gap-2" style="max-width:20rem">
+              @csrf
+              @if ($client->password_otp_enabled)
+                <input type="password" name="current_password" class="form-control form-control-sm" placeholder="Password untuk menonaktifkan" required>
+                @error('current_password') <p class="text-danger mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+                <button type="submit" class="btn btn-outline-danger btn-sm" style="width:fit-content">Nonaktifkan</button>
+              @else
+                <button type="submit" class="btn btn-theme btn-sm" style="width:fit-content">Aktifkan</button>
+              @endif
+            </form>
+          </div>
+        @endif
       </div>
 
       {{-- 2FA --}}
@@ -204,11 +277,21 @@
           <b class="text-dark">{{ $client->email }}</b>. Ini melindungi akun Anda meski password bocor.
         </p>
 
+        @if ($client->two_factor_enabled && $client->requiresOtpForSensitive())
+          <p class="text-muted mb-2" style="font-size:12px">Untuk menonaktifkan 2FA, minta kode verifikasi dulu lalu masukkan di bawah.</p>
+          @include('client.profile._otp', ['purpose' => 'two_factor_disable', 'pending' => $otpPending['two_factor_disable'], 'channels' => $otpChannels])
+        @endif
+
         <form method="POST" action="{{ route('client.profile.two-factor') }}" class="d-flex flex-column gap-2" style="max-width:20rem">
           @csrf
           @if ($client->two_factor_enabled)
-            <input type="password" name="current_password" class="form-control form-control-sm" placeholder="Password untuk menonaktifkan" required>
-            @error('current_password') <p class="text-danger mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+            @if ($client->requiresOtpForSensitive())
+              <input type="text" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="form-control form-control-sm" placeholder="Kode verifikasi (OTP)" required>
+              @error('otp') <p class="text-danger mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+            @else
+              <input type="password" name="current_password" class="form-control form-control-sm" placeholder="Password untuk menonaktifkan" required>
+              @error('current_password') <p class="text-danger mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+            @endif
             <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-shield-halved" style="font-size:11px"></i> Nonaktifkan 2FA</button>
           @else
             <button type="submit" class="btn btn-theme btn-sm"><i class="fa-solid fa-shield-halved" style="font-size:11px"></i> Aktifkan 2FA</button>

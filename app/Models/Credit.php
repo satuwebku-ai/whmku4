@@ -7,6 +7,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Credit extends Model
 {
+    /**
+     * Jenis mutasi buku besar. Kolom `type` berupa string (bukan enum
+     * database) supaya jenis baru cukup ditambah di sini tanpa migrasi.
+     */
+    public const TYPES = [
+        'topup' => 'Isi Ulang',
+        'payment' => 'Bayar Invoice',
+        'refund' => 'Refund',
+        'admin_adjustment' => 'Penyesuaian Admin',
+        'usage_charge' => 'Pemakaian Layanan',
+        'topup_reversal' => 'Pembatalan Isi Ulang',
+    ];
+
     protected $fillable = [
         'client_id', 'amount', 'type', 'description', 'invoice_id', 'admin_id', 'balance_after',
         'idempotency_key',
@@ -37,12 +50,6 @@ class Credit extends Model
 
     public function getTypeLabelAttribute(): string
     {
-        return match ($this->type) {
-            'topup' => 'Isi Ulang',
-            'payment' => 'Bayar Invoice',
-            'refund' => 'Refund',
-            'admin_adjustment' => 'Penyesuaian Admin',
-            default => ucfirst($this->type),
-        };
+        return self::TYPES[$this->type] ?? ucfirst(str_replace('_', ' ', $this->type));
     }
 }

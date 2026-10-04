@@ -58,7 +58,8 @@
         </div>
       </form>
 
-      <form method="POST" action="{{ route('admin.servers.branding.reset', $server) }}" class="mt-2" onsubmit="return confirm('Hapus logo kustom dan kembali ke logo cPanel bawaan?')">
+      <form method="POST" action="{{ route('admin.servers.branding.reset', $server) }}" class="mt-2"
+            data-confirm="Hapus logo kustom dan kembali ke logo cPanel bawaan?" data-confirm-title="Kembalikan Logo Bawaan" data-confirm-style="warn" data-confirm-label="Ya, Kembalikan">
         @csrf
         <button type="submit" class="btn btn-outline-secondary btn-sm">Kembalikan ke logo bawaan</button>
       </form>

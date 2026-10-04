@@ -22,6 +22,8 @@ class Client extends Authenticatable
         'email_verified_at', 'last_login_at', 'last_login_ip',
         'whatsapp_number', 'notify_promo', 'notify_whatsapp', 'notify_sms',
         'google_id', 'avatar', 'balance', 'two_factor_enabled',
+        'pending_email', 'pending_email_code_hash', 'pending_email_expires_at', 'pending_email_attempts',
+        'password_otp_enabled', 'password_set_by_user',
     ];
 
     protected $hidden = ['password', 'remember_token', 'internal_notes'];
@@ -30,6 +32,9 @@ class Client extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'pending_email_expires_at' => 'datetime',
+            'password_otp_enabled' => 'boolean',
+            'password_set_by_user' => 'boolean',
             'reset_code_expires_at' => 'datetime',
             'email_verified_at' => 'datetime',
             'notify_promo' => 'boolean',
@@ -47,15 +52,25 @@ class Client extends Authenticatable
      * mengurangi), boleh positif (untuk menambah).
      */
     public function adjustBalance(
-        float $amount,
+        float|int|string $amount,
         string $type,
         string $description,
         ?\App\Models\Invoice $invoice = null,
         ?\App\Models\Admin $admin = null,
         ?string $idempotencyKey = null,
+        bool $allowNegative = false,
     ): \App\Models\Credit
     {
-        return DB::transaction(function () use ($amount, $type, $description, $invoice, $admin, $idempotencyKey) {
+        if (! array_key_exists($type, \App\Models\Credit::TYPES)) {
+            throw new \InvalidArgumentException("Jenis mutasi saldo tidak dikenal: {$type}");
+        }
+
+        return DB::transaction(function () use ($amount, $type, $description, $invoice, $admin, $idempotencyKey, $allowNegative) {
+            // Kunci klien DULU, baru cek kunci idempotensi: semua mutasi
+            // saldo satu klien berjalan bergantian, jadi dua permintaan
+            // dengan kunci sama tidak bisa sama-sama lolos pengecekan.
+            $client = static::query()->lockForUpdate()->findOrFail($this->id);
+
             if ($idempotencyKey) {
                 $existing = \App\Models\Credit::where('idempotency_key', $idempotencyKey)->first();
                 if ($existing) {
@@ -63,14 +78,26 @@ class Client extends Authenticatable
                 }
             }
 
-            $client = static::query()->lockForUpdate()->findOrFail($this->id);
-            $newBalance = round((float) $client->balance + $amount, 2);
+            $deltaCents = \App\Support\Money::cents($amount);
+            $newCents = \App\Support\Money::cents($client->balance) + $deltaCents;
+
+            // Satu-satunya tempat saldo dijaga agar tidak minus; refund /
+            // chargeback yang harus menarik dana yang sudah terpakai
+            // boleh minus lewat $allowNegative (jadi utang yang terlihat).
+            if ($deltaCents < 0 && $newCents < 0 && ! $allowNegative) {
+                throw new \App\Exceptions\Billing\BillingException('Saldo tidak cukup untuk transaksi ini.');
+            }
+
+            $newBalance = \App\Support\Money::fromCents($newCents);
 
             $client->update(['balance' => $newBalance]);
 
+            // Samakan instance pemanggil supaya $client->balance langsung benar.
+            $this->forceFill(['balance' => $newBalance])->syncOriginalAttribute('balance');
+
             return \App\Models\Credit::create([
                 'client_id' => $client->id,
-                'amount' => $amount,
+                'amount' => \App\Support\Money::fromCents($deltaCents),
                 'type' => $type,
                 'description' => $description,
                 'invoice_id' => $invoice?->id,
@@ -271,6 +298,67 @@ class Client extends Authenticatable
             'otp_code_hash'  => null,
             'otp_expires_at' => null,
             'otp_attempts'   => 0,
+        ])->save();
+    }
+
+    /**
+     * Ganti password / matikan 2FA harus lewat kode OTP (bukan "password saat
+     * ini") kalau klien memilihnya, atau kalau password akunnya acak dan tidak
+     * pernah diketahui klien (akun Google).
+     */
+    public function requiresOtpForSensitive(): bool
+    {
+        return (bool) $this->password_otp_enabled || ! $this->passwordKnownToUser();
+    }
+
+    /**
+     * false hanya untuk akun yang passwordnya acak dan belum pernah diatur
+     * klien (login Google). Nilai kosong dianggap true (akun biasa).
+     */
+    public function passwordKnownToUser(): bool
+    {
+        return $this->password_set_by_user !== false;
+    }
+
+    /**
+     * Mulai proses ganti email: simpan alamat baru + hash kode, kembalikan
+     * kode mentah untuk dikirim ke alamat BARU. Email lama tetap dipakai
+     * sampai kode dikonfirmasi.
+     */
+    public function startEmailChange(string $newEmail): string
+    {
+        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        $this->forceFill([
+            'pending_email' => $newEmail,
+            'pending_email_code_hash' => Hash::make($code),
+            'pending_email_expires_at' => now()->addMinutes(30),
+            'pending_email_attempts' => 0,
+        ])->save();
+
+        return $code;
+    }
+
+    public function pendingEmailCodeIsValid(string $code): bool
+    {
+        if (! $this->pending_email || ! $this->pending_email_code_hash || ! $this->pending_email_expires_at) {
+            return false;
+        }
+
+        if ($this->pending_email_expires_at->isPast()) {
+            return false;
+        }
+
+        return Hash::check($code, $this->pending_email_code_hash);
+    }
+
+    public function clearPendingEmail(): void
+    {
+        $this->forceFill([
+            'pending_email' => null,
+            'pending_email_code_hash' => null,
+            'pending_email_expires_at' => null,
+            'pending_email_attempts' => 0,
         ])->save();
     }
 }

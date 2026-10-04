@@ -63,7 +63,7 @@
           </div>
           <div class="col-12">
             <p class="text-muted mb-1" style="font-size:11px">ALAMAT</p>
-            <p class="fw-medium text-dark mb-0">{{ $client->address ?? '—' }}, {{ $client->city }}, {{ $client->country }}</p>
+            <p class="fw-medium text-dark mb-0">{{ $client->address ?? '—' }}, {{ $client->city }}, {{ \App\Support\Countries::name($client->country) }}</p>
           </div>
         </div>
       </div>
@@ -122,12 +122,14 @@
 
         <form method="POST" action="{{ route('admin.client.balance.adjust', $client) }}" class="mb-3">
           @csrf
+          <input type="hidden" name="token" value="{{ \Illuminate\Support\Str::uuid() }}">
           <input type="number" name="amount" step="1000" placeholder="Nominal (- untuk kurangi)" required
                  class="form-control form-control-sm mb-2">
           <input type="text" name="description" placeholder="Alasan (mis. Refund invoice INV-2026-0003)" required
                  class="form-control form-control-sm mb-2">
           @error('amount') <p class="text-danger mb-1" style="font-size:11px">{{ $message }}</p> @enderror
           @error('description') <p class="text-danger mb-1" style="font-size:11px">{{ $message }}</p> @enderror
+          @error('token') <p class="text-danger mb-1" style="font-size:11px">Formulir kedaluwarsa, muat ulang halaman.</p> @enderror
           <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
             <i class="fa-solid fa-sliders" style="font-size:11px"></i> Sesuaikan Saldo
           </button>

@@ -129,6 +129,13 @@ class NotificationTemplate extends Model
                 'body_sms' => "Kode verifikasi login {site_name}: {code}. Berlaku 10 menit, jangan bagikan ke siapa pun.",
                 'variables' => ['client_name', 'site_name', 'code'],
             ],
+            'client_security_otp' => [
+                'label' => 'Kode Verifikasi Keamanan Akun (Klien)',
+                'subject' => 'Kode Verifikasi {action} — {site_name}',
+                'body_mail' => "Anda meminta kode untuk **{action}**. Gunakan kode berikut:\n\n**{code}**\n\nKode berlaku 10 menit dan hanya bisa dipakai sekali.\n\nKalau bukan Anda yang meminta, abaikan pesan ini dan segera ganti password akun Anda.",
+                'body_whatsapp' => "Halo {client_name}, kode verifikasi untuk *{action}* di {site_name}: *{code}*\n\nBerlaku 10 menit. Jangan bagikan kode ini ke siapa pun.",
+                'variables' => ['client_name', 'site_name', 'code', 'action'],
+            ],
             'send_password_reset_code' => [
                 'label' => 'Kode Reset Password Admin',
                 'subject' => 'Kode Reset Password — {site_name}',

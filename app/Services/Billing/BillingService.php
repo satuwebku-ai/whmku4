@@ -44,7 +44,7 @@ class BillingService
             }
 
             $amount = (float) $invoice->total;
-            if ((float) $client->balance < $amount) {
+            if (! \App\Support\Money::gte($client->balance, $amount)) {
                 throw new BillingException('Saldo Anda tidak cukup untuk membayar invoice ini.');
             }
 
