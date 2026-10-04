@@ -1218,6 +1218,7 @@ class ServiceController extends Controller
         $attachedAddonIds = $service->addons->whereIn('status', ['pending_payment', 'active'])->pluck('addon_id');
 
         $available = \App\Models\Addon::active()
+            ->forService()
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -1267,7 +1268,11 @@ class ServiceController extends Controller
                         return ['success' => false, 'message' => 'Invoice addon sudah dibayar dan tidak bisa dibatalkan.'];
                     }
 
-                    $invoice?->update(['status' => 'cancelled']);
+                    // Lewat InvoiceService agar payment gateway yang masih
+                    // menunggu ikut kedaluwarsa (bukan sekadar ganti status).
+                    if ($invoice) {
+                        app(\App\Services\Billing\InvoiceService::class)->cancel($invoice);
+                    }
                 }
 
                 $current->update([

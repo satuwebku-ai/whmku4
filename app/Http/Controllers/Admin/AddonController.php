@@ -99,7 +99,7 @@ class AddonController extends Controller
             'name'                 => ['required', 'string', 'max:255'],
             'slug'                 => ['nullable', 'string', 'max:255', 'unique:addons,slug' . ($ignoreId ? ",{$ignoreId}" : '')],
             'description'          => ['nullable', 'string', 'max:1000'],
-            'category'             => ['required', 'in:' . implode(',', array_keys(Addon::CATEGORIES))],
+            'category'             => ['required', 'in:' . implode(',', array_keys(Addon::allCategories()))],
             'brand'                => ['nullable', 'string', 'max:100'],
             'summary'              => ['nullable', 'string', 'max:255'],
             'long_description'     => ['nullable', 'string', 'max:10000'],

@@ -72,7 +72,7 @@
             <div class="col-sm-6">
               <label class="form-label small fw-medium text-dark">Kategori</label>
               <select name="category" class="form-select form-select-sm">
-                @foreach (\App\Models\Addon::CATEGORIES as $key => $label)
+                @foreach (\App\Models\Addon::allCategories() as $key => $label)
                   <option value="{{ $key }}" @selected(old('category', $addon->category ?: 'license') === $key)>{{ $label }}</option>
                 @endforeach
               </select>

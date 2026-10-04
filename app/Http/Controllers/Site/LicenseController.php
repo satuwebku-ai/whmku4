@@ -13,6 +13,7 @@ class LicenseController extends Controller
     {
         $all = Addon::query()
             ->active()
+            ->licenses()
             ->where('is_public', true)
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -35,6 +36,7 @@ class LicenseController extends Controller
     {
         $license = Addon::query()
             ->active()
+            ->licenses()
             ->where('is_public', true)
             ->where('slug', $slug)
             ->firstOrFail();
@@ -43,6 +45,7 @@ class LicenseController extends Controller
 
         $related = Addon::query()
             ->active()
+            ->licenses()
             ->where('is_public', true)
             ->where('category', $license->category)
             ->whereKeyNot($license->id)

@@ -78,7 +78,7 @@ class CartService
 
         foreach ($items as &$item) {
             if (($item['type'] ?? null) === 'addon' && ! empty($item['addon_id'])) {
-                $addon = Addon::query()->whereKey($item['addon_id'])->where('is_active', true)->where('is_public', true)->first();
+                $addon = Addon::query()->whereKey($item['addon_id'])->licenses()->where('is_active', true)->where('is_public', true)->first();
                 $newPrice = $addon?->priceForCycle($item['billing_cycle'] ?? 'monthly');
 
                 if ($newPrice !== null && (float) $newPrice != (float) ($item['price'] ?? 0)) {
@@ -254,7 +254,7 @@ class CartService
 
     public function addAddon(Addon $addon, string $cycle, ?string $licenseIp = null): array
     {
-        if (! $addon->is_active || ! $addon->is_public) {
+        if (! $addon->is_active || ! $addon->is_public || $addon->isServiceAddon()) {
             return ['success' => false, 'message' => 'Lisensi ini sedang tidak tersedia.'];
         }
 
@@ -683,7 +683,7 @@ class CartService
                     $item['price'] = $price + $optionsTotal;
                 }
             } elseif ($item['key'] === $key && $item['type'] === 'addon') {
-                $addon = Addon::query()->whereKey($item['addon_id'] ?? null)->where('is_active', true)->where('is_public', true)->first();
+                $addon = Addon::query()->whereKey($item['addon_id'] ?? null)->licenses()->where('is_active', true)->where('is_public', true)->first();
                 $price = $addon?->priceForCycle($cycle);
 
                 if ($price !== null) {

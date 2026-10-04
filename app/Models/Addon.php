@@ -69,15 +69,35 @@ class Addon extends Model
 
     public const CYCLE_SUFFIX = ['monthly' => '/bulan', 'quarterly' => '/3 bulan', 'semi_annually' => '/6 bulan', 'annually' => '/tahun'];
 
+    /**
+     * Kategori produk LISENSI yang dijual lewat katalog publik /lisensi
+     * (keranjang + IP server untuk lisensi). Dipakai sebagai tab filter
+     * katalog dan sebagai batas "ini produk lisensi".
+     */
     public const CATEGORIES = [
         'ssl' => 'Sertifikat SSL',
         'license' => 'Lisensi Software',
+        'os' => 'Lisensi OS',
     ];
 
-    /** Lisensi server (cPanel, LiteSpeed, dll.) terikat ke IP publik server; SSL tidak. */
+    /**
+     * Addon yang dipasang di layanan hosting klien (mis. IP Dedicated,
+     * backup tambahan) lewat halaman Addons layanan. Sengaja terpisah dari
+     * lisensi: lisensi (cPanel, LiteSpeed, Windows VPS, SSL, dst) terikat IP
+     * server dan dibeli lewat katalog Lisensi, bukan ditempel ke layanan.
+     */
+    public const SERVICE_CATEGORY = 'service';
+
+    /** Semua kategori yang boleh dipilih admin di form addon. */
+    public static function allCategories(): array
+    {
+        return self::CATEGORIES + [self::SERVICE_CATEGORY => 'Addon Layanan Hosting'];
+    }
+
+    /** Lisensi server (cPanel, LiteSpeed, dll.) dan lisensi OS (Windows Server, dll.) terikat ke IP publik server; SSL tidak. */
     public function requiresIp(): bool
     {
-        return $this->category === 'license';
+        return in_array($this->category, ['license', 'os'], true);
     }
 
     /** IPv4 publik saja: menolak rentang privat (10.x, 172.16-31.x, 192.168.x) dan reserved (127.x, dll.). */
@@ -92,7 +112,7 @@ class Addon extends Model
 
     public function getCategoryLabelAttribute(): string
     {
-        return self::CATEGORIES[$this->category] ?? 'Lisensi';
+        return self::allCategories()[$this->category] ?? 'Lisensi';
     }
 
     /** Siklus termurah, dipakai untuk label "mulai dari" & tombol Tambah ke Keranjang di katalog. */
@@ -110,5 +130,22 @@ class Addon extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /** Hanya addon untuk layanan hosting (halaman Addons layanan). */
+    public function scopeForService($query)
+    {
+        return $query->where('category', self::SERVICE_CATEGORY);
+    }
+
+    /** Hanya produk lisensi/SSL (katalog publik /lisensi dan keranjang). */
+    public function scopeLicenses($query)
+    {
+        return $query->whereIn('category', array_keys(self::CATEGORIES));
+    }
+
+    public function isServiceAddon(): bool
+    {
+        return $this->category === self::SERVICE_CATEGORY;
     }
 }

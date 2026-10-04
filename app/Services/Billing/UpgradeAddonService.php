@@ -82,10 +82,16 @@ class UpgradeAddonService
     {
         return DB::transaction(function () use ($service, $addon) {
             $hosting = HostingAccount::query()->lockForUpdate()->findOrFail($service->id);
-            $catalogAddon = Addon::query()->whereKey($addon->id)->where('is_active', true)->first();
+            $catalogAddon = Addon::query()->whereKey($addon->id)->forService()->where('is_active', true)->first();
 
             if (! $catalogAddon) {
                 throw new RuntimeException('Addon tidak tersedia.');
+            }
+
+            // Addon hanya masuk akal untuk layanan yang sedang berjalan;
+            // layanan suspended/terminated/pending tidak boleh ditagih addon baru.
+            if ($hosting->status !== 'active') {
+                throw new RuntimeException('Addon hanya bisa dipesan untuk layanan yang aktif.');
             }
 
             $existing = HostingAccountAddon::query()

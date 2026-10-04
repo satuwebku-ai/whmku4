@@ -20,6 +20,7 @@
         <thead>
           <tr class="small text-uppercase text-muted" style="background:#f8fafc">
             <th class="px-4 py-3">Nama</th>
+            <th class="py-3">Kategori</th>
             <th class="text-end py-3">Bulanan</th>
             <th class="text-end py-3">Tahunan</th>
             <th class="text-center py-3">Dipakai</th>
@@ -33,6 +34,7 @@
               <td class="px-4 py-3 fw-medium text-dark">
                 <a href="{{ route('admin.addons.edit', $addon) }}" class="text-decoration-none text-dark">{{ $addon->name }}</a>
               </td>
+              <td class="py-3"><span class="badge {{ $addon->isServiceAddon() ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $addon->category_label }}</span></td>
               <td class="text-end text-muted py-3">{{ $addon->price_monthly ? 'Rp ' . number_format($addon->price_monthly, 0, ',', '.') : '—' }}</td>
               <td class="text-end text-muted py-3">{{ $addon->price_annually ? 'Rp ' . number_format($addon->price_annually, 0, ',', '.') : '—' }}</td>
               <td class="text-center text-muted py-3">{{ $addon->attachments_count }}</td>
@@ -61,7 +63,7 @@
               </td>
             </tr>
           @empty
-            <tr><td colspan="6" class="text-center text-muted py-5">Belum ada addon. Klik "Tambah Addon" untuk membuat yang pertama.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-5">Belum ada addon. Klik "Tambah Addon" untuk membuat yang pertama.</td></tr>
           @endforelse
         </tbody>
       </table>

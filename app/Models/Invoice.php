@@ -71,6 +71,8 @@ class Invoice extends Model
         static::deleted(function (Invoice $invoice) {
             \App\Models\Domain::where('privacy_invoice_id', $invoice->id)
                 ->update(['privacy_invoice_id' => null]);
+
+            static::releasePendingHostingAddons($invoice);
         });
 
         static::updated(function (Invoice $invoice) {
@@ -82,6 +84,8 @@ class Invoice extends Model
             if ($invoice->wasChanged('status') && $invoice->status === 'cancelled') {
                 \App\Models\Domain::where('privacy_invoice_id', $invoice->id)
                     ->update(['privacy_invoice_id' => null]);
+
+                static::releasePendingHostingAddons($invoice);
             }
 
             if ($invoice->wasChanged('status') && in_array($invoice->status, ['overdue', 'cancelled'], true)) {
@@ -95,6 +99,21 @@ class Invoice extends Model
                 }
             }
         });
+    }
+
+    /**
+     * Addon hosting yang masih menunggu bayar invoice ini dilepas saat
+     * invoice dibatalkan/dihapus. Tanpa ini barisnya macet di
+     * pending_payment dengan addon_id terisi: klien tidak bisa memesan
+     * ulang (unique key + cek "sudah terpasang atau menunggu pembayaran")
+     * dan addon-nya hilang dari daftar yang tersedia. addon_id dikosongkan
+     * mengikuti pola cancelAddon(); nama & harga tetap jadi snapshot.
+     */
+    protected static function releasePendingHostingAddons(Invoice $invoice): void
+    {
+        \App\Models\HostingAccountAddon::where('invoice_id', $invoice->id)
+            ->where('status', 'pending_payment')
+            ->update(['status' => 'cancelled', 'addon_id' => null]);
     }
 
     public static function generateInvoiceNumber(): string
