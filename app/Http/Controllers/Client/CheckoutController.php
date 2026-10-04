@@ -651,7 +651,7 @@ class CheckoutController extends Controller
             'years'              => 1,
             'status'             => 'pending',
             'provision_status'   => 'manual',
-            'whois_privacy'      => (bool) $tld->whois_privacy_eligible,
+            'whois_privacy'      => (bool) $tld->privacyAllowed(),
             'is_transfer'        => true,
             'transfer_auth_code' => $authCode,
         ]);
@@ -687,7 +687,7 @@ class CheckoutController extends Controller
             'years'            => $years,
             'status'           => 'pending',
             'provision_status' => 'manual',
-            'whois_privacy'    => $tld->whois_privacy_eligible && (bool) ($item['whois_privacy'] ?? false),
+            'whois_privacy'    => $tld->privacyAllowed() && (bool) ($item['whois_privacy'] ?? false),
             // Menandai ini transfer masuk, bukan registrasi baru --
             // ProvisioningService membaca ini untuk memanggil
             // transferDomain() alih-alih registerDomain().
@@ -698,7 +698,7 @@ class CheckoutController extends Controller
         $label = $isTransfer ? 'Transfer Domain' : 'Registrasi Domain';
 
         $finalDomainPrice = $isTransfer ? (float) $tld->transfer_price : (float) $tld->priceForYears($years);
-        if ($tld->whois_privacy_eligible && ($item['whois_privacy'] ?? false)) {
+        if ($tld->privacyAllowed() && ($item['whois_privacy'] ?? false)) {
             $finalDomainPrice += (float) ($item['whois_privacy_price'] ?? 0);
         }
 

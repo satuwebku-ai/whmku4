@@ -66,7 +66,24 @@ class Invoice extends Model
             }
         });
 
+        // Soft delete tidak memicu FK nullOnDelete (barisnya masih ada),
+        // jadi tautan di domain harus dilepas manual.
+        static::deleted(function (Invoice $invoice) {
+            \App\Models\Domain::where('privacy_invoice_id', $invoice->id)
+                ->update(['privacy_invoice_id' => null]);
+        });
+
         static::updated(function (Invoice $invoice) {
+            // Invoice ID Protection yang dibatalkan lewat jalur mana pun
+            // (admin, cron, edit langsung) harus melepas kaitannya di
+            // domain; kalau tidak, halaman Addons terus menampilkan
+            // "Bayar Sekarang" ke invoice yang sudah mati dan klien tidak
+            // bisa membuat invoice baru.
+            if ($invoice->wasChanged('status') && $invoice->status === 'cancelled') {
+                \App\Models\Domain::where('privacy_invoice_id', $invoice->id)
+                    ->update(['privacy_invoice_id' => null]);
+            }
+
             if ($invoice->wasChanged('status') && in_array($invoice->status, ['overdue', 'cancelled'], true)) {
                 try {
                     app(\App\Services\Billing\CouponService::class)->releaseForInvoice($invoice);

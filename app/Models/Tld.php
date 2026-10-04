@@ -25,6 +25,39 @@ class Tld extends Model
         return $ext === '.id' || str_ends_with($ext, '.id');
     }
 
+    /**
+     * Apakah TLD ini boleh menjual ID Protection / WHOIS Privacy.
+     *
+     * Flag whois_privacy_eligible di database saja tidak cukup: baris TLD
+     * yang masuk lewat DB::table()/seeder/impor mentah tidak melewati
+     * event model di booted(), jadi .id bisa saja tersimpan dengan
+     * flag true. Cek ekstensinya juga di sini.
+     */
+    public function privacyAllowed(): bool
+    {
+        return (bool) $this->whois_privacy_eligible
+            && ! static::isIdFamily((string) $this->extension);
+    }
+
+    /**
+     * Harga ID Protection yang berlaku untuk TLD ini, dari yang paling
+     * spesifik: harga khusus TLD -> harga registrar -> harga global.
+     * Sumber tunggal supaya keranjang dan halaman Addons klien selalu
+     * menagih angka yang sama dengan yang diatur di /admin/tld/privacy.
+     */
+    public function privacyPrice(): float
+    {
+        if ($this->whois_privacy_price !== null) {
+            return (float) $this->whois_privacy_price;
+        }
+
+        if ($this->registrar && $this->registrar->whois_privacy_price !== null) {
+            return (float) $this->registrar->whois_privacy_price;
+        }
+
+        return (float) \App\Models\Setting::get('whois_privacy_price', 0);
+    }
+
     protected static function booted(): void
     {
         // Dipasang di level MODEL, bukan cuma di migration, supaya

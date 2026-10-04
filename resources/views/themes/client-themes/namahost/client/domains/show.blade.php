@@ -21,7 +21,7 @@
           </button>
         </form>
       @endif
-      @if ($domain->provision_status === 'registered')
+      @if ($domain->provision_status === 'registered' && $domain->supportsPrivacy())
         <a href="{{ route('client.domains.addons', $domain) }}" class="btn btn-outline-secondary btn-sm">
           <i class="fa-solid fa-puzzle-piece" style="font-size:11px"></i> Addons
         </a>
@@ -113,6 +113,7 @@
             </div>
           </div>
 
+          @if ($domain->supportsPrivacy())
           <div class="col-sm-6">
             <p class="text-muted mb-0" style="font-size:11px">ID Protection (WHOIS Privacy)</p>
             @php $privacyActive = $domain->hasActivePrivacy(); @endphp
@@ -123,6 +124,12 @@
               @endif
             </div>
           </div>
+          @else
+          <div class="col-sm-6">
+            <p class="text-muted mb-0" style="font-size:11px">ID Protection (WHOIS Privacy)</p>
+            <p class="mb-0 mt-1 text-muted" style="font-size:12px">Tidak tersedia untuk domain .id (aturan PANDI)</p>
+          </div>
+          @endif
 
           @if (! is_null($lockStatus))
             <div class="col-sm-6">

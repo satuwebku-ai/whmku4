@@ -24,7 +24,7 @@
           @php
             $privacyActive = $domain->hasActivePrivacy();
             $privacyDaysLeft = $domain->privacyDaysLeft();
-            $privacyPrice = (float) \App\Models\Setting::get('whois_privacy_price', 0);
+            $privacyPrice = $domain->privacyPrice();
           @endphp
 
           <div class="d-flex align-items-center gap-2 flex-wrap mt-2">

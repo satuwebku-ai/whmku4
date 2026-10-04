@@ -54,6 +54,41 @@ class Domain extends Model
             && $this->privacy_expires_at->isFuture();
     }
 
+    /**
+     * Apakah domain ini boleh memakai ID Protection / WHOIS Privacy.
+     *
+     * Seluruh keluarga .id (.id, .my.id, .co.id, .web.id, dst) dilarang
+     * PANDI menawarkan WHOIS Privacy. Dicek dari NAMA domain, bukan hanya
+     * dari relasi TLD, supaya tetap benar untuk domain lama yang tld_id-nya
+     * kosong atau TLD-nya dibuat sebelum aturan ini dipasang.
+     */
+    public function supportsPrivacy(): bool
+    {
+        if (Tld::isIdFamily((string) $this->domain_name)) {
+            return false;
+        }
+
+        if ($this->relationLoaded('tld') || $this->tld_id) {
+            return $this->tld?->privacyAllowed() ?? true;
+        }
+
+        return true;
+    }
+
+    /** Harga ID Protection (1 tahun) untuk domain ini — lihat Tld::privacyPrice(). */
+    public function privacyPrice(): float
+    {
+        if ($this->tld) {
+            return $this->tld->privacyPrice();
+        }
+
+        if ($this->registrar && $this->registrar->whois_privacy_price !== null) {
+            return (float) $this->registrar->whois_privacy_price;
+        }
+
+        return (float) \App\Models\Setting::get('whois_privacy_price', 0);
+    }
+
     public function privacyDaysLeft(): ?int
     {
         if (! $this->privacy_expires_at) {

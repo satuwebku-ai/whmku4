@@ -147,8 +147,18 @@ class ServiceController extends Controller
         );
     }
 
-    public function domainAddons(Domain $domain): View
+    public function domainAddons(Domain $domain): View|RedirectResponse
     {
+        $this->authorizeOwner($domain);
+
+        // Saat ini satu-satunya addon domain adalah ID Protection. Domain
+        // .id tidak boleh memakainya (aturan PANDI), jadi halamannya
+        // tidak ada gunanya.
+        if (! $domain->supportsPrivacy()) {
+            return redirect()->route('client.domains.show', $domain)
+                ->with('error', 'Domain .id tidak mendukung ID Protection (WHOIS Privacy) — sesuai aturan PANDI.');
+        }
+
         return view('client.domains.addons', $this->domainAddonsData($domain));
     }
 
@@ -364,11 +374,17 @@ class ServiceController extends Controller
         }
 
         // ── Mengaktifkan / memperpanjang: harus bayar dulu ──
+        // Domain .id dilarang PANDI memakai WHOIS Privacy. Cek di sini
+        // (bukan hanya menyembunyikan tombol) agar POST manual pun ditolak.
+        if (! $domain->supportsPrivacy()) {
+            return back()->with('error', 'Domain .id tidak mendukung ID Protection (WHOIS Privacy) — sesuai aturan PANDI.');
+        }
+
         if (! method_exists($service, 'enablePrivacyProtection')) {
             return back()->with('error', 'Registrar domain ini belum mendukung pengaturan ID Protection lewat sistem.');
         }
 
-        $price = (float) \App\Models\Setting::get('whois_privacy_price', 0);
+        $price = $domain->privacyPrice();
 
         if ($price <= 0) {
             return back()->with('error', 'Harga ID Protection belum diatur. Silakan hubungi support.');

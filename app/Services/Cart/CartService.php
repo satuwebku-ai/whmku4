@@ -54,15 +54,7 @@ class CartService
      */
     private function privacyPriceFor(Tld $tld): float
     {
-        if ($tld->whois_privacy_price !== null) {
-            return (float) $tld->whois_privacy_price;
-        }
-
-        if ($tld->registrar && $tld->registrar->whois_privacy_price !== null) {
-            return (float) $tld->registrar->whois_privacy_price;
-        }
-
-        return (float) \App\Models\Setting::get('whois_privacy_price', 0);
+        return $tld->privacyPrice();
     }
 
     /**
@@ -141,12 +133,12 @@ class CartService
             // kalau statusnya BARU diubah admin jadi tidak-eligible SETELAH
             // item ini sudah ada di keranjang klien, matikan add-on-nya di
             // sini juga, jangan cuma dicegah di form penambahan baru.
-            if (($item['whois_privacy_eligible'] ?? null) !== $tld->whois_privacy_eligible) {
-                $item['whois_privacy_eligible'] = $tld->whois_privacy_eligible;
+            if (($item['whois_privacy_eligible'] ?? null) !== $tld->privacyAllowed()) {
+                $item['whois_privacy_eligible'] = $tld->privacyAllowed();
                 $changed = true;
             }
 
-            if (! $tld->whois_privacy_eligible && ($item['whois_privacy'] ?? false)) {
+            if (! $tld->privacyAllowed() && ($item['whois_privacy'] ?? false)) {
                 $item['whois_privacy'] = false;
                 $changed = true;
             }
@@ -414,7 +406,7 @@ class CartService
         // TLD di bawah .id dilarang PANDI menawarkan WHOIS Privacy --
         // kalau tidak eligible, ID Protection TIDAK dinyalakan default
         // (beda dari TLD lain yang defaultnya menyala).
-        $privacyDefault = $tld->whois_privacy_eligible;
+        $privacyDefault = $tld->privacyAllowed();
 
         $this->push([
             'key'         => (string) Str::uuid(),
@@ -424,7 +416,7 @@ class CartService
             'years'       => $years,
             'base_price'  => $basePrice,
             'whois_privacy_price' => $privacyPrice,
-            'whois_privacy_eligible' => $tld->whois_privacy_eligible,
+            'whois_privacy_eligible' => $tld->privacyAllowed(),
             'price'       => $privacyDefault ? $basePrice + $privacyPrice : $basePrice,
             'whois_privacy' => $privacyDefault,
             // Dibaca CheckoutController untuk memilih jalur transfer
