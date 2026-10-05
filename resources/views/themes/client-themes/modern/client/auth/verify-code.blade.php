@@ -2,38 +2,50 @@
 @section('title', 'Verifikasi Kode')
 
 @section('form')
-  <h2 class="text-xl font-bold text-slate-800 mb-1">Masukkan Kode</h2>
-  <p class="text-sm text-slate-500 mb-6">
-    Kami mengirim kode 6 digit ke <b>{{ $email }}</b>. Kode berlaku 15 menit.
+  <span class="rounded-4 d-flex align-items-center justify-content-center mb-4" style="width:48px;height:48px;background:rgba(79,70,229,.1);color:#4f46e5">
+    <i class="fa-solid fa-shield-halved" style="font-size:18px"></i>
+  </span>
+
+  <h2 class="fw-bold text-dark mb-1" style="font-size:1.4rem">Masukkan Kode</h2>
+  <p class="text-muted mb-4">
+    Kami mengirim kode 6 digit ke <b class="text-dark">{{ $email }}</b>. Kode berlaku 15 menit.
   </p>
 
   @if (session('success'))
-    <div class="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+    <div class="rounded-3 px-3 py-2 mb-4" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:14px;color:#15803d">
       {{ session('success') }}
     </div>
   @endif
 
   @if ($errors->any())
-    <div class="mb-4 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+    <div class="rounded-3 px-3 py-2 mb-4" style="background:#fef2f2;border:1px solid #fecaca;font-size:14px;color:#b91c1c">
       {{ $errors->first() }}
     </div>
   @endif
 
-  <form method="POST" action="{{ route('client.password.verify.code') }}" class="space-y-4">
+  <form method="POST" action="{{ route('client.password.verify.code') }}">
     @csrf
 
-    <div>
+    <div class="mb-3">
       <label for="code" class="form-label">Kode Verifikasi</label>
-      <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-             required autofocus autocomplete="one-time-code" placeholder="000000"
-             class="w-full px-3.5 py-3 rounded-lg border border-slate-200 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent">
+      <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus
+             autocomplete="one-time-code" placeholder="000000" class="form-control text-center"
+             style="font-size:1.75rem;font-weight:700;letter-spacing:.5em;padding:.75rem 0 .75rem .5em">
     </div>
 
-    <button type="submit" class="w-full btn btn-primary">Verifikasi Kode</button>
+    <button type="submit" class="btn btn-theme w-100">
+      Verifikasi Kode
+    </button>
   </form>
 
-  <p class="text-center text-sm text-slate-500 mt-6">
-    Tidak menerima kode?
-    <a href="{{ route('client.password.request') }}" class="text-accent font-medium hover:underline">Kirim ulang</a>
+  <div class="d-flex align-items-center justify-content-between mt-4 pt-3 border-top" style="font-size:13px">
+    <span class="text-muted">Tidak menerima kode?
+      <a href="{{ route('client.password.request') }}" class="text-theme fw-medium">Kirim ulang</a>
+    </span>
+    <a href="{{ route('client.login') }}" class="text-muted text-decoration-none">Kembali ke login</a>
+  </div>
+
+  <p class="text-center text-muted mt-4 mb-0" style="font-size:11px">
+    Periksa juga folder spam. Jangan bagikan kode ini ke siapapun.
   </p>
 @endsection
