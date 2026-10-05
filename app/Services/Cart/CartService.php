@@ -179,7 +179,7 @@ class CartService
      */
     public function addProduct(Product $product, string $cycle, ?string $domainMode = null, ?string $domainName = null, ?string $transferAuthCode = null, array $selectedOptions = []): array
     {
-        if (! $product->is_active) {
+        if (! $product->isPurchasable()) {
             return ['success' => false, 'message' => 'Produk ini sedang tidak tersedia.'];
         }
 

@@ -267,6 +267,18 @@ class Product extends Model
         return $this->domain_option !== 'none';
     }
 
+    /**
+     * Produk hanya boleh dijual kalau produknya aktif DAN grup/kategorinya
+     * juga aktif. Katalog publik sudah menyaring grup nonaktif (lihat
+     * CatalogController), tapi keranjang dan checkout dulu hanya mengecek
+     * produknya sendiri, jadi produk di grup nonaktif masih bisa dibeli
+     * lewat request langsung atau keranjang lama.
+     */
+    public function isPurchasable(): bool
+    {
+        return $this->is_active && (bool) $this->category?->is_active;
+    }
+
     public function isInStock(): bool
     {
         return $this->stock === null || ((int) $this->stock - (int) ($this->reserved_stock ?? 0)) > 0;

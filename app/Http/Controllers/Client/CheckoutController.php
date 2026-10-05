@@ -285,9 +285,11 @@ class CheckoutController extends Controller
             }
 
             if ($item['type'] === 'product' && ! empty($item['product_id'])) {
-                $product = Product::with('server')->find($item['product_id']);
+                $product = Product::with(['server', 'category'])->find($item['product_id']);
 
-                if ($product && ! $product->isInStock()) {
+                if (! $product || ! $product->isPurchasable()) {
+                    $issues[] = "Maaf, \"{$item['name']}\" sudah tidak tersedia. Hapus item ini dari keranjang.";
+                } elseif (! $product->isInStock()) {
                     $issues[] = "Maaf, stok \"{$item['name']}\" sudah habis. Hapus item ini dari keranjang.";
                 }
 
