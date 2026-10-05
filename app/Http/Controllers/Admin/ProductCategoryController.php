@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\ProductGroup;
+use App\Models\Server;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -27,7 +29,9 @@ class ProductCategoryController extends Controller
         $data = $this->validated($request);
         $data['is_active'] = $request->boolean('is_active', true);
 
-        ProductGroup::create($data);
+        $category = ProductGroup::create($data);
+
+        $this->audit('Kategori produk dibuat', "{$category->name} (jenis: {$category->type})", 'info');
 
         return redirect()->route('admin.product-categories.index')->with('success', 'Kategori berhasil dibuat.');
     }
@@ -42,7 +46,29 @@ class ProductCategoryController extends Controller
         $data = $this->validated($request, $productCategory->id);
         $data['is_active'] = $request->boolean('is_active');
 
-        $productCategory->update($data);
+        // Mengubah jenis (hosting <-> vps) mengubah URL publik (/hosting/...
+        // <-> /vps/...) DAN aturan server tiap produknya. Produk lama tidak
+        // dicek ulang oleh ProductController, jadi tanpa guard ini produk
+        // hosting bisa tiba-tiba "berubah" jadi produk VPS tanpa server
+        // cloud (atau sebaliknya) dan nyasar di katalog yang salah.
+        if ($data['type'] !== ($productCategory->type ?? 'hosting')) {
+            $conflict = $this->typeChangeConflict($productCategory, $data['type']);
+
+            if ($conflict) {
+                return back()->withInput()->withErrors(['type' => $conflict]);
+            }
+        }
+
+        $productCategory->fill($data);
+        $changes = collect($productCategory->getDirty())
+            ->map(fn ($new, $field) => "{$field}: " . json_encode($productCategory->getOriginal($field)) . ' → ' . json_encode($new))
+            ->implode('; ');
+
+        $productCategory->save();
+
+        if ($changes !== '') {
+            $this->audit('Kategori produk diubah', "{$productCategory->name} — {$changes}", 'info');
+        }
 
         return redirect()->route('admin.product-categories.index')->with('success', 'Kategori berhasil diperbarui.');
     }
@@ -53,9 +79,45 @@ class ProductCategoryController extends Controller
             return back()->with('error', 'Kategori tidak bisa dihapus karena masih punya produk. Pindahkan atau hapus produknya dulu.');
         }
 
+        $name = $productCategory->name;
         $productCategory->delete();
 
+        $this->audit('Kategori produk dihapus', $name, 'warning');
+
         return redirect()->route('admin.product-categories.index')->with('success', 'Kategori berhasil dihapus.');
+    }
+
+    /**
+     * Pesan error kalau perubahan jenis kategori bertabrakan dengan server
+     * produk di dalamnya; null kalau aman. Aturannya sama dengan
+     * ProductController::assertCategoryMatchesServer().
+     */
+    private function typeChangeConflict(ProductGroup $category, string $newType): ?string
+    {
+        $cloudIds = Server::cloud()->pluck('id');
+
+        $bad = $category->products()
+            ->when($newType === 'vps',
+                fn ($q) => $q->where(fn ($w) => $w->whereNull('server_id')->orWhereNotIn('server_id', $cloudIds)),
+                fn ($q) => $q->whereIn('server_id', $cloudIds))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        if ($bad->isEmpty()) {
+            return null;
+        }
+
+        $names = $bad->take(5)->pluck('name')->implode(', ') . ($bad->count() > 5 ? ', …' : '');
+        $need = $newType === 'vps' ? 'belum memakai server VPS/cloud' : 'memakai server VPS/cloud';
+
+        return "Jenis tidak bisa diubah ke " . strtoupper($newType) . " karena {$bad->count()} produk di kategori ini {$need}: {$names}. Pindahkan produk tersebut ke kategori lain atau sesuaikan servernya dulu.";
+    }
+
+    private function audit(string $title, string $detail, string $level): void
+    {
+        $who = auth('admin')->user()->name ?? 'admin';
+
+        ActivityLog::record('service', $title, "{$detail}. Oleh {$who}.", null, $level);
     }
 
     private function validated(Request $request, ?int $ignoreId = null): array
