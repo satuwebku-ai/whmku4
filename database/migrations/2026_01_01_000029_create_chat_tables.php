@@ -29,12 +29,16 @@ return new class extends Migration
             // halaman chat bisa menampilkan tautan langsung ke tiketnya.
             $table->foreignId('ticket_id')->nullable()->constrained()->nullOnDelete();
 
-            // Membedakan percakapan dari widget web vs WhatsApp asli --
-            // keduanya memakai tabel yang SAMA supaya admin, AiChatService,
+            // Membedakan percakapan dari widget web, WhatsApp asli, atau email
+            // -- semuanya memakai tabel yang SAMA supaya admin, AiChatService,
             // dan seluruh UI kelola chat yang sudah ada bisa dipakai ulang.
-            $table->enum('channel', ['web', 'whatsapp'])->default('web');
+            // Sengaja string (bukan enum) supaya kanal baru tidak butuh migrasi:
+            // web | whatsapp | email
+            $table->string('channel', 20)->default('web');
 
             $table->timestamp('last_message_at')->nullable();
+            // Kapan bot menanyakan "mau lanjut atau tidak?". Kosong = belum ditanya.
+            $table->timestamp('idle_prompted_at')->nullable();
             $table->unsignedInteger('unread_for_admin')->default(0);
             $table->unsignedInteger('unread_for_user')->default(0);
 
@@ -54,6 +58,9 @@ return new class extends Migration
             // user  = pengunjung atau klien
             // admin = staf
             $table->enum('sender', ['bot', 'user', 'admin'])->default('user');
+            // Penanda jenis pesan bot, supaya widget bisa menampilkan tombol
+            // pilihan (Lanjut / Tidak) hanya pada pertanyaan "mau lanjut?".
+            $table->string('kind', 30)->nullable();
             $table->foreignId('admin_id')->nullable()->constrained('admins')->nullOnDelete();
 
             $table->text('message')->nullable();

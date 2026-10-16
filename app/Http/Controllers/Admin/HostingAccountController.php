@@ -190,6 +190,13 @@ class HostingAccountController extends Controller
 
             $server = Server::findOrFail($data['server_id']);
 
+            // Kapasitas & maintenance berlaku juga untuk pembuatan akun manual
+            // oleh admin, bukan hanya order dari klien -- supaya server yang
+            // penuh/maintenance tidak diisi diam-diam lewat jalur ini.
+            if ($reason = $server->unavailableReason()) {
+                return back()->withInput()->with('error', $reason . ' Ubah status/kapasitas server dulu, atau pilih server lain.');
+            }
+
             $result = HostingPanelFactory::make($server)->createAccount([
                 'domain'   => $data['domain'],
                 'username' => $data['username'],
@@ -231,7 +238,12 @@ class HostingAccountController extends Controller
 
         HostingAccount::create($data);
 
-        return redirect()->route('admin.hosting-accounts')->with('success', 'Hosting account berhasil dibuat (manual, tanpa provisioning otomatis).');
+        // Pencatatan manual (akun yang sudah ada di server) tetap diizinkan,
+        // tapi admin diberi tahu kalau servernya sudah penuh/maintenance.
+        $warning = ! empty($data['server_id']) ? Server::find($data['server_id'])?->unavailableReason() : null;
+
+        return redirect()->route('admin.hosting-accounts')
+            ->with('success', 'Hosting account berhasil dibuat (manual, tanpa provisioning otomatis).' . ($warning ? ' Catatan: ' . $warning : ''));
     }
 
     public function editBootstrap(HostingAccount $hostingAccount): View

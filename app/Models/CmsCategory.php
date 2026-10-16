@@ -7,10 +7,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CmsCategory extends Model
 {
+    use UsesCmsContentTable;
+
+    public const CONTENT_TYPE = 'category';
+
     protected $fillable = ['name', 'slug'];
 
     public function posts(): HasMany
     {
-        return $this->hasMany(CmsPost::class);
+        return $this->hasMany(CmsPost::class, 'cms_category_id');
     }
 }

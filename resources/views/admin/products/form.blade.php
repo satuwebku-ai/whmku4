@@ -38,8 +38,8 @@
               <select name="product_category_id" id="categorySelect" class="form-select" style="{{ $selectStyle }}" required>
                 <option value="">Pilih kategori</option>
                 @foreach ($categories as $cat)
-                  <option value="{{ $cat->id }}" data-type="{{ $cat->type ?? 'hosting' }}" @selected(old('product_category_id', $product->product_category_id) == $cat->id)>
-                    {{ $cat->name }} — {{ ($cat->type ?? 'hosting') === 'vps' ? 'VPS' : 'Hosting' }}
+                  <option value="{{ $cat->id }}" data-type="{{ $cat->productType?->kind ?? 'hosting' }}" @selected(old('product_category_id', $product->product_category_id) == $cat->id)>
+                    {{ $cat->name }} — {{ $cat->productType?->name ?? 'Hosting' }}
                   </option>
                 @endforeach
               </select>
@@ -157,7 +157,7 @@
           <div class="row g-3">
             <div class="col-sm-6">
               <label class="form-label small fw-medium text-dark">Server Tujuan</label>
-              <select name="server_id" id="serverSelect" class="form-select" style="{{ $selectStyle }}" data-server-edit-base="{{ url('/admin/servers') }}/__ID__/edit">
+              <select name="server_id" id="serverSelect" class="form-select" style="{{ $selectStyle }}" data-server-edit-base="{{ route('admin.servers.edit', ['server' => '__ID__']) }}">
                 <option value="">— Manual, tanpa auto-provisioning —</option>
                 @foreach ($servers as $srv)
                   <option value="{{ $srv->id }}" data-kind="{{ $srv->isCloud() ? 'vps' : 'hosting' }}"
@@ -168,6 +168,24 @@
               </select>
               <p class="text-muted mt-1 mb-0" style="font-size:11px">Hanya server yang cocok dengan jenis kategori yang ditampilkan.</p>
             </div>
+            @if (($serverGroups ?? collect())->isNotEmpty())
+              <div class="col-12" id="serverGroupField">
+                <label class="form-label small fw-medium text-dark">Grup Server (pilih otomatis)</label>
+                <select name="server_group_id" id="serverGroupSelect" class="form-select" style="{{ $selectStyle }}">
+                  <option value="">— Pakai Server Tujuan di atas —</option>
+                  @foreach ($serverGroups as $grp)
+                    <option value="{{ $grp->id }}" @selected(old('server_group_id', $product->server_group_id) == $grp->id)>
+                      {{ $grp->name }} ({{ $grp->modeLabel() }})
+                    </option>
+                  @endforeach
+                </select>
+                <p class="text-muted mt-1 mb-0" style="font-size:11px">
+                  Kalau diisi, order baru otomatis ditempatkan ke server di grup ini sesuai mode grup, dan
+                  <b>menggantikan</b> Server Tujuan di atas. Hanya server cPanel yang siap dipilih; jika tidak ada, order dapat masuk untuk aktivasi manual.
+                  Hanya untuk produk hosting (cPanel) — tidak berlaku untuk VPS.
+                </p>
+              </div>
+            @endif
             <div class="col-sm-6" id="cpanelPackageField">
               <label class="form-label small fw-medium text-dark">Nama Package di WHM/cPanel</label>
               <input type="text" name="panel_package" id="panelPackageInput" value="{{ old('panel_package', $product->panel_package) }}" class="form-control form-control-sm" placeholder="cloud_hosting_pro">

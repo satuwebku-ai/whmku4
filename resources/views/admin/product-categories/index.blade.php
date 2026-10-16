@@ -39,9 +39,9 @@
                 {{ $category->name }}
               </td>
               <td class="text-muted py-3" style="font-size:12px">
-                /{{ $category->urlSection() }}/{{ $category->slug }}
-                <span class="badge {{ ($category->type ?? 'hosting') === 'vps' ? 'badge-soft-success' : 'badge-soft-secondary' }} ms-1" style="font-size:9px">
-                  {{ ($category->type ?? 'hosting') === 'vps' ? 'VPS' : 'Hosting' }}
+                /{{ $category->productType?->slug }}/{{ $category->slug }}
+                <span class="badge {{ $category->isVps() ? 'badge-soft-success' : 'badge-soft-secondary' }} ms-1" style="font-size:9px">
+                  {{ $category->productType?->name ?? 'Hosting' }}
                 </span>
               </td>
               <td class="text-center text-muted py-3">{{ $category->products_count }}</td>

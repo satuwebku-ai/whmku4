@@ -63,80 +63,31 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Cari domain di invoice ini yang berkas persyaratannya BELUM
-     * lengkap/disetujui. Mengembalikan domain pertama yang menghalangi,
-     * atau null kalau semuanya beres.
-     *
-     * Memakai DomainDocument::progressFor() -- sumber yang sama dengan
-     * halaman klien & halaman verifikasi admin, jadi tidak mungkin
-     * ketiganya berbeda pendapat soal "sudah lengkap belum".
-     */
-    private function documentBlocker(Invoice $invoice): ?\App\Models\Domain
-    {
-        $orderIds = $invoice->items()->pluck('order_id')->filter()->unique();
-
-        // Dua jalur, karena domain bisa tersambung ke invoice lewat dua
-        // cara berbeda:
-        //   - PEMBELIAN BARU  -> lewat order_id di InvoiceItem
-        //   - PERPANJANGAN    -> lewat renewal_invoice_id di Domain
-        //                        (invoice perpanjangan tidak punya order)
-        // Tanpa jalur kedua, perpanjangan domain berpersyaratan bisa
-        // dibayar tanpa berkas sama sekali.
-        $domains = \App\Models\Domain::with(['tld', 'documents'])
-            ->where(function ($q) use ($orderIds, $invoice) {
-                if ($orderIds->isNotEmpty()) {
-                    $q->whereIn('order_id', $orderIds);
-                }
-
-                $q->orWhere('renewal_invoice_id', $invoice->id);
-            })
-            ->get();
-
-        if ($domains->isEmpty()) {
-            return null;
-        }
-
-        foreach ($domains as $domain) {
-            // Domain yang sudah ditandai terverifikasi admin dilewati --
-            // termasuk kasus persyaratan "atau"/opsional yang diputuskan
-            // manual oleh admin.
-            if ($domain->documents_verified_at) {
-                continue;
-            }
-
-            if (! \App\Models\DomainDocument::progressFor($domain)['complete']) {
-                return $domain;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Klien memilih gateway dan memulai pembayaran.
      */
     public function pay(Request $request, Invoice $invoice, InvoiceService $invoices): RedirectResponse
     {
         $this->authorizeOwner($invoice);
 
+        // Gerbang berkas persyaratan DIPERIKSA LEBIH DULU, sebelum
+        // assertPayable(): assertPayable() juga menolak invoice ini lewat
+        // PaymentEligibilityService, tapi hanya dengan pesan error di
+        // halaman invoice tanpa menunjukkan ke mana klien harus pergi.
+        // Di sini klien langsung diarahkan ke halaman berkas.
+        //
+        // Dicegah sebelum transaksi dibuat, bukan sesudah -- kalau klien
+        // terlanjur bayar untuk domain yang berkasnya belum lengkap,
+        // uangnya sudah masuk sementara domain tidak bisa diproses.
+        if ($blocker = $invoice->documentBlocker()) {
+            return redirect()
+                ->route('client.domains.documents', $blocker)
+                ->with('error', "Berkas persyaratan untuk {$blocker->domain_name} belum lengkap atau belum disetujui. Lengkapi dulu sebelum melanjutkan pembayaran.");
+        }
+
         try {
             $invoices->assertPayable($invoice);
         } catch (BillingException $e) {
             return back()->with('error', $e->getMessage());
-        }
-
-        // Gerbang berkas persyaratan: invoice yang memuat domain
-        // berpersyaratan TIDAK boleh dibayar sebelum semua berkas
-        // wajibnya disetujui admin.
-        //
-        // Dicegah di sini (sebelum transaksi dibuat), bukan sesudah --
-        // kalau klien terlanjur bayar untuk domain yang berkasnya belum
-        // lengkap, uangnya sudah masuk sementara domain tidak bisa
-        // diproses, dan penyelesaiannya jadi urusan refund manual.
-        if ($blocker = $this->documentBlocker($invoice)) {
-            return redirect()
-                ->route('client.domains.documents', $blocker)
-                ->with('error', "Berkas persyaratan untuk {$blocker->domain_name} belum lengkap atau belum disetujui. Lengkapi dulu sebelum melanjutkan pembayaran.");
         }
 
         $data = $request->validate([

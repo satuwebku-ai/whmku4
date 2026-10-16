@@ -43,10 +43,14 @@ class SuspendOverdueServices extends Command
             return self::SUCCESS;
         }
 
-        $graceDays = (int) Setting::get('suspend_grace_days', 3);
+        $configuredGraceDays = (int) Setting::get('suspend_grace_days', 3);
+        $graceDays = max(0, min($configuredGraceDays, 30));
         $dry = $this->option('dry');
 
         $this->info("Masa toleransi: {$graceDays} hari setelah jatuh tempo invoice.");
+        if ($configuredGraceDays !== $graceDays) {
+            $this->warn('Nilai toleransi lama dibatasi maksimal 30 hari. Sesuaikan di Pengaturan → Cron Jobs atau Notifikasi.');
+        }
         $this->newLine();
 
         $failed = 0;

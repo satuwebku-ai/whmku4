@@ -32,7 +32,7 @@ class SecurityHardeningTest extends TestCase
 
     public function test_csp_header_nonce_matches_nonce_printed_in_inline_scripts(): void
     {
-        $response = $this->get('/admin/login');
+        $response = $this->get(route('admin.login'));
         $response->assertOk();
 
         $csp = $response->headers->get('Content-Security-Policy-Report-Only');
@@ -50,7 +50,7 @@ class SecurityHardeningTest extends TestCase
     public function test_nonce_differs_between_requests(): void
     {
         $extract = function (): string {
-            $csp = $this->get('/admin/login')->headers->get('Content-Security-Policy-Report-Only');
+            $csp = $this->get(route('admin.login'))->headers->get('Content-Security-Policy-Report-Only');
             preg_match("/'nonce-([A-Za-z0-9_-]+)'/", $csp, $m);
 
             return $m[1];
@@ -80,11 +80,11 @@ class SecurityHardeningTest extends TestCase
 
     public function test_inline_event_handlers_are_blocked_by_default_and_rollback_is_configurable(): void
     {
-        $default = $this->get('/admin/login')->headers->get('Content-Security-Policy-Report-Only');
+        $default = $this->get(route('admin.login'))->headers->get('Content-Security-Policy-Report-Only');
         $this->assertStringContainsString("script-src-attr 'none'", $default);
 
         config(['security.csp_allow_inline_handlers' => true]);
-        $rollback = $this->get('/admin/login')->headers->get('Content-Security-Policy-Report-Only');
+        $rollback = $this->get(route('admin.login'))->headers->get('Content-Security-Policy-Report-Only');
         $this->assertStringContainsString("script-src-attr 'unsafe-inline'", $rollback);
     }
 
@@ -135,7 +135,7 @@ class SecurityHardeningTest extends TestCase
 
     public function test_csp_connect_and_img_src_do_not_allow_any_https_host_by_default(): void
     {
-        $csp = $this->cspFor('/admin/login');
+        $csp = $this->cspFor(route('admin.login'));
 
         $this->assertSame("connect-src 'self'", $this->cspDirective($csp, 'connect-src'));
 
@@ -159,7 +159,7 @@ class SecurityHardeningTest extends TestCase
         Setting::put('livechat_provider', 'tawkto');
         Setting::put('livechat_property_id', 'abc123/default');
 
-        $csp = $this->cspFor('/admin/login');
+        $csp = $this->cspFor(route('admin.login'));
 
         $this->assertStringContainsString('https://www.googletagmanager.com', $this->cspDirective($csp, 'script-src'));
         $this->assertStringContainsString('https://connect.facebook.net', $this->cspDirective($csp, 'script-src'));
@@ -174,11 +174,11 @@ class SecurityHardeningTest extends TestCase
     {
         Setting::put('livechat_provider', 'crisp'); // tanpa property id: widget tidak dirender
 
-        $this->assertStringNotContainsString('crisp', $this->cspFor('/admin/login'));
+        $this->assertStringNotContainsString('crisp', $this->cspFor(route('admin.login')));
 
         Setting::put('livechat_property_id', 'site-id');
 
-        $this->assertStringContainsString('wss://*.crisp.chat', $this->cspDirective($this->cspFor('/admin/login'), 'connect-src'));
+        $this->assertStringContainsString('wss://*.crisp.chat', $this->cspDirective($this->cspFor(route('admin.login')), 'connect-src'));
     }
 
     public function test_csp_extra_hosts_are_configurable_and_cannot_inject_directives(): void
@@ -188,7 +188,7 @@ class SecurityHardeningTest extends TestCase
             'security.csp_extra_connect_src' => "https://api.example.com; script-src *\nhttps://ok.example.com",
         ]);
 
-        $csp = $this->cspFor('/admin/login');
+        $csp = $this->cspFor(route('admin.login'));
 
         $this->assertStringContainsString('https://images.example.com', $this->cspDirective($csp, 'img-src'));
         $this->assertStringContainsString('https://*.cdn.example.net', $this->cspDirective($csp, 'img-src'));
@@ -197,7 +197,7 @@ class SecurityHardeningTest extends TestCase
         $this->assertSame(1, substr_count($csp, 'script-src '));
 
         config(['security.csp_img_allow_any_https' => true]);
-        $this->assertMatchesRegularExpression('/(^|\s)https:(\s|$)/', $this->cspDirective($this->cspFor('/admin/login'), 'img-src'));
+        $this->assertMatchesRegularExpression('/(^|\s)https:(\s|$)/', $this->cspDirective($this->cspFor(route('admin.login')), 'img-src'));
     }
 
     public function test_every_external_script_and_stylesheet_host_in_views_is_allowed_by_the_csp(): void

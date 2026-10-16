@@ -7,7 +7,9 @@ use App\Http\Controllers\Auth\Admin\OtpController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ActivityController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\BlogController;
 use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\CmsDashboardController;
 use App\Http\Controllers\Admin\MailboxController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CouponController;
@@ -18,6 +20,7 @@ use App\Http\Controllers\Admin\DomainController;
 use App\Http\Controllers\Admin\HostingAccountController;
 use App\Http\Controllers\Admin\ImpersonateController;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\KnowledgeBaseController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\NavMenuController;
 use App\Http\Controllers\Admin\PageController;
@@ -37,8 +40,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Admin Routes
 |--------------------------------------------------------------------------
-| Semua route di sini otomatis diberi prefix "admin" dan
-| name prefix "admin." lewat bootstrap/app.php.
+| Semua route di sini diberi name prefix "admin." di web.php dan
+| dilayani dari subdomain pengelola tanpa prefix URL "/admin".
 |
 | Order/Invoice/Hosting Account/Domain/Klien memakai pola: daftar per-status
 | sebagai halaman terpisah + halaman detail + endpoint aksi terpisah
@@ -248,6 +251,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
         Route::post('servers/{server}/branding/reset', [ServerController::class, 'resetBranding'])->name('servers.branding.reset');
         Route::get('servers/{server}/diagnostics', [ServerController::class, 'diagnosticsBootstrap'])->name('servers.diagnostics');
         Route::post('servers/{server}/sync-cost', [ServerController::class, 'syncCost'])->name('servers.sync-cost');
+        Route::resource('server-groups', \App\Http\Controllers\Admin\ServerGroupController::class)->except('show');
 
         // ── Registrar & TLD Pricing (Fase 4) ──
         Route::resource('registrars', RegistrarController::class)->except('show');
@@ -317,6 +321,7 @@ Route::middleware(['admin', 'check.status'])->group(function () {
     //    klien. Modul: sales.
     Route::middleware('module:sales')->group(function () {
         Route::resource('product-categories', ProductCategoryController::class)->except('show');
+        Route::resource('product-types', \App\Http\Controllers\Admin\ProductTypeController::class)->except('show');
         Route::resource('addons', \App\Http\Controllers\Admin\AddonController::class)->except('show');
         Route::post('addon/status', [\App\Http\Controllers\Admin\AddonController::class, 'status'])->name('addon.status');
         Route::post('addons/{addon}/sync', [\App\Http\Controllers\Admin\AddonController::class, 'sync'])->name('addons.sync');
@@ -463,6 +468,8 @@ Route::middleware(['admin', 'check.status'])->group(function () {
     // ── CMS: Halaman Statis, Pengumuman, Menu Navigasi — konten situs
     //    publik. Modul: content.
     Route::middleware('module:content')->group(function () {
+        Route::get('cms', [CmsDashboardController::class, 'index'])->name('cms.dashboard');
+
         // ── CMS: Halaman Statis (Fase 6b) ──
         Route::controller(PageController::class)->group(function () {
             Route::get('pages', 'pagesBootstrap')->name('pages');
@@ -483,6 +490,49 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::get('edit/announcement/{announcement}', 'editBootstrap')->name('announcement.edit.page');
             Route::post('update/announcement/{announcement}', 'update')->name('announcement.update');
             Route::delete('delete/announcement/{announcement}', 'destroy')->name('announcement.delete');
+        });
+
+        // ── CMS: Blog dan Pusat Bantuan ──
+        Route::prefix('blog')->name('blog.')->controller(BlogController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+
+            Route::get('categories', 'categories')->name('categories');
+            Route::post('categories', 'storeCategory')->name('categories.store');
+            Route::post('categories/{category}', 'updateCategory')->name('categories.update');
+            Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
+
+            Route::get('{post}/edit', 'edit')->name('edit');
+            Route::post('{post}', 'update')->name('update');
+            Route::delete('{post}', 'destroy')->name('destroy');
+            Route::post('{post}/status', 'toggleStatus')->name('status');
+        });
+
+        Route::prefix('knowledge-base')->name('knowledge-base.')->controller(KnowledgeBaseController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+
+            Route::get('categories', 'categories')->name('categories');
+            Route::post('categories', 'storeCategory')->name('categories.store');
+            Route::post('categories/{category}', 'updateCategory')->name('categories.update');
+            Route::delete('categories/{category}', 'destroyCategory')->name('categories.destroy');
+
+            Route::get('{article}/edit', 'edit')->name('edit');
+            Route::post('{article}', 'update')->name('update');
+            Route::delete('{article}', 'destroy')->name('destroy');
+            Route::post('{article}/status', 'toggleStatus')->name('status');
+        });
+
+        // ── CMS: Halaman Depan (susunan section beranda) ──
+        // Dulu di grup Pengaturan (module:system) sehingga admin Marketing
+        // yang mengelola banner & konten tidak bisa mengatur beranda.
+        // Nama route tetap admin.settings.homepage supaya semua tautan lama aman.
+        Route::controller(SettingController::class)->prefix('settings')->name('settings.')->group(function () {
+            Route::get('homepage', 'homepage')->name('homepage');
+            Route::post('homepage', 'updateHomepage')->name('homepage.update');
+            Route::post('homepage/content', 'updateHomepageContent')->name('homepage.content.update');
         });
 
         // ── CMS: Banner Promo ──
@@ -540,8 +590,6 @@ Route::middleware(['admin', 'check.status'])->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('general', 'generalBootstrap')->name('general');
             Route::post('general', 'updateGeneral')->name('general.update');
-            Route::get('homepage', 'homepage')->name('homepage');
-            Route::post('homepage', 'updateHomepage')->name('homepage.update');
 
             // Persyaratan berkas domain (menggantikan daftar hardcoded
             // di DomainDocument::requirements()).

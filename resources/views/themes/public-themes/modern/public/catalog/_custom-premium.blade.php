@@ -37,7 +37,7 @@
     </div>
 
     @if ($customTotal > 0 || $customQuery !== '')
-      <form method="GET" action="{{ route('domain-premium.index') }}#custom-premium" class="pd-custom-tools">
+      <form method="GET" action="{{ \App\Support\StoreUrl::route('domain-premium.index') }}#custom-premium" class="pd-custom-tools">
         <input type="text" name="cari" value="{{ $customQuery }}" placeholder="Cari nama…" class="form-control form-control-sm" style="width:11rem">
         <select name="urut" class="form-select form-select-sm" style="width:10rem" data-auto-submit>
           <option value="karakter" @selected($customSort === 'karakter')>Karakter tersedikit</option>
@@ -46,7 +46,7 @@
         </select>
         <button class="btn btn-sm btn-theme" aria-label="Cari"><i class="fa-solid fa-magnifying-glass" style="font-size:11px"></i></button>
         @if ($customQuery !== '')
-          <a href="{{ route('domain-premium.index') }}#custom-premium" class="btn btn-sm btn-outline-secondary">Reset</a>
+          <a href="{{ \App\Support\StoreUrl::route('domain-premium.index') }}#custom-premium" class="btn btn-sm btn-outline-secondary">Reset</a>
         @endif
       </form>
     @endif

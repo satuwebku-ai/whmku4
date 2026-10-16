@@ -43,12 +43,12 @@
     </div>
   @endif
 
-  @if ($domain->provision_status === 'needs_documents')
+  @if ($domain->provision_status === 'needs_documents' || $domain->needsDocuments())
     <div class="card-public p-4 mb-4" style="border-color:#fde68a!important;background:#fffbeb">
       <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
         <p class="mb-0" style="font-size:14px;color:#92400e">
           <i class="fa-solid fa-file-circle-exclamation"></i>
-          Domain ini butuh dokumen tambahan sebelum bisa diaktifkan (persyaratan PANDI untuk TLD Indonesia).
+          Domain ini butuh berkas persyaratan (PANDI untuk TLD Indonesia). Lengkapi dan tunggu persetujuan tim kami sebelum invoice bisa dibayar.
         </p>
         <a href="{{ route('client.domains.documents', $domain) }}" class="btn btn-theme btn-sm flex-shrink-0">
           Unggah Dokumen

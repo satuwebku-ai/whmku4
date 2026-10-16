@@ -1,6 +1,5 @@
 @php
   use App\Models\Setting;
-  use App\Services\Cart\CartService;
 
   $siteName   = Setting::get('site_name', config('app.name', 'Lumora Hosting'));
   $siteLogo   = Setting::get('site_logo');
@@ -8,7 +7,7 @@
   $themeColor = Setting::get('theme_color', '#6366F1');
   $footerPages = \App\Models\CmsPage::published()->where('show_in_footer', true)->orderBy('sort_order')->get();
   $navMenus = \App\Models\NavMenu::active()->whereNull('parent_id')->with(['page', 'children.page', 'defaultChild.page'])->orderBy('sort_order')->get();
-  $cartCount = app(CartService::class)->count();
+  $cartCount = \App\Support\CartBadge::count();
   $isImpersonating = session('impersonator_admin_id') && auth('client')->check();
 @endphp
 <!DOCTYPE html>
@@ -173,6 +172,7 @@
           @endforeach
         </nav>
       @endif
+      @include('public.partials.content-links')
       <p class="text-muted mb-0" style="font-size:14px">{{ Setting::get('footer_text') ?: '© ' . date('Y') . ' ' . $siteName . '. Semua hak dilindungi.' }}</p>
     </div>
   </footer>

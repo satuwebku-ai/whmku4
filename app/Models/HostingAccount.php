@@ -17,7 +17,7 @@ class HostingAccount extends Model
         'provision_status', 'provision_message', 'provisioning_started_at', 'provisioning_finished_at', 'provisioning_attempts', 'provisioning_key', 'client_details', 'internal_notes',
         'cancellation_status', 'cancellation_reason', 'cancellation_requested_at',
         'cancellation_admin_note', 'renewal_invoice_id',
-        'pending_upgrade_product_id', 'pending_upgrade_invoice_id',
+        'pending_upgrade_product_id', 'pending_upgrade_invoice_id', 'pending_upgrade_price',
         'credentials_sent_at', 'credentials_email_failed_at',
     ];
 
@@ -25,6 +25,7 @@ class HostingAccount extends Model
     {
         return [
             'price' => 'decimal:2',
+            'pending_upgrade_price' => 'decimal:2',
             'hourly_rate' => 'decimal:4',
             'last_billed_at' => 'datetime',
             'provisioning_started_at' => 'datetime',
@@ -101,9 +102,8 @@ class HostingAccount extends Model
      * dengan sengaja supaya tidak ada kombinasi yang berujung error atau
      * butuh campur tangan admin:
      *   - kategori produk sama (upgrade hosting ke hosting, bukan ke domain)
-     *   - server sama (pindah paket lewat WHM `changepackage` hanya bisa
-     *     di server yang sama; pindah ANTAR server itu migrasi akun penuh,
-     *     operasi yang jauh lebih berisiko dan di luar cakupan fitur ini)
+     *   - server akun saat ini harus menjadi tujuan produk langsung atau
+     *     anggota aktif dari grup tujuan (upgrade tidak memindahkan akun)
      *   - harga siklus yang sama lebih tinggi (downgrade tidak ditangani
      *     di sini karena butuh skema refund/kredit yang belum dibangun)
      */
@@ -113,17 +113,50 @@ class HostingAccount extends Model
             return \App\Models\Product::whereRaw('1 = 0')->get(); // kosong — akun lama tanpa jejak produk
         }
 
+        if (! $this->server_id) {
+            return \App\Models\Product::whereRaw('1 = 0')->get();
+        }
+
         return \App\Models\Product::where('product_category_id', $this->product->product_category_id)
-            ->where('server_id', $this->server_id)
+            ->where(function ($query) {
+                $query->where('server_id', $this->server_id)
+                    ->orWhere(function ($groupProducts) {
+                        $groupProducts->whereNull('server_id')
+                            ->whereHas('serverGroup', function ($group) {
+                                $group->where('is_active', true)
+                                    ->whereHas('servers', function ($server) {
+                                        $server->whereKey($this->server_id)
+                                            ->where('servers.panel', 'cpanel')
+                                            ->whereNull('servers.vps_provider')
+                                            ->where('servers.is_active', true)
+                                            ->where('servers.is_maintenance', false)
+                                            ->where('server_group_server.is_active', true);
+                                    });
+                            });
+                    });
+            })
             ->where('is_active', true)
             ->where('id', '!=', $this->product_id)
             ->get()
             ->filter(function ($p) {
-                $newPrice = $p->priceForCycle($this->billing_cycle);
+                $newPrice = $this->priceForProductCycle($p);
 
                 return $newPrice !== null && $newPrice > (float) $this->price;
             })
             ->values();
+    }
+
+    /**
+     * Harga siklus produk untuk kelompok harga client layanan ini.
+     */
+    public function priceForProductCycle(\App\Models\Product $product): ?float
+    {
+        $pricing = $product->pricingForClientCycle(
+            $this->client?->client_group_id,
+            $this->billing_cycle,
+        );
+
+        return $pricing === null ? null : (float) $pricing['price'];
     }
 
     /**
@@ -132,20 +165,19 @@ class HostingAccount extends Model
      * dari awal siklus. Mulai siklus berikutnya, tagihan otomatis
      * memakai harga baru (lihat renewalAmount()).
      */
-    public function prorateUpgrade(\App\Models\Product $newProduct): float
+    public function prorateUpgrade(\App\Models\Product $newProduct, ?float $newPrice = null): float
     {
-        $cycleDays = match ($this->billing_cycle) {
-            'quarterly' => 90,
-            'semi_annually' => 180,
-            'annually' => 365,
-            default => 30,
-        };
+        $cycleDays = $this->billingCycleDays();
 
         $remainingDays = $this->next_due_date
             ? max(0, min($cycleDays, (int) now()->startOfDay()->diffInDays($this->next_due_date, false)))
             : $cycleDays;
 
-        $newPrice = (float) $newProduct->priceForCycle($this->billing_cycle);
+        $newPrice ??= $this->priceForProductCycle($newProduct);
+        if ($newPrice === null) {
+            return 0.0;
+        }
+
         $oldDailyRate = (float) $this->price / $cycleDays;
         $newDailyRate = $newPrice / $cycleDays;
 
@@ -160,12 +192,7 @@ class HostingAccount extends Model
      */
     public function prorateAddon(\App\Models\Addon $addon): float
     {
-        $cycleDays = match ($this->billing_cycle) {
-            'quarterly' => 90,
-            'semi_annually' => 180,
-            'annually' => 365,
-            default => 30,
-        };
+        $cycleDays = $this->billingCycleDays();
 
         $remainingDays = $this->next_due_date
             ? max(0, min($cycleDays, (int) now()->startOfDay()->diffInDays($this->next_due_date, false)))
@@ -174,6 +201,17 @@ class HostingAccount extends Model
         $addonPrice = (float) $addon->priceForCycle($this->billing_cycle);
 
         return round(($addonPrice / $cycleDays) * $remainingDays);
+    }
+
+    private function billingCycleDays(): int
+    {
+        return match ($this->billing_cycle) {
+            'quarterly' => 90,
+            'semi_annually' => 180,
+            'annually' => 365,
+            'custom' => max(1, (int) ($this->product?->custom_cycle_days ?: 30)),
+            default => 30,
+        };
     }
 
     /**
@@ -202,12 +240,27 @@ class HostingAccount extends Model
     /**
      * Tanggal jatuh tempo berikutnya setelah siklus ini lunas.
      */
-    public function nextCycleDate(): \Carbon\Carbon
+    public function nextCycleDate(?\Carbon\CarbonInterface $paidAt = null): \Carbon\Carbon
     {
-        $base = $this->next_due_date ?: now();
+        $base = $this->next_due_date ?: $paidAt ?: now();
+        $nextDueDate = $this->addBillingCycle($base);
+
+        // Late payment must not leave the next renewal date in the past.
+        // Keep the original cycle anchor while it still produces a future
+        // date; otherwise begin the next cycle on the actual payment date.
+        if ($paidAt && $nextDueDate->copy()->startOfDay()->lte($paidAt->copy()->startOfDay())) {
+            return $this->addBillingCycle($paidAt);
+        }
+
+        return $nextDueDate;
+    }
+
+    private function addBillingCycle(\Carbon\CarbonInterface $base): \Carbon\Carbon
+    {
+        $base = \Carbon\Carbon::parse($base);
 
         if ($this->billing_cycle === 'custom') {
-            return $base->copy()->addDays($this->product?->custom_cycle_days ?: 30);
+            return $base->addDays($this->billingCycleDays());
         }
 
         return match ($this->billing_cycle) {

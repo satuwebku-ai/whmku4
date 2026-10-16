@@ -1,16 +1,28 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php
   $seoTitle = 'Keranjang Belanja';
+
+  // Di portal client header belanja (judul + pintasan + langkah) disediakan
+  // pembungkus, jadi judul dan sidebar pintasan di bawah tidak dobel.
+  $inShell = \App\Support\ThemeRegistry::storeLayout() === 'client.layout';
+  $storeStep = 1;
+  $storeTitle = 'Keranjang Belanja';
+  $storeSubtitle = empty($items)
+    ? 'Keranjang Anda masih kosong. Pilih layanan di etalase untuk memulai.'
+    : count($items) . ' item siap dipesan. Periksa siklus penagihan, lalu lanjut ke checkout.';
 @endphp
 
-@section('content')
+@section('store-content')
 
-  <h1 class="fw-bold text-dark mb-4" style="font-size:1.6rem">Keranjang Belanja</h1>
+  @unless ($inShell)
+    <h1 class="fw-bold text-dark mb-4" style="font-size:1.6rem">Keranjang Belanja</h1>
+  @endunless
 
   <div class="row g-4">
     {{-- Sidebar: kategori & aksi cepat — tetap tampil meski keranjang kosong,
          supaya pengunjung bisa lanjut menjelajah tanpa jalan buntu. --}}
+    @unless ($inShell)
     <div class="col-12 col-lg-4 d-flex flex-column gap-3">
       @if ($categories->isNotEmpty())
         <div class="card-public overflow-hidden">
@@ -29,10 +41,10 @@
       <div class="card-public overflow-hidden">
         <div class="px-3 py-3 fw-semibold text-white" style="background:#1e293b;font-size:14px">Aksi</div>
         <div>
-          <a href="{{ route('domain.search') }}" class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-muted border-bottom" style="font-size:14px">
+          <a href="{{ \App\Support\StoreUrl::route('domain.search') }}" class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-muted border-bottom" style="font-size:14px">
             <i class="fa-solid fa-globe text-center" style="width:16px"></i> Daftarkan Domain Baru
           </a>
-          <a href="{{ route('catalog.index') }}" class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-muted border-bottom" style="font-size:14px">
+          <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-muted border-bottom" style="font-size:14px">
             <i class="fa-solid fa-server text-center" style="width:16px"></i> Lihat Paket Hosting
           </a>
           <span class="d-flex align-items-center gap-2 px-3 py-2 fw-medium text-theme" style="font-size:14px;background:rgba(79,70,229,.05)">
@@ -41,13 +53,14 @@
         </div>
       </div>
     </div>
+    @endunless
 
-    <div class="col-12 col-lg-8">
+    <div class="col-12 {{ $inShell ? '' : 'col-lg-8' }}">
       @if (empty($items))
         <div class="card-public p-5 text-center">
           <i class="fa-solid fa-cart-shopping text-muted mb-3" style="font-size:2rem"></i>
           <p class="text-muted mb-4">Keranjang Anda masih kosong.</p>
-          <a href="{{ route('catalog.index') }}" class="btn btn-theme">Lihat Paket Hosting</a>
+          <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="btn btn-theme">Lihat Paket Hosting</a>
         </div>
       @else
         <div class="row g-4">
@@ -216,7 +229,7 @@
               <a href="{{ route('client.checkout') }}" class="btn btn-theme w-100">
                 <i class="fa-solid fa-lock" style="font-size:12px"></i> Lanjut ke Checkout
               </a>
-              <a href="{{ route('catalog.index') }}" class="btn btn-outline-secondary w-100 mt-2">Lanjut Belanja</a>
+              <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="btn btn-outline-secondary w-100 mt-2">Lanjut Belanja</a>
             </div>
           </div>
         </div>

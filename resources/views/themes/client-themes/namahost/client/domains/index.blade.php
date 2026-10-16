@@ -41,6 +41,9 @@
         </div>
         <div class="text-end flex-shrink-0">
           <span class="badge {{ $badgeMap[$domain->status === 'expired' ? 'expired' : $domain->status] ?? 'badge-soft-secondary' }}">{{ ucfirst($domain->status) }}</span>
+          @if ($domain->needsDocuments())
+            <p class="fw-medium mt-1 mb-0" style="font-size:11px;color:#b45309"><i class="fa-solid fa-file-circle-exclamation"></i> Lengkapi berkas persyaratan</p>
+          @endif
           @if ($domain->is_expiring_soon)
             <p class="fw-medium mt-1 mb-0" style="font-size:11px;color:#b45309">Segera perpanjang</p>
           @endif
@@ -52,7 +55,7 @@
           <i class="fa-solid fa-globe"></i>
         </span>
         <p class="text-muted mb-3" style="font-size:14px">Anda belum punya domain.</p>
-        <a href="{{ route('domain.search') }}" class="btn btn-theme"><i class="fa-solid fa-magnifying-glass" style="font-size:11px"></i> Cek Domain</a>
+        <a href="{{ \App\Support\StoreUrl::route('domain.search') }}" class="btn btn-theme"><i class="fa-solid fa-magnifying-glass" style="font-size:11px"></i> Cek Domain</a>
       </div>
     @endforelse
   </div>

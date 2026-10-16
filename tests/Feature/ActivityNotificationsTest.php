@@ -21,7 +21,7 @@ class ActivityNotificationsTest extends TestCase
     {
         $this->actingAs($this->superadmin(), 'admin');
 
-        ActivityLog::record('ticket', 'Klien membalas tiket: Tidak bisa login', 'Tiket #LMR-1', '/admin/tickets', 'warning');
+        ActivityLog::record('ticket', 'Klien membalas tiket: Tidak bisa login', 'Tiket #LMR-1', route('admin.tickets'), 'warning');
 
         $this->get(route('admin.activities.feed'))
             ->assertOk()
@@ -35,10 +35,10 @@ class ActivityNotificationsTest extends TestCase
     public function test_opening_a_notification_marks_it_read_and_redirects_to_its_site_path(): void
     {
         $this->actingAs($this->superadmin(), 'admin');
-        $activity = ActivityLog::record('ticket', 'Tiket baru', 'Tiket #LMR-2', '/admin/tickets', 'warning');
+        $activity = ActivityLog::record('ticket', 'Tiket baru', 'Tiket #LMR-2', route('admin.tickets'), 'warning');
 
         $this->get(route('admin.activities.open', $activity))
-            ->assertRedirect('/admin/tickets');
+            ->assertRedirect(route('admin.tickets'));
 
         $this->assertNotNull($activity->fresh()->read_at);
     }

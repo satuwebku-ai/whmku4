@@ -2,75 +2,56 @@
 
 namespace Database\Seeders;
 
-use App\Models\Admin;
 use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
-/**
- * Mengisi tabel roles & permissions (12 role Master Blueprint + 7
- * permission setara modul yang sudah ada), lalu menyinkronkan SEMUA admin
- * yang sudah ada ke role yang setara berdasarkan kolom lama `admins.role`
- * + `admins.permissions`. Aman dijalankan berulang kali (idempotent).
- */
 class RoleSeeder extends Seeder
 {
     public function run(): void
     {
+        $permissionGroups = [
+            'sales' => ['sales.view' => 'Lihat penjualan', 'products.manage' => 'Kelola produk', 'orders.manage' => 'Kelola order', 'coupons.manage' => 'Kelola kupon'],
+            'billing' => ['billing.view' => 'Lihat billing', 'invoices.manage' => 'Kelola invoice', 'payments.manage' => 'Kelola pembayaran', 'gateways.manage' => 'Kelola payment gateway'],
+            'services' => ['clients.manage' => 'Kelola klien', 'services.manage' => 'Kelola layanan', 'domains.manage' => 'Kelola domain'],
+            'infrastructure' => ['servers.manage' => 'Kelola server', 'provisioning.manage' => 'Kelola provisioning', 'registrars.manage' => 'Kelola registrar'],
+            'support' => ['tickets.manage' => 'Kelola tiket', 'chat.manage' => 'Kelola live chat'],
+            'content' => ['content.manage' => 'Kelola konten', 'announcements.manage' => 'Kelola pengumuman', 'templates.manage' => 'Kelola template'],
+            'system' => ['settings.manage' => 'Kelola pengaturan', 'admins.manage' => 'Kelola admin', 'activity.view' => 'Lihat log aktivitas'],
+        ];
+
+        foreach ($permissionGroups as $group => $items) {
+            foreach ($items as $slug => $name) {
+                Permission::updateOrCreate(['slug' => $slug], ['name' => $name, 'group' => $group]);
+            }
+        }
+
+        $allPermissionIds = Permission::query()->pluck('id')->all();
+        $byGroup = Permission::query()->get()->groupBy('group');
+
         foreach (Role::ROLES as $slug => $name) {
-            Role::updateOrCreate(
+            $role = Role::updateOrCreate(
                 ['slug' => $slug],
-                [
-                    'name' => $name,
-                    'description' => Role::DESCRIPTIONS[$slug] ?? null,
-                    'is_system' => $slug === 'superadmin',
-                ]
+                ['name' => $name, 'description' => Role::DESCRIPTIONS[$slug] ?? 'Peran kompatibilitas sistem lama.', 'is_system' => true]
             );
+
+            $groups = match ($slug) {
+                'superadmin' => array_keys($permissionGroups),
+                'administrator' => ['sales', 'billing', 'services', 'infrastructure', 'support', 'content'],
+                'finance', 'billing' => ['billing'],
+                'domain_manager' => ['services', 'infrastructure'],
+                'hosting_manager', 'developer', 'devops' => ['services', 'infrastructure', 'system'],
+                'support' => ['services', 'support'],
+                'marketing' => ['sales', 'content'],
+                'auditor' => ['system'],
+                default => ['services', 'support'],
+            };
+
+            $ids = $slug === 'superadmin'
+                ? $allPermissionIds
+                : collect($groups)->flatMap(fn ($group) => ($byGroup->get($group) ?? collect())->pluck('id'))->unique()->values()->all();
+            $role->permissions()->sync($ids);
         }
-
-        foreach (Admin::MODULES as $slug => $label) {
-            Permission::updateOrCreate(
-                ['slug' => $slug],
-                ['name' => $label, 'group' => 'module']
-            );
-        }
-
-        // superadmin & administrator dapat semua permission modul.
-        $allPermissionIds = Permission::pluck('id');
-        Role::whereIn('slug', ['superadmin', 'administrator'])->each(
-            fn (Role $role) => $role->permissions()->sync($allPermissionIds)
-        );
-
-        // finance & billing -> modul billing.
-        $this->grant('finance', ['billing']);
-        $this->grant('billing', ['billing']);
-        // domain_manager & hosting_manager -> layanan + infrastruktur.
-        $this->grant('domain_manager', ['services', 'infrastructure']);
-        $this->grant('hosting_manager', ['services', 'infrastructure']);
-        // support -> dukungan + layanan (perlu lihat data klien).
-        $this->grant('support', ['support', 'services']);
-        // marketing -> konten + penjualan (kupon, halaman promo).
-        $this->grant('marketing', ['content', 'sales']);
-        // developer & devops -> infrastruktur + sistem.
-        $this->grant('developer', ['infrastructure', 'system']);
-        $this->grant('devops', ['infrastructure', 'system']);
-        // auditor & viewer sengaja TIDAK diberi permission modul apa pun
-        // di sini -- keduanya untuk lihat log/laporan, bukan mengelola
-        // modul operasional; beri akses spesifik manual kalau diperlukan.
-
-        // Sinkronkan semua admin yang sudah ada ke role yang setara.
-        Admin::all()->each(fn (Admin $admin) => $admin->syncRoleFromLegacyColumn());
-    }
-
-    private function grant(string $roleSlug, array $moduleSlugs): void
-    {
-        $role = Role::where('slug', $roleSlug)->first();
-
-        if (! $role) {
-            return;
-        }
-
-        $ids = Permission::whereIn('slug', $moduleSlugs)->pluck('id');
-        $role->permissions()->sync($ids);
     }
 }

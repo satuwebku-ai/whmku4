@@ -147,6 +147,12 @@ header.hero .row{animation:rise .8s ease both}
 .sidebar .nav-link{color:#b8ced3;border-radius:.5rem;padding:.6rem .9rem;transition:background .15s,transform .15s}
 .sidebar .nav-link:hover{background:rgba(255,255,255,.1);color:#fff;transform:translateX(3px)}
 .sidebar .nav-link.active{color:#fff;background:linear-gradient(90deg,rgba(34,211,197,.3),rgba(255,255,255,.05));box-shadow:inset 3px 0 0 var(--c-cyan)}
+.sidebar .nav-group>summary{list-style:none;cursor:pointer}
+.sidebar .nav-group>summary::-webkit-details-marker{display:none}
+.sidebar .nav-group .nav-caret{font-size:.7rem;opacity:.7;transition:transform .2s}
+.sidebar .nav-group[open] .nav-caret{transform:rotate(180deg)}
+.sidebar .nav-group>summary.has-active{color:#fff}
+.sidebar .nav-sub{margin:.25rem 0 .25rem .9rem;padding-left:.4rem;border-left:2px solid rgba(255,255,255,.14)}
 @media(min-width:992px){.sidebar{position:sticky;top:var(--imp,0px);height:calc(100vh - var(--imp,0px));overflow-y:auto}}
 @media(max-width:991.98px){.sidebar{width:auto;min-height:0}}
 @media(max-width:991.98px){#publicHeader .mega-menu-panel{width:auto;margin:.25rem .75rem 0}#publicHeader .mega-menu-grid{grid-template-columns:1fr}}

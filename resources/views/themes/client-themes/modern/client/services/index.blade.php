@@ -52,7 +52,7 @@
           <i class="fa-solid fa-server"></i>
         </span>
         <p class="text-muted mb-3" style="font-size:14px">Anda belum punya layanan hosting.</p>
-        <a href="{{ route('catalog.index') }}" class="btn btn-theme"><i class="fa-solid fa-cart-plus" style="font-size:11px"></i> Pesan Layanan</a>
+        <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="btn btn-theme"><i class="fa-solid fa-cart-plus" style="font-size:11px"></i> Pesan Layanan</a>
       </div>
     @endforelse
   </div>

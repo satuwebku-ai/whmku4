@@ -77,7 +77,7 @@
         </span>
         <p class="fw-medium text-dark mb-1">Belum punya VPS</p>
         <p class="text-muted mb-3" style="font-size:14px">Pilih paket VPS dan mulai dalam hitungan menit.</p>
-        <a href="{{ route('catalog.index') }}" class="btn btn-theme mx-auto" style="width:fit-content">Lihat Paket VPS</a>
+        <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="btn btn-theme mx-auto" style="width:fit-content">Lihat Paket VPS</a>
       </div>
     @endforelse
   </div>

@@ -9,7 +9,7 @@
         {{ $tagline }}
       </h1>
       <p style="color:rgba(255,255,255,.65);max-width:32rem;margin:0 auto 2.5rem auto;font-size:16px;line-height:1.7">
-        Cek nama domain impianmu, pilih paket hosting, bayar — layanan langsung aktif tanpa menunggu.
+        {{ \App\Support\HomeContent::heroText('Cek nama domain impianmu, pilih paket hosting, bayar — layanan langsung aktif tanpa menunggu.') }}
       </p>
 
       {{-- Kotak cek domain --}}

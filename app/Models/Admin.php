@@ -127,7 +127,7 @@ class Admin extends Authenticatable
         'services'       => 'Layanan — Klien, Hosting Account, Domain, Verifikasi Berkas',
         'infrastructure' => 'Infrastruktur — Server, VPS, Registrar, Backup, Konsol Web',
         'support'        => 'Dukungan — Live Chat, Tiket Support',
-        'content'        => 'Konten — Halaman, Pengumuman, Banner, Template Notifikasi',
+        'content'        => 'Konten — Halaman, Pengumuman, Blog, Pusat Bantuan, Banner, Template Notifikasi',
         'system'         => 'Sistem — Pengaturan, Cron, Log Aktivitas, Broadcast Promo',
     ];
 

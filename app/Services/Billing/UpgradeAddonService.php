@@ -29,12 +29,21 @@ class UpgradeAddonService
             if ($hosting->pending_upgrade_invoice_id) {
                 $existing = Invoice::find($hosting->pending_upgrade_invoice_id);
                 if ($existing && in_array($existing->status, ['unpaid', 'overdue'], true)) {
+                    if ((int) $hosting->pending_upgrade_product_id !== (int) $newProduct->id) {
+                        throw new RuntimeException('Batalkan atau selesaikan invoice upgrade yang masih terbuka sebelum memilih paket lain.');
+                    }
+
                     return $existing;
+                }
+
+                if ($existing?->status === 'paid') {
+                    throw new RuntimeException('Invoice upgrade sudah dibayar dan sedang diproses.');
                 }
 
                 $hosting->update([
                     'pending_upgrade_product_id' => null,
                     'pending_upgrade_invoice_id' => null,
+                    'pending_upgrade_price' => null,
                 ]);
             }
 
@@ -43,7 +52,16 @@ class UpgradeAddonService
                 throw new RuntimeException('Paket yang dipilih tidak tersedia untuk upgrade dari paket Anda saat ini.');
             }
 
-            $amount = $hosting->prorateUpgrade($eligible);
+            $pricing = $eligible->pricingForClientCycle(
+                $hosting->client?->client_group_id,
+                $hosting->billing_cycle,
+            );
+            $targetCyclePrice = $pricing === null ? null : (float) $pricing['price'];
+            if ($targetCyclePrice === null || $targetCyclePrice <= (float) $hosting->price) {
+                throw new RuntimeException('Harga paket tujuan untuk siklus dan kelompok client Anda tidak valid.');
+            }
+
+            $amount = $hosting->prorateUpgrade($eligible, $targetCyclePrice);
             if ($amount <= 0) {
                 throw new RuntimeException('Biaya upgrade tidak valid.');
             }
@@ -63,11 +81,13 @@ class UpgradeAddonService
                 'invoice_id' => $invoice->id,
                 'description' => "Upgrade {$hosting->domain}: {$hosting->product?->name} → {$eligible->name} (prorata sisa siklus)",
                 'amount' => $amount,
+                ...InvoiceItem::serviceRef($hosting, InvoiceItem::TYPE_UPGRADE),
             ]);
 
             $hosting->update([
                 'pending_upgrade_product_id' => $eligible->id,
                 'pending_upgrade_invoice_id' => $invoice->id,
+                'pending_upgrade_price' => $targetCyclePrice,
             ]);
 
             return $invoice;
@@ -136,6 +156,7 @@ class UpgradeAddonService
                 'invoice_id' => $invoice->id,
                 'description' => "Addon {$catalogAddon->name} — {$hosting->domain} (prorata sisa siklus)",
                 'amount' => $amount,
+                ...InvoiceItem::serviceRef($hosting, InvoiceItem::TYPE_ADDON),
             ]);
 
             HostingAccountAddon::create([

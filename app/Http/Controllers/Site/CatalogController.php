@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\ProductType;
 use App\Models\Coupon;
 use App\Models\Tld;
 use App\Support\ProductPromos;
@@ -40,12 +41,12 @@ class CatalogController extends Controller
         }
 
         // Produk VPS dipisah dari hosting biasa lewat Product::scopeVpsType()/
-        // scopeHostingType() -- SATU sumber kebenaran (kategori type='vps',
-        // dengan server cloud sebagai jaring pengaman), dipakai sama persis
-        // oleh ProductController::indexData(). Sebelumnya section ini
-        // memfilter dari server_id saja, jadi produk VPS yang kategorinya
-        // sudah type='vps' tapi belum/salah pasang server cloud (mis. server
-        // belum dipilih) ikut nyasar ke "Paket Hosting Pilihan".
+        // scopeHostingType() -- SATU sumber kebenaran (jenis produk kategori
+        // berperilaku VPS, dengan server cloud sebagai jaring pengaman).
+        // Sebelumnya section ini memfilter dari server_id saja, jadi produk
+        // VPS yang kategorinya sudah bertipe VPS tapi belum/salah pasang
+        // server cloud (mis. server belum dipilih) ikut nyasar ke "Paket
+        // Hosting Pilihan".
         $featured = Product::active()
             ->hostingType()
             ->with('category')
@@ -224,7 +225,7 @@ class CatalogController extends Controller
         // Halaman /hosting hanya untuk hosting biasa -- kategori & produk
         // unggulan VPS ada di /vps (lihat vpsData()).
         $categories = ProductGroup::active()
-            ->where(fn ($q) => $q->whereNull('type')->orWhere('type', '!=', 'vps'))
+            ->notOfKind(ProductType::KIND_VPS)
             ->withCount(['products' => fn ($q) => $q->active()->hostingType()])
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -267,7 +268,7 @@ class CatalogController extends Controller
             ->get();
 
         $categories = ProductGroup::active()
-            ->where('type', 'vps')
+            ->ofKind(ProductType::KIND_VPS)
             ->withCount(['products' => fn ($q) => $q->active()])
             ->orderBy('sort_order')
             ->orderBy('name')

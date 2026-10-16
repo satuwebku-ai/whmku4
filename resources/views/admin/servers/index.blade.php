@@ -31,7 +31,12 @@
         <tbody>
           @forelse ($servers as $server)
             <tr>
-              <td class="px-4 py-3 fw-medium text-dark">{{ $server->name }}</td>
+              <td class="px-4 py-3 fw-medium text-dark">
+                {{ $server->name }}
+                @if ($server->groups->isNotEmpty())
+                  <br><span class="text-muted fw-normal" style="font-size:11px"><i class="fa-solid fa-layer-group"></i> {{ $server->groups->pluck('name')->join(', ') }}</span>
+                @endif
+              </td>
               <td class="text-muted py-3">
                 @if ($server->isCloud())
                   {{ $server->hostname ?: ($server->vpsDriver() === 'idcloudhost' ? 'Lokasi default' : 'API provider') }}
@@ -46,7 +51,13 @@
                   {{ $server->panel === 'cpanel' ? 'cPanel / WHM' : $server->panel }}
                 @endif
               </td>
-              <td class="text-center text-muted py-3">{{ $server->hosting_accounts_count }}</td>
+              <td class="text-center text-muted py-3">
+                @php($full = $server->max_accounts !== null && $server->active_accounts_count >= $server->max_accounts)
+                <span class="{{ $full ? 'text-danger fw-semibold' : '' }}" title="Akun aktif / kapasitas maksimal (yang dibatalkan tidak dihitung)">
+                  {{ $server->active_accounts_count }}@if ($server->max_accounts !== null) / {{ $server->max_accounts }}@endif
+                </span>
+                @if ($full)<br><span class="badge badge-soft-danger" style="font-size:10px">Penuh</span>@endif
+              </td>
               <td class="text-muted py-3" style="font-size:12px">
                 @if ($server->last_checked_at)
                   {{ $server->last_checked_at->diffForHumans() }}
@@ -59,7 +70,11 @@
                 @endif
               </td>
               <td class="py-3">
-                <span class="badge {{ $server->is_active ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $server->is_active ? 'Aktif' : 'Nonaktif' }}</span>
+                @if ($server->is_active && $server->is_maintenance)
+                  <span class="badge badge-soft-warning">Maintenance</span>
+                @else
+                  <span class="badge {{ $server->is_active ? 'badge-soft-success' : 'badge-soft-secondary' }}">{{ $server->is_active ? 'Aktif' : 'Nonaktif' }}</span>
+                @endif
               </td>
               <td class="text-end px-4 py-3">
                 <div class="d-flex align-items-center justify-content-end gap-2">

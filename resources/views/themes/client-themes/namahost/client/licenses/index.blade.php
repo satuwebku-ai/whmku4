@@ -5,7 +5,7 @@
 @section('content')
   <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div><h1 class="h4 fw-bold mb-1">Lisensi Saya</h1><p class="text-muted small mb-0">Status order dan tagihan lisensi Anda.</p></div>
-    <a href="{{ route('license.index') }}" class="btn btn-theme btn-sm"><i class="fa-solid fa-plus me-1"></i> Beli Lisensi</a>
+    <a href="{{ \App\Support\StoreUrl::route('license.index') }}" class="btn btn-theme btn-sm"><i class="fa-solid fa-plus me-1"></i> Beli Lisensi</a>
   </div>
   <div class="row g-3">
     @forelse ($licenses as $license)

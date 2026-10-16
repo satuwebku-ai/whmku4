@@ -108,6 +108,36 @@ class Domain extends Model
         return $this->belongsTo(Order::class);
     }
 
+    /**
+     * Apakah domain ini masih menunggu berkas persyaratan dari klien?
+     *
+     * Dipakai UI klien (daftar domain, detail domain) supaya klien TAHU
+     * ada berkas yang harus dilengkapi SEBELUM bisa membayar -- tidak
+     * bergantung pada provision_status, yang baru berubah ke
+     * 'needs_documents' setelah invoice dibayar.
+     *
+     * Sumber kebenarannya tetap DomainDocument::progressFor(), sama dengan
+     * gerbang pembayaran dan halaman verifikasi admin.
+     */
+    public function needsDocuments(): bool
+    {
+        if ($this->documents_verified_at) {
+            return false;
+        }
+
+        if ($this->status !== 'pending' && ! $this->renewal_invoice_id) {
+            return false;
+        }
+
+        $this->loadMissing(['tld', 'documents']);
+
+        if (! \App\Models\DocumentRequirement::extensionNeedsDocuments($this->tld?->extension)) {
+            return false;
+        }
+
+        return ! \App\Models\DomainDocument::progressFor($this)['complete'];
+    }
+
     public function documents(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\DomainDocument::class);

@@ -49,9 +49,15 @@
           </div>
 
           @if (in_array($invoice->status, ['unpaid', 'overdue']))
-            <a href="{{ route('client.invoices.show', $invoice) }}" class="btn btn-theme">
-              <i class="fa-solid fa-credit-card" style="font-size:11px"></i> Bayar
-            </a>
+            @if ($docBlocker = $invoice->documentBlocker())
+              <a href="{{ route('client.domains.documents', $docBlocker) }}" class="btn btn-outline-warning">
+                <i class="fa-solid fa-file-circle-exclamation" style="font-size:11px"></i> Lengkapi Berkas
+              </a>
+            @else
+              <a href="{{ route('client.invoices.show', $invoice) }}" class="btn btn-theme">
+                <i class="fa-solid fa-credit-card" style="font-size:11px"></i> Bayar
+              </a>
+            @endif
           @else
             <a href="{{ route('client.invoices.show', $invoice) }}" class="btn btn-outline-secondary">Detail</a>
           @endif

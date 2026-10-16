@@ -721,6 +721,29 @@ class ProvisioningService
             return;
         }
 
+        // Pengaman kedua: jangan pernah mengaktifkan WHOIS Privacy di
+        // registrar untuk domain .id (aturan PANDI), apa pun jalur
+        // pembayarannya. Invoice-nya perlu ditinjau/direfund admin.
+        if (! $domain->supportsPrivacy()) {
+            Log::warning('ID Protection ditolak untuk domain .id (aturan PANDI).', [
+                'domain_id' => $domain->id,
+                'invoice_id' => $invoice->id,
+            ]);
+
+            ActivityLog::record(
+                'domain',
+                "ID Protection ditolak: {$domain->domain_name}",
+                'Domain .id tidak boleh memakai WHOIS Privacy (PANDI). Tinjau/refund invoice ' . $invoice->invoice_number . '.',
+                route('admin.domains.details', $domain),
+                'warning',
+                $domain->client_id,
+            );
+
+            $domain->update(['privacy_invoice_id' => null]);
+
+            return;
+        }
+
         $service = DomainRegistrarFactory::make($domain->registrar);
 
         if (! method_exists($service, 'enablePrivacyProtection')) {
@@ -833,6 +856,13 @@ class ProvisioningService
 
         $newProduct = $hosting->pendingUpgradeProduct;
         $oldProductName = $hosting->product?->name ?? $hosting->package;
+        $targetCyclePrice = $hosting->pending_upgrade_price !== null
+            ? (float) $hosting->pending_upgrade_price
+            : $newProduct->priceForCycle($hosting->billing_cycle);
+
+        if ($targetCyclePrice === null) {
+            throw new \RuntimeException('Harga paket tujuan tidak tersedia untuk siklus tagihan layanan ini.');
+        }
 
         // Akun otomatis (terhubung server) diganti paketnya sungguhan
         // lewat WHM. Akun manual (tanpa server) cukup dicatat di sistem —
@@ -855,9 +885,10 @@ class ProvisioningService
         $hosting->update([
             'product_id' => $newProduct->id,
             'package' => $newProduct->panel_package ?: $newProduct->name,
-            'price' => $newProduct->priceForCycle($hosting->billing_cycle),
+            'price' => $targetCyclePrice,
             'pending_upgrade_product_id' => null,
             'pending_upgrade_invoice_id' => null,
+            'pending_upgrade_price' => null,
         ]);
 
         ActivityLog::record(
@@ -911,7 +942,7 @@ class ProvisioningService
                 }
 
                 $hosting->update([
-                    'next_due_date' => $hosting->nextCycleDate(),
+                    'next_due_date' => $hosting->nextCycleDate($invoice->paid_at ?? now()),
                     'renewal_invoice_id' => null,
                     'status' => $wasSuspended ? 'active' : $hosting->status,
                 ]);

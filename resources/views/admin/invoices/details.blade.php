@@ -33,13 +33,22 @@
             <p class="fw-medium text-dark mb-0">{{ $invoice->client->name ?? '—' }}</p>
           </div>
           <div class="col-sm-6">
-            <p class="text-muted mb-1" style="font-size:11px">ORDER TERKAIT</p>
+            <p class="text-muted mb-1" style="font-size:11px">ORDER / LAYANAN TERKAIT</p>
+            @php
+              $detailServices = $invoice->relatedServices();
+              $detailOrders = $invoice->items->pluck('order')->filter();
+              if ($invoice->order) { $detailOrders->push($invoice->order); }
+              $detailOrders = $detailOrders->unique('id');
+            @endphp
             <p class="fw-medium text-dark mb-0">
-              @if ($invoice->order)
-                <a href="{{ route('admin.orders.details', $invoice->order) }}" class="text-decoration-none text-accent">#{{ $invoice->order->order_number }}</a>
-              @else
-                —
-              @endif
+              @foreach ($detailOrders as $o)
+                <a href="{{ route('admin.orders.details', $o) }}" class="text-decoration-none text-accent">#{{ $o->order_number }}</a>@if (! $loop->last), @endif
+              @endforeach
+              @if ($detailOrders->isNotEmpty() && $detailServices->isNotEmpty())<br>@endif
+              @foreach ($detailServices as $svc)
+                <a href="{{ $svc['route'] }}" class="text-decoration-none text-accent">{{ $svc['label'] }}: {{ $svc['name'] }}</a>@if (! $loop->last)<br>@endif
+              @endforeach
+              @if ($detailOrders->isEmpty() && $detailServices->isEmpty()) — @endif
             </p>
           </div>
           <div class="col-sm-6">

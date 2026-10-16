@@ -86,6 +86,18 @@ $aliases = [
     'coupon_product_group' => ['coupon_product_group', 'coupon_product_category'],
 ];
 
+$cmsSources = [];
+if ($tableExists('cms_contents')) {
+    $cmsSources[] = 'cms_contents';
+} else {
+    foreach (['page' => ['cms_pages', 'pages'], 'post' => ['cms_posts'], 'category' => ['cms_categories']] as $candidates) {
+        $sourceTable = $firstExisting($candidates);
+        if ($sourceTable !== null) {
+            $cmsSources[] = $sourceTable;
+        }
+    }
+}
+
 foreach ($aliases as $final => $candidates) {
     $sourceTable = $firstExisting($candidates);
     $report['table_aliases'][$final] = [
@@ -93,6 +105,11 @@ foreach ($aliases as $final => $candidates) {
         'source_rows' => $sourceTable === null ? 0 : $count($sourceTable),
     ];
 }
+
+$report['table_aliases']['cms_contents'] = [
+    'source_table' => $cmsSources === [] ? null : implode(', ', $cmsSources),
+    'source_rows' => array_sum(array_map($count, $cmsSources)),
+];
 
 foreach ([
     'clients',
@@ -103,12 +120,18 @@ foreach ([
     'domains',
     'credits',
     'cms_pages',
+    'cms_contents',
     'product_groups',
     'coupon_usages',
     'notification_deliveries',
     'affiliate_commissions',
     'affiliate_payouts',
 ] as $table) {
+    if ($table === 'cms_contents') {
+        $report['row_counts'][$table] = $report['table_aliases']['cms_contents']['source_rows'];
+        continue;
+    }
+
     $sourceTable = $aliases[$table][0] ?? $table;
     $actual = $firstExisting([$sourceTable, ...($aliases[$table] ?? [])]);
     $report['row_counts'][$table] = $actual === null ? null : $count($actual);

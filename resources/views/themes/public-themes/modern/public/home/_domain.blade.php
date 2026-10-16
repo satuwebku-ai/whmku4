@@ -5,7 +5,7 @@
         <div>
           <span class="mx-eyebrow">Aktivasi otomatis, langsung online</span>
           <h1 class="mx-h1">{{ $tagline }}</h1>
-          <p class="mx-lead">Cek nama domain impianmu, pilih paket hosting, bayar — layanan langsung aktif tanpa menunggu.</p>
+          <p class="mx-lead">{{ \App\Support\HomeContent::heroText('Cek nama domain impianmu, pilih paket hosting, bayar — layanan langsung aktif tanpa menunggu.') }}</p>
 
           <form method="GET" action="{{ route('domain.search') }}" class="mx-search">
             <i class="fa-solid fa-globe"></i>

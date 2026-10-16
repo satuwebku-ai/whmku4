@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 @section('title', 'Pengaturan Halaman Depan')
 @section('content')
-  @include('admin.settings._nav')
+  @include('admin.pages._nav')
 
   @php use App\Models\Setting; @endphp
 
@@ -89,7 +89,7 @@
 
       @if ($banners->isEmpty())
         <p class="text-muted mb-0" style="font-size:11px">
-          Belum ada banner sama sekali. Tambahkan lewat <a href="{{ route('admin.promo-banners.create') }}" class="text-accent">Konten &rarr; Banner Promo</a>.
+          Belum ada banner sama sekali. Tambahkan lewat <a href="{{ route('admin.promo-banners.create') }}" class="text-accent">CMS &rarr; Banner Promo</a>.
         </p>
       @else
         @if ($tampil->isEmpty())
@@ -124,6 +124,88 @@
     </div>
 
     <button type="submit" class="btn btn-primary btn-sm" style="width:fit-content"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan Pengaturan</button>
+  </form>
+
+  @php
+    $storedBenefits = \App\Support\HomeContent::benefits(\App\Support\HomeContent::DEFAULT_BENEFITS);
+    $storedCta      = \App\Support\HomeContent::cta(\App\Support\HomeContent::DEFAULT_CTA);
+    $stepRows       = old('steps', \App\Support\HomeContent::steps(\App\Support\HomeContent::DEFAULT_STEPS));
+    $stepRows       = array_pad(array_values($stepRows), \App\Support\HomeContent::MAX_STEPS, ['title' => '', 'desc' => '']);
+    $benefitRows    = old('benefits', $storedBenefits);
+    $benefitRows    = array_pad(array_values($benefitRows), \App\Support\HomeContent::MAX_BENEFITS, ['title' => '', 'desc' => '']);
+  @endphp
+
+  <form method="POST" action="{{ route('admin.settings.homepage.content.update') }}" class="card border rounded-4 p-4 mt-4" style="max-width:42rem">
+    @csrf
+
+    <h2 class="small fw-bold text-dark mb-1">Teks Section Beranda</h2>
+    <p class="text-muted mb-3" style="font-size:12px">
+      Ubah teks hero, Keunggulan, Langkah, dan Ajakan Daftar tanpa menyentuh kode. Kosongkan baris untuk menghapusnya;
+      ikon mengikuti urutan baris. Kosongkan semua atau samakan dengan bawaan untuk kembali ke teks bawaan tema.
+    </p>
+
+    <h3 class="fw-bold text-dark mb-2" style="font-size:13px">Teks Hero</h3>
+    <div class="mb-4">
+      <input type="text" name="hero_text" maxlength="200" class="form-control form-control-sm"
+             placeholder="Kosongkan untuk memakai teks bawaan tema"
+             value="{{ old('hero_text', Setting::get('home_hero_text')) }}">
+      <p class="text-muted mt-1 mb-0" style="font-size:10px">Paragraf di bawah judul beranda. Judulnya diatur lewat Tagline situs.</p>
+    </div>
+
+    <h3 class="fw-bold text-dark mb-2" style="font-size:13px">Keunggulan <span class="text-muted fw-normal">(maks. {{ \App\Support\HomeContent::MAX_BENEFITS }})</span></h3>
+    <div class="d-flex flex-column gap-2 mb-4">
+      @foreach ($benefitRows as $i => $row)
+        <div class="row g-2">
+          <div class="col-sm-4">
+            <input type="text" name="benefits[{{ $i }}][title]" maxlength="60" placeholder="Judul"
+                   value="{{ $row['title'] ?? '' }}" class="form-control form-control-sm">
+          </div>
+          <div class="col-sm-8">
+            <input type="text" name="benefits[{{ $i }}][desc]" maxlength="200" placeholder="Deskripsi singkat"
+                   value="{{ $row['desc'] ?? '' }}" class="form-control form-control-sm">
+          </div>
+        </div>
+      @endforeach
+    </div>
+
+    <h3 class="fw-bold text-dark mb-1 pt-3 border-top" style="font-size:13px">Langkah Mulai <span class="text-muted fw-normal">(tema NamaHost, maks. {{ \App\Support\HomeContent::MAX_STEPS }})</span></h3>
+    <p class="text-muted mb-2" style="font-size:10px">Tema lain tidak menampilkan bagian ini.</p>
+    <div class="d-flex flex-column gap-2 mb-4">
+      @foreach ($stepRows as $i => $row)
+        <div class="row g-2">
+          <div class="col-sm-4">
+            <input type="text" name="steps[{{ $i }}][title]" maxlength="60" placeholder="Judul langkah"
+                   value="{{ $row['title'] ?? '' }}" class="form-control form-control-sm">
+          </div>
+          <div class="col-sm-8">
+            <input type="text" name="steps[{{ $i }}][desc]" maxlength="200" placeholder="Deskripsi singkat"
+                   value="{{ $row['desc'] ?? '' }}" class="form-control form-control-sm">
+          </div>
+        </div>
+      @endforeach
+    </div>
+
+    <h3 class="fw-bold text-dark mb-2 pt-3 border-top" style="font-size:13px">Ajakan Daftar</h3>
+    <div class="row g-2 mb-4">
+      <div class="col-12">
+        <label class="form-label small fw-medium text-dark">Judul</label>
+        <input type="text" name="cta[title]" maxlength="100" value="{{ old('cta.title', $storedCta['title']) }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-12">
+        <label class="form-label small fw-medium text-dark">Teks</label>
+        <input type="text" name="cta[text]" maxlength="200" value="{{ old('cta.text', $storedCta['text']) }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label small fw-medium text-dark">Tombol utama</label>
+        <input type="text" name="cta[primary]" maxlength="40" value="{{ old('cta.primary', $storedCta['primary']) }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label small fw-medium text-dark">Tombol kedua</label>
+        <input type="text" name="cta[secondary]" maxlength="40" value="{{ old('cta.secondary', $storedCta['secondary']) }}" class="form-control form-control-sm">
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-sm" style="width:fit-content"><i class="fa-solid fa-check" style="font-size:11px"></i> Simpan Teks</button>
   </form>
 
   <script @nonce>

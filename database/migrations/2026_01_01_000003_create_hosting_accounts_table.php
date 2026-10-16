@@ -57,10 +57,14 @@ return new class extends Migration
             // FK juga dipasang di 2026_10_01_000001_create_products_table.php
             // dan bersamaan dengan renewal_invoice_id di atas.
             $table->foreignId('pending_upgrade_product_id')->nullable();
+            $table->decimal('pending_upgrade_price', 12, 2)->nullable();
             $table->foreignId('pending_upgrade_invoice_id')->nullable();
 
             $table->string('provision_status')->default('manual'); // manual, provisioned, failed
             $table->text('provision_message')->nullable(); // pesan sukses/error terakhir dari API panel
+            $table->text('panel_suspend_error')->nullable(); // alasan gagal suspend/unsuspend di panel
+            $table->timestamp('credentials_sent_at')->nullable();
+            $table->timestamp('credentials_email_failed_at')->nullable();
             $table->timestamp('provisioning_started_at')->nullable();
             $table->timestamp('provisioning_finished_at')->nullable();
             $table->unsignedInteger('provisioning_attempts')->default(0);

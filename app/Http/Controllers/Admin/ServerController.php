@@ -15,7 +15,12 @@ class ServerController extends Controller
 {
     public function index(): View
     {
-        $servers = Server::withCount('hostingAccounts')->latest()->paginate(10);
+        $servers = Server::with('groups')
+            ->withCount('hostingAccounts')
+            // Akun yang benar-benar memakai kapasitas (tanpa cancelled/terminated).
+            ->withCount(['hostingAccounts as active_accounts_count' => fn ($q) => $q->whereNotIn('status', Server::INACTIVE_ACCOUNT_STATUSES)])
+            ->latest()
+            ->paginate(10);
 
         return view('admin.servers.index', compact('servers'));
     }
@@ -32,6 +37,7 @@ class ServerController extends Controller
         $data['api_username'] = $data['api_username'] ?? '';
         $data['verify_ssl'] = $request->boolean('verify_ssl');
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['is_maintenance'] = $request->boolean('is_maintenance');
 
         Server::create($data);
 
@@ -40,16 +46,26 @@ class ServerController extends Controller
 
     public function edit(Server $server): View
     {
-        return view('admin.servers.form', compact('server'));
+        return view('admin.servers.form', ['server' => $server->load('groups')]);
     }
 
     public function update(Request $request, Server $server): RedirectResponse
     {
         $data = $this->validated($request, updating: true);
+
+        $becomingCloud = ($data['panel'] === 'vps' || filled($data['vps_provider'] ?? null))
+            && ! $server->isCloud();
+        if ($becomingCloud && $server->groups()->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel' => 'Server ini masih menjadi anggota grup server. Keluarkan dari semua grup sebelum mengubahnya menjadi VPS/cloud.',
+            ]);
+        }
+
         $data['hostname'] = $data['hostname'] ?? '';
         $data['api_username'] = $data['api_username'] ?? '';
         $data['verify_ssl'] = $request->boolean('verify_ssl');
         $data['is_active'] = $request->boolean('is_active');
+        $data['is_maintenance'] = $request->boolean('is_maintenance');
 
         // Kalau field token dikosongkan saat edit, jangan timpa token yang sudah tersimpan.
         if (empty($data['api_token'])) {
@@ -303,13 +319,22 @@ class ServerController extends Controller
 
         // Produk yang menunjuk ke server ini, dan apakah panel_package-nya
         // benar-benar ada di daftar paket sungguhan di atas.
-        $products = \App\Models\Product::where('server_id', $server->id)
+        $products = \App\Models\Product::with('serverGroup')
             ->where('is_active', true)
+            ->where(function ($query) use ($server) {
+                $query->where('server_id', $server->id)
+                    ->orWhereHas('serverGroup', fn ($group) => $group->whereHas(
+                        'servers',
+                        fn ($members) => $members->whereKey($server->id)
+                            ->where('server_group_server.is_active', true)
+                    ));
+            })
             ->get()
             ->map(fn ($p) => [
                 'name' => $p->name,
                 'panel_package' => $p->panel_package,
                 'matches' => blank($p->panel_package) ? null : in_array($p->panel_package, $packages, true),
+                'server_group' => $p->serverGroup?->name,
             ]);
 
         // Bandingkan catatan Hosting Account kita dengan akun yang
@@ -406,6 +431,7 @@ class ServerController extends Controller
             'api_token'    => [$updating ? 'nullable' : 'required', 'string'],
             'verify_ssl'   => ['nullable', 'boolean'],
             'max_accounts' => ['nullable', 'integer', 'min:1'],
+            'is_maintenance' => ['nullable', 'boolean'],
             'price_per_vcpu_hour' => ['nullable', 'numeric', 'min:0'],
             'price_per_ram_gb_hour' => ['nullable', 'numeric', 'min:0'],
             'price_per_storage_gb_hour' => ['nullable', 'numeric', 'min:0'],

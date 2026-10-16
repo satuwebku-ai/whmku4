@@ -114,7 +114,22 @@ class InvoiceController extends Controller
     {
         $data = $this->validated($request);
 
-        if ($data['status'] === 'paid' && ! $invoice->paid_at) {
+        // Order terkait menentukan provisioning & status order saat invoice
+        // dibayar, jadi tidak boleh diganti lewat form edit. Hanya invoice
+        // manual baru (store) yang boleh memilihnya.
+        unset($data['order_id']);
+
+        // Invoice yang sudah lunas/refund adalah catatan akuntansi: nominal,
+        // klien, dan tanggal tidak boleh diubah diam-diam dari form.
+        if (in_array($invoice->status, ['paid', 'refunded'], true)) {
+            $data = array_intersect_key($data, array_flip(['notes']));
+            $data['status'] = $invoice->status;
+        } elseif ($invoice->isSystemGenerated()) {
+            // Invoice buatan sistem: nominal berasal dari item invoice.
+            unset($data['client_id'], $data['amount'], $data['tax'], $data['discount'], $data['tax_id']);
+        }
+
+        if (($data['status'] ?? null) === 'paid' && ! $invoice->paid_at) {
             $data['paid_at'] = now();
         }
 

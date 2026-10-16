@@ -201,6 +201,93 @@ class Invoice extends Model
         return $this->hasMany(Payment::class);
     }
 
+    /**
+     * Domain di invoice ini yang berkas persyaratannya belum lengkap/disetujui
+     * (null kalau tidak ada). Hanya relevan untuk invoice yang masih bisa
+     * dibayar. Memakai gerbang yang sama dengan PaymentEligibilityService,
+     * jadi tampilan klien dan penolakan server tidak bisa berbeda pendapat.
+     */
+    public function documentBlocker(): ?Domain
+    {
+        if ($this->is_topup || ! in_array($this->status, ['unpaid', 'overdue'], true)) {
+            return null;
+        }
+
+        return app(\App\Services\Payment\PaymentEligibilityService::class)->documentBlocker($this);
+    }
+
+    /**
+     * Layanan yang ditagih invoice ini (domain / hosting).
+     *
+     * Sumber utama: rujukan di baris invoice (invoice_items.service_type /
+     * service_id) — permanen, jadi invoice yang sudah lunas pun tetap tahu
+     * layanannya. Cadangan untuk data lama yang belum terisi: tautan
+     * sementara di layanan (renewal_invoice_id, privacy_invoice_id, dst).
+     *
+     * @return \Illuminate\Support\Collection<int, array{label: string, kind: string, name: string, route: string, model: \Illuminate\Database\Eloquent\Model}>
+     */
+    public function relatedServices(): \Illuminate\Support\Collection
+    {
+        $rows = collect();
+        $seen = [];
+
+        $push = function (string $label, string $kind, \Illuminate\Database\Eloquent\Model $model) use ($rows, &$seen): void {
+            $key = $kind . ':' . $model->getKey() . ':' . $label;
+            if (isset($seen[$key])) {
+                return;
+            }
+            $seen[$key] = true;
+
+            $rows->push([
+                'label' => $label,
+                'kind' => $kind,
+                'name' => $kind === 'domain' ? $model->domain_name : $model->domain,
+                'route' => $kind === 'domain'
+                    ? route('admin.domains.details', $model)
+                    : route('admin.hosting-accounts.details', $model),
+                'model' => $model,
+            ]);
+        };
+
+        if (InvoiceItem::supportsServiceRef()) {
+            foreach ($this->items()->whereNotNull('service_type')->get() as $item) {
+                if ($service = $item->service()) {
+                    $push($item->serviceLabel(), $item->service_type, $service);
+                }
+            }
+        }
+
+        // Cadangan untuk invoice lama yang belum di-backfill.
+        Domain::where('renewal_invoice_id', $this->id)->get()
+            ->each(fn (Domain $d) => $push('Perpanjangan domain', 'domain', $d));
+
+        Domain::where('privacy_invoice_id', $this->id)->get()
+            ->each(fn (Domain $d) => $push('ID Protection', 'domain', $d));
+
+        HostingAccount::where('renewal_invoice_id', $this->id)
+            ->orWhere('pending_upgrade_invoice_id', $this->id)
+            ->get()
+            ->each(fn (HostingAccount $h) => $push(
+                (int) $h->renewal_invoice_id === (int) $this->id ? 'Perpanjangan hosting' : 'Upgrade hosting',
+                'hosting',
+                $h,
+            ));
+
+        return $rows;
+    }
+
+    /**
+     * Invoice yang dibuat sistem (checkout, renewal, privacy, upgrade) tidak
+     * boleh diubah tautan order/nominalnya lewat form edit admin. Order pada
+     * invoice menentukan provisioning & status order saat dibayar.
+     */
+    public function isSystemGenerated(): bool
+    {
+        return $this->order_id !== null
+            || $this->items()->exists()
+            || $this->relatedServices()->isNotEmpty();
+    }
+
     public function getIsOverdueAttribute(): bool
     {
         return $this->status === 'unpaid' && $this->due_date?->isPast();

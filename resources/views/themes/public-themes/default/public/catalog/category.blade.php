@@ -1,17 +1,17 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php
   $seoTitle = $category->name;
   $seoDescription = $category->description ?: "Pilihan paket {$category->name} — aktif cepat, dukungan 24/7.";
 @endphp
 
-@section('content')
+@section('store-content')
 
   <nav class="text-muted mb-3" style="font-size:12px">
-    @if ($category->urlSection() === 'vps')
-      <a href="{{ route('catalog.vps') }}" class="text-decoration-none text-muted">VPS</a> / {{ $category->name }}
+    @if ($category->productType?->kind === 'vps')
+      <a href="{{ \App\Support\StoreUrl::route('catalog.vps') }}" class="text-decoration-none text-muted">VPS</a> / {{ $category->name }}
     @else
-      <a href="{{ route('catalog.index') }}" class="text-decoration-none text-muted">Hosting</a> / {{ $category->name }}
+      <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="text-decoration-none text-muted">Hosting</a> / {{ $category->name }}
     @endif
   </nav>
 

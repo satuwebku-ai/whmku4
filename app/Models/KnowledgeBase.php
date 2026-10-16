@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class KnowledgeBase extends Model
 {
-    protected $fillable = ['knowledge_base_category_id', 'title', 'slug', 'content', 'is_published', 'views_count'];
+    protected $fillable = ['knowledge_base_category_id', 'title', 'slug', 'content', 'is_published'];
 
     protected function casts(): array
     {
@@ -23,5 +23,10 @@ class KnowledgeBase extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('is_published', true);
+    }
+
+    public function getSafeContentAttribute(): string
+    {
+        return \App\Support\HtmlSanitizer::clean($this->content);
     }
 }

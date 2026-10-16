@@ -186,6 +186,7 @@ class InvoiceService
                 ->update([
                     'pending_upgrade_invoice_id' => null,
                     'pending_upgrade_product_id' => null,
+                    'pending_upgrade_price' => null,
                 ]);
 
             return $invoice->fresh();

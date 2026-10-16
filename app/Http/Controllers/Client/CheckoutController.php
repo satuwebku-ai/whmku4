@@ -234,10 +234,14 @@ class CheckoutController extends Controller
             );
         }
 
-        return redirect()->route('client.invoices.show', $invoice)->with(
-            'success',
-            "Pesanan {$invoice->invoice_number} berhasil dibuat! Pilih metode pembayaran di bawah untuk mengaktifkan layanan Anda."
-        );
+        // checkout_completed: invoice menampilkan header belanja langkah 3
+        // (Pembayaran) -- hanya sekali, tepat setelah pesanan dibuat.
+        return redirect()->route('client.invoices.show', $invoice)
+            ->with('checkout_completed', true)
+            ->with(
+                'success',
+                "Pesanan {$invoice->invoice_number} berhasil dibuat! Pilih metode pembayaran di bawah untuk mengaktifkan layanan Anda."
+            );
     }
 
     /**
@@ -293,8 +297,16 @@ class CheckoutController extends Controller
                     $issues[] = "Maaf, stok \"{$item['name']}\" sudah habis. Hapus item ini dari keranjang.";
                 }
 
-                if ($product?->server && in_array($product->server->panel, ['directadmin', 'plesk'], true)) {
-                    $issues[] = "Paket \"{$item['name']}\" belum dapat dipesan karena panel {$product->server->panel} belum didukung untuk provisioning otomatis.";
+                if ($product) {
+                    $selectedServer = app(\App\Services\Hosting\ServerSelector::class)->resolve($product)['server'];
+                    // Keep rejecting directly assigned unsupported panels
+                    // even when the server is currently unavailable and the
+                    // selector therefore returns null.
+                    $panel = $selectedServer?->panel ?? $product->server?->panel;
+
+                    if (in_array($panel, ['directadmin', 'plesk'], true)) {
+                        $issues[] = "Paket \"{$item['name']}\" belum dapat dipesan karena panel {$panel} belum didukung untuk provisioning otomatis.";
+                    }
                 }
             }
 
@@ -508,7 +520,13 @@ class CheckoutController extends Controller
         // akan gagal dengan error mentah dari WHM ("package not found")
         // yang membingungkan. Diperlakukan sama seperti "belum diatur sama
         // sekali", jatuh ke mode manual dengan pesan yang jelas.
-        $readyForAutoProvision = $product?->server_id && filled($product?->panel_package);
+        //
+        // Server tujuan sekarang dipilih lewat ServerSelector: dari Grup
+        // Server produk (otomatis, sesuai mode grup), atau server tunggal
+        // produk -- dengan syarat aktif, tidak maintenance, dan belum penuh.
+        $selection = app(\App\Services\Hosting\ServerSelector::class)->resolve($product);
+        $assignedServer = $selection['server'];
+        $readyForAutoProvision = $assignedServer && filled($product?->panel_package);
 
         // Stok terbatas: dikunci & dikurangi DI SINI (di dalam transaksi
         // checkout), bukan cuma dicek waktu tambah ke keranjang seperti
@@ -531,10 +549,10 @@ class CheckoutController extends Controller
         $hostingAccount = HostingAccount::create([
             'client_id'        => $client->id,
             'product_id'       => $product?->id,
-            'server_id'        => $readyForAutoProvision ? $product->server_id : null,
+            'server_id'        => $readyForAutoProvision ? $assignedServer->id : null,
             'domain'           => $domainName ?: ('layanan-' . Str::lower(Str::random(6))),
             'package'          => $product?->panel_package ?: ($product?->name ?? $item['name']),
-            'panel'            => $product?->server?->panel ?? 'cpanel',
+            'panel'            => $assignedServer?->panel ?? $product?->server?->panel ?? 'cpanel',
             'price'            => $basePrice,
             'billing_cycle'    => $item['billing_cycle'],
             'billing_mode'     => $isDeposit ? 'deposit' : 'invoice',
@@ -542,7 +560,7 @@ class CheckoutController extends Controller
             'provision_status' => 'manual',
             'provision_message' => $readyForAutoProvision
                 ? null
-                : ($product?->server_id ? 'Nama paket WHM belum diatur di produk ini — aktivasi perlu dilakukan manual oleh admin.' : null),
+                : ($selection['reason'] ?? ($assignedServer ? 'Nama paket WHM belum diatur di produk ini — aktivasi perlu dilakukan manual oleh admin.' : null)),
             // Layanan deposit tidak punya siklus jatuh tempo -- tidak
             // pernah ditagih ulang lewat GenerateRenewalInvoices, jadi
             // next_due_date dikosongkan supaya command itu (yang jalan

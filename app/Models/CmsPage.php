@@ -10,6 +10,9 @@ use Illuminate\Support\Str;
 class CmsPage extends Model
 {
     use HasFactory;
+    use UsesCmsContentTable;
+
+    public const CONTENT_TYPE = 'page';
 
     /**
      * Kata yang tidak boleh dipakai sebagai slug halaman.
@@ -23,7 +26,8 @@ class CmsPage extends Model
      */
     public const RESERVED_SLUGS = [
         'admin', 'client', 'hosting', 'vps', 'cek-domain', 'keranjang', 'chat',
-        'p', 'announcements', 'payment', 'storage', 'build', 'vendor',
+        'p', 'announcements', 'blog', 'knowledge-base', 'payment', 'storage', 'build', 'vendor',
+        'promo', 'lisensi', 'store',
         'api', 'login', 'register', 'logout', 'dashboard', 'home',
         'domain-premium', 'transfer-domain', 'ref',
         'robots.txt', 'sitemap.xml', 'favicon.ico',
@@ -104,14 +108,5 @@ class CmsPage extends Model
     public function getUrlAttribute(): string
     {
         return route('page.show', (string) $this->slug);
-    }
-
-    /**
-     * Isi konten yang aman ditampilkan apa adanya ({!! !!}) — HTML dibersihkan
-     * lewat allowlist supaya tidak bisa menyisipkan script (stored XSS).
-     */
-    public function getSafeContentAttribute(): string
-    {
-        return \App\Support\HtmlSanitizer::clean($this->content);
     }
 }

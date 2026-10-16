@@ -4,7 +4,7 @@
     <div class="row align-items-center g-5">
       <div class="col-lg-7">
         <h1 class="display-4 mb-3">{{ $tagline }}</h1>
-        <p class="lead mb-4">Hosting SSD NVMe, aktivasi otomatis, dan sertifikat SSL siap dipesan. Cek nama domain Anda sekarang.</p>
+        <p class="lead mb-4">{{ \App\Support\HomeContent::heroText('Hosting SSD NVMe, aktivasi otomatis, dan sertifikat SSL siap dipesan. Cek nama domain Anda sekarang.') }}</p>
 
         <form id="heroDomainForm" method="GET" action="{{ route('domain.search') }}" class="domain-box d-flex flex-wrap flex-sm-nowrap gap-2" role="search">
           <label for="heroDomain" class="visually-hidden">Nama domain</label>

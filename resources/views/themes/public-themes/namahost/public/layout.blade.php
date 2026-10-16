@@ -1,6 +1,5 @@
 @php
   use App\Models\Setting;
-  use App\Services\Cart\CartService;
 
   $siteName    = Setting::get('site_name', config('app.name', 'NamaHost'));
   $siteLogo    = Setting::get('site_logo');
@@ -10,7 +9,7 @@
   $brandingDisplay = Setting::get('branding_display', 'logo_and_text');
   $footerPages = \App\Models\CmsPage::published()->where('show_in_footer', true)->orderBy('sort_order')->get();
   $navMenus    = \App\Models\NavMenu::active()->whereNull('parent_id')->with(['page', 'children.page', 'defaultChild.page'])->orderBy('sort_order')->get();
-  $cartCount   = app(CartService::class)->count();
+  $cartCount   = \App\Support\CartBadge::count();
   $isImpersonating = session('impersonator_admin_id') && auth('client')->check();
 @endphp
 <!DOCTYPE html>
@@ -167,6 +166,8 @@
             @foreach ($footerPages as $fp)
               <li><a href="{{ route('page.show', $fp->slug) }}">{{ $fp->title }}</a></li>
             @endforeach
+            <li><a href="{{ route('blog.index') }}">Blog</a></li>
+            <li><a href="{{ route('knowledge-base.index') }}">Pusat Bantuan</a></li>
           </ul>
         </div>
       </div>

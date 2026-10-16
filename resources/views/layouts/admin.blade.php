@@ -94,7 +94,10 @@
             ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'match' => ['admin.dashboard*'], 'icon' => 'M3 3h7v9H3zM14 3h7v5h-7zM14 10h7v11h-7zM3 14h7v7H3z'],
 
             ['label' => 'Penjualan', 'icon' => 'M20 7 12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', 'module' => 'sales', 'children' => [
-              ['label' => 'Produk', 'route' => 'admin.products.index', 'match' => ['admin.products.*', 'admin.product-categories.*', 'admin.product.*', 'admin.addons.*', 'admin.addon.*']],
+              ['label' => 'Produk',          'route' => 'admin.products.index', 'match' => ['admin.products.*', 'admin.product.*']],
+              ['label' => 'Kategori Produk', 'route' => 'admin.product-categories.index', 'match' => ['admin.product-categories.*']],
+              ['label' => 'Jenis Produk',    'route' => 'admin.product-types.index', 'match' => ['admin.product-types.*']],
+              ['label' => 'Addon',           'route' => 'admin.addons.index', 'match' => ['admin.addons.*', 'admin.addon.*']],
               ['label' => 'Order',  'route' => 'admin.orders', 'match' => ['admin.order*']],
               ['label' => 'Kupon',  'route' => 'admin.coupons', 'match' => ['admin.coupon*']],
               ['label' => 'Affiliate', 'route' => 'admin.affiliate.index', 'match' => ['admin.affiliate.*']],
@@ -116,6 +119,7 @@
 
             ['label' => 'Infrastruktur', 'icon' => 'M4 4h16v6H4zM4 14h16v6H4zM8 8h.01M8 18h.01', 'module' => 'infrastructure', 'children' => [
               ['label' => 'Server',      'route' => 'admin.servers.index', 'match' => ['admin.servers*']],
+              ['label' => 'Grup Server', 'route' => 'admin.server-groups.index', 'match' => ['admin.server-groups*']],
               ['label' => 'Layanan VPS', 'route' => 'admin.vps', 'match' => ['admin.vps*']],
               ['label' => 'Backup',      'route' => 'admin.backups.index', 'match' => ['admin.backups.*']],
               ['label' => 'Konsol Web',  'route' => 'admin.console.index', 'match' => ['admin.console.*']],
@@ -128,15 +132,36 @@
               ['label' => 'Support / Tiket',  'route' => 'admin.tickets', 'match' => ['admin.ticket*']],
             ]],
 
-            ['label' => 'Konten', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z', 'module' => 'content', 'children' => [
-              ['label' => 'Konten & Halaman',     'route' => 'admin.pages', 'match' => ['admin.page*', 'admin.announcement*', 'admin.promo-banners.*', 'admin.popup-banner.*']],
-              ['label' => 'Template Notifikasi',  'route' => 'admin.notification-templates.index', 'match' => ['admin.notification-templates.*']],
+            // CMS menjadi satu pintu masuk; dashboard CMS mengelompokkan
+            // beranda, halaman, navigasi, promosi, artikel, dan notifikasi.
+            ['label' => 'CMS', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z', 'module' => 'content', 'children' => [
+              ['label' => 'Pengelolaan CMS', 'route' => 'admin.cms.dashboard', 'match' => [
+                'admin.cms.*',
+                'admin.settings.homepage*',
+                'admin.pages',
+                'admin.page.*',
+                'admin.nav-menus',
+                'admin.nav-menu.*',
+                'admin.nav-submenus',
+                'admin.nav-submenu.*',
+                'admin.promo-banners.*',
+                'admin.popup-banner.*',
+                'admin.announcements',
+                'admin.announcement.*',
+                'admin.blog.*',
+                'admin.knowledge-base.*',
+                'admin.notification-templates.*',
+              ]],
             ]],
 
             ['label' => 'Sistem', 'icon' => 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09c0 .67.39 1.28 1 1.51.63.24 1.35.12 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.45.47-.57 1.19-.33 1.82.23.61.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.67 0-1.28.39-1.51 1Z', 'module' => 'system', 'children' => [
               ['label' => 'Admin & Akses', 'route' => 'admin.admins', 'match' => ['admin.admins*', 'admin.admin.*', 'admin.login-attempts*'], 'superadmin' => true],
-              ['label' => 'Aktivitas',     'route' => 'admin.activities', 'match' => ['admin.activities*', 'admin.activity*', 'admin.promo*']],
-              ['label' => 'Pengaturan',    'route' => 'admin.settings.general', 'match' => ['admin.settings.*']],
+              ['label' => 'Aktivitas',     'route' => 'admin.activities', 'match' => ['admin.activities*', 'admin.activity*']],
+              ['label' => 'Kirim Promo',   'route' => 'admin.promo', 'match' => ['admin.promo', 'admin.promo.*']],
+              // Pengaturan = semua halaman bertab di admin/settings, termasuk
+              // Trafik AI, cPanel Aplikasi & Cron Jobs (tab-nya sama, rutenya
+              // beda). Halaman Depan dikecualikan: sekarang milik "Situs Publik".
+              ['label' => 'Pengaturan',    'route' => 'admin.settings.index', 'match' => ['admin.settings.*', 'admin.ai-usage.*', 'admin.self-cpanel.*', 'admin.cron.*'], 'except' => ['admin.settings.homepage']],
             ]],
           ];
 
@@ -149,9 +174,11 @@
 
           // Grup terbuka otomatis kalau salah satu anaknya sedang aktif
           // -- supaya klien langsung lihat konteksnya tanpa perlu klik.
-          $isChildActive = fn ($children) => collect($children)->contains(
-              fn ($c) => $c['match'] && request()->routeIs(...$c['match'])
-          );
+          $childMatches = fn ($c) => ! empty($c['match'])
+              && request()->routeIs(...$c['match'])
+              && (empty($c['except']) || ! request()->routeIs(...$c['except']));
+
+          $isChildActive = fn ($children) => collect($children)->contains($childMatches);
         @endphp
 
         @foreach ($groups as $group)
@@ -196,7 +223,7 @@
                 @foreach ($visibleChildren as $child)
                   <li>
                     <a href="{{ route($child['route']) }}"
-                       class="nav-link px-3 py-2 rounded-2 d-flex align-items-center justify-content-between {{ $child['match'] && request()->routeIs(...$child['match']) ? 'active' : '' }}">
+                       class="nav-link px-3 py-2 rounded-2 d-flex align-items-center justify-content-between {{ $childMatches($child) ? 'active' : '' }}">
                       {{ $child['label'] }}
                       @if (! empty($child['chat_badge']))
                         <span id="chatSidebarBadge" class="d-none badge rounded-pill bg-danger" style="font-size:10px">0</span>

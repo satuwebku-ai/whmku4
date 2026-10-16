@@ -24,13 +24,17 @@
 
     <div class="mb-3">
       <label class="form-label small fw-medium text-dark">Jenis Produk di Kategori Ini</label>
-      <select name="type" class="form-select form-select-sm">
-        <option value="hosting" @selected(old('type', $category->type ?? 'hosting') === 'hosting')>Hosting (cPanel/WHM)</option>
-        <option value="vps" @selected(old('type', $category->type) === 'vps')>VPS / Cloud Server</option>
+      <select name="product_type_id" class="form-select form-select-sm" required>
+        @foreach (($productTypes ?? collect()) as $pt)
+          <option value="{{ $pt->id }}" @selected((int) old('product_type_id', $category->product_type_id ?? ($productTypes->first()->id ?? 0)) === $pt->id)>
+            {{ $pt->name }} — {{ $pt->kindLabel() }}{{ $pt->is_active ? '' : ' (nonaktif)' }}
+          </option>
+        @endforeach
       </select>
-      @error('type') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
+      @error('product_type_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       <p class="text-muted mt-1 mb-0" style="font-size:11px">
-        Menentukan isian yang muncul saat membuat produk di kategori ini, server mana yang boleh dipilih, dan awalan URL katalog (/hosting/... atau /vps/...).
+        Daftar jenis dikelola di <a href="{{ route('admin.product-types.index') }}" target="_blank">Penjualan &gt; Jenis Produk</a>.
+        Jenis menentukan isian yang muncul saat membuat produk di kategori ini, server mana yang boleh dipilih, dan awalan URL katalog (/hosting/... atau /vps/...).
         Domain, Lisensi/SSL, dan Addon punya menu sendiri, bukan bagian kategori produk.
         @if ($category->exists && $category->products()->exists())
           Jenis hanya bisa diubah jika semua produk di kategori ini cocok dengan jenis barunya.

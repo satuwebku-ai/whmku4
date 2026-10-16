@@ -69,4 +69,26 @@ class RenewalInvoicePhase9Test extends TestCase
         $this->assertSame('125000.00', $first->fresh()->amount);
         $this->assertSame('125000.00', $first->fresh()->total);
     }
+
+    public function test_late_hosting_catch_up_invoice_is_not_created_with_a_backdated_due_date(): void
+    {
+        $client = Client::create([
+            'name' => 'Late Renewal Test',
+            'email' => 'late-renewal@example.test',
+        ]);
+
+        $hosting = HostingAccount::create([
+            'client_id' => $client->id,
+            'domain' => 'late-renewal.example.test',
+            'package' => 'Pro',
+            'price' => 100000,
+            'billing_cycle' => 'monthly',
+            'status' => 'active',
+            'next_due_date' => today()->subDays(44)->toDateString(),
+        ]);
+
+        $invoice = app(RenewalInvoiceService::class)->createHostingInvoice($hosting);
+
+        $this->assertSame(today()->toDateString(), $invoice->fresh()->due_date->toDateString());
+    }
 }

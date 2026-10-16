@@ -289,7 +289,7 @@
         <h2 class="small fw-bold text-dark mb-2">Suspend Otomatis</h2>
 
         <label class="d-flex align-items-start gap-2 small text-dark mb-3">
-          <input type="checkbox" name="auto_suspend" value="1" @checked(Setting::get('auto_suspend', '0') === '1')
+          <input type="checkbox" name="auto_suspend_enabled" value="1" @checked(Setting::get('auto_suspend_enabled', '1') === '1')
                  class="form-check-input flex-shrink-0" style="margin-top:2px">
           <span>
             <span class="d-block fw-medium text-dark">Aktifkan suspend otomatis</span>
@@ -299,7 +299,7 @@
 
         <div class="mb-3">
           <label class="form-label small fw-medium text-dark">Toleransi (hari setelah jatuh tempo)</label>
-          <input type="number" name="suspend_grace_days" value="{{ Setting::get('suspend_grace_days', 7) }}" min="1" max="90" class="form-control form-control-sm">
+          <input type="number" name="suspend_grace_days" value="{{ Setting::get('suspend_grace_days', 3) }}" min="0" max="30" class="form-control form-control-sm">
         </div>
 
         <div class="rounded-3 px-3 py-2 mb-3" style="background:#fffbeb;border:1px solid #fde68a;font-size:11px;color:#92400e">

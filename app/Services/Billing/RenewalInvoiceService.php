@@ -32,16 +32,25 @@ class RenewalInvoiceService
             }
 
             $amount = $hosting->renewalAmount();
+            $invoiceDueDate = $hosting->next_due_date;
+            if ($invoiceDueDate && $invoiceDueDate->lt(today())) {
+                // Catch up safely if cron missed its normal H-7 window or a
+                // cancelled invoice released the service. Do not create a new
+                // invoice that is already weeks overdue on the day it appears.
+                $invoiceDueDate = today();
+            }
+
             $invoice = $this->createInvoice(
                 $hosting->client_id,
                 $amount,
-                $hosting->next_due_date,
+                $invoiceDueDate,
             );
 
             InvoiceItem::create([
                 'invoice_id' => $invoice->id,
                 'description' => "Perpanjangan Hosting — {$hosting->domain} ({$hosting->package}, {$hosting->cycleLabel()})",
                 'amount' => (float) $hosting->price,
+                ...InvoiceItem::serviceRef($hosting, InvoiceItem::TYPE_RENEWAL),
             ]);
 
             foreach ($hosting->activeAddons()->get() as $addon) {
@@ -49,6 +58,7 @@ class RenewalInvoiceService
                     'invoice_id' => $invoice->id,
                     'description' => "Addon — {$addon->name} ({$hosting->domain}, {$hosting->cycleLabel()})",
                     'amount' => (float) $addon->price,
+                    ...InvoiceItem::serviceRef($hosting, InvoiceItem::TYPE_ADDON_RENEWAL),
                 ]);
             }
 
@@ -57,6 +67,7 @@ class RenewalInvoiceService
                     'invoice_id' => $invoice->id,
                     'description' => "{$option->name} ({$hosting->domain}, {$hosting->cycleLabel()})",
                     'amount' => (float) $option->price,
+                    ...InvoiceItem::serviceRef($hosting, InvoiceItem::TYPE_OPTION_RENEWAL),
                 ]);
             }
 
@@ -95,6 +106,7 @@ class RenewalInvoiceService
                 'invoice_id' => $invoice->id,
                 'description' => "Perpanjangan Domain — {$domain->domain_name} (1 tahun)",
                 'amount' => $amount,
+                ...InvoiceItem::serviceRef($domain, InvoiceItem::TYPE_RENEWAL),
             ]);
 
             $invoice->recalculateFromItems();

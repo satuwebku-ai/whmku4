@@ -1,11 +1,11 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php
   $seoTitle = 'Transfer Domain';
   $seoDescription = 'Pindahkan domain Anda dari registrar lain — masa aktif bertambah 1 tahun setelah transfer selesai.';
 @endphp
 
-@section('content')
+@section('store-content')
   <div class="mx-auto" style="max-width:42rem">
 
     <div class="text-center mb-4">

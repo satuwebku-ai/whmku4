@@ -36,7 +36,9 @@ class GoogleAuthController extends Controller
                 ->with('error', 'Login dengan Google belum diaktifkan di situs ini.');
         }
 
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('google')
+            ->redirectUrl(route('client.google.callback'))
+            ->redirect();
     }
 
     public function callback(): RedirectResponse
@@ -46,7 +48,9 @@ class GoogleAuthController extends Controller
         }
 
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $googleUser = Socialite::driver('google')
+                ->redirectUrl(route('client.google.callback'))
+                ->user();
         } catch (Throwable $e) {
             Log::warning('Login Google gagal: ' . $e->getMessage());
 

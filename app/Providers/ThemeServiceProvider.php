@@ -2,9 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\Setting;
 use App\Support\ThemeRegistry;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -74,38 +72,6 @@ class ThemeServiceProvider extends ServiceProvider
      */
     private function resolveActiveThemes(): array
     {
-        $available = [
-            'public' => ThemeRegistry::available('public'),
-            'client' => ThemeRegistry::available('client'),
-        ];
-
-        $publicTheme = 'default';
-        $clientTheme = 'default';
-
-        try {
-            // Schema::hasTable dijaga try/catch juga -- pada instalasi
-            // baru sebelum `php artisan migrate` jalan, koneksi DB
-            // sendiri bisa saja belum terkonfigurasi/tersedia.
-            if (Schema::hasTable('settings')) {
-                $publicTheme = Setting::get('public_template', 'default');
-                $clientTheme = Setting::get('client_template', 'default');
-            }
-        } catch (\Throwable $e) {
-            // DB belum siap (migrasi awal, `artisan key:generate`, dsb).
-            // Pakai tema default saja, jangan sampai request gagal total.
-        }
-
-        // Kalau value di database ternyata mengarah ke tema yang sudah
-        // dihapus foldernya / typo, jangan sampai seluruh situs 500 --
-        // jatuh balik ke "default" yang pasti selalu ada.
-        if (! array_key_exists($publicTheme, $available['public'] ?? [])) {
-            $publicTheme = 'default';
-        }
-
-        if (! array_key_exists($clientTheme, $available['client'] ?? [])) {
-            $clientTheme = 'default';
-        }
-
-        return [$publicTheme, $clientTheme];
+        return [ThemeRegistry::active('public'), ThemeRegistry::active('client')];
     }
 }

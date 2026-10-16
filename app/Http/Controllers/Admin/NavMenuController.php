@@ -8,6 +8,7 @@ use App\Models\NavMenu;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -278,7 +279,11 @@ class NavMenuController extends Controller
             'label' => ['required', 'string', 'max:50'],
             'type' => [$isDirectChildMode ? 'nullable' : 'required', 'in:route,page,url'],
             'route_name' => [$isDirectChildMode ? 'nullable' : 'required_if:type,route', 'nullable', 'string', 'in:' . implode(',', array_keys(NavMenu::BUILTIN_ROUTES))],
-            'page_id' => [$isDirectChildMode ? 'nullable' : 'required_if:type,page', 'nullable', 'exists:cms_pages,id'],
+            'page_id' => [
+                $isDirectChildMode ? 'nullable' : 'required_if:type,page',
+                'nullable',
+                Rule::exists('cms_contents', 'id')->where('type', CmsPage::CONTENT_TYPE),
+            ],
             'url' => [$isDirectChildMode ? 'nullable' : 'required_if:type,url', 'nullable', 'url', 'max:255'],
             'open_in_new_tab' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],

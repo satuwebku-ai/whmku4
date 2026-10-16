@@ -16,7 +16,7 @@ class Product extends Model
     protected $fillable = [
         'product_category_id', 'name', 'slug', 'tagline', 'description', 'features',
         'price_monthly', 'price_quarterly', 'price_semi_annually', 'price_annually', 'price_custom', 'setup_fee',
-        'custom_cycle_days', 'domain_option', 'server_id', 'panel_package', 'billing_mode',
+        'custom_cycle_days', 'domain_option', 'server_id', 'server_group_id', 'panel_package', 'billing_mode',
         'pricing_mode', 'markup_percent', 'price_per_vcpu_hour', 'price_per_ram_gb_hour',
         'price_per_storage_gb_hour', 'price_per_backup_gb_hour', 'price_per_snapshot_gb_hour',
         'price_windows_license_per_vcpu_hour',
@@ -90,6 +90,11 @@ class Product extends Model
     public function server(): BelongsTo
     {
         return $this->belongsTo(Server::class);
+    }
+
+    public function serverGroup(): BelongsTo
+    {
+        return $this->belongsTo(ServerGroup::class, 'server_group_id');
     }
 
     public function orders(): HasMany
@@ -220,12 +225,11 @@ class Product extends Model
     /**
      * SATU-SATUNYA definisi "produk VPS" -- dipakai di mana pun produk
      * perlu dikelompokkan VPS vs hosting biasa (beranda, katalog, admin).
-     * Sumber utamanya kategori (product_groups.type = 'vps'), yang juga
-     * menentukan URL publik (ProductGroup::urlSection()) -- jadi
-     * kelompoknya konsisten dengan tautan yang dilihat pengunjung. Server
-     * cloud dicek juga sebagai jaring pengaman untuk produk lama yang
-     * kategorinya belum diisi type VPS tapi terlanjur dipasang di server
-     * cloud (atau sebaliknya).
+     * Sumber utamanya jenis produk kategori (product_types.kind), yang diisi
+     * admin -- jadi kelompoknya konsisten dengan tautan yang dilihat
+     * pengunjung. Server cloud dicek juga sebagai jaring pengaman untuk
+     * produk lama yang kategorinya belum bertipe VPS tapi terlanjur dipasang
+     * di server cloud (atau sebaliknya).
      *
      * scopeVpsType()/scopeHostingType() adalah versi SQL dari cek yang
      * sama -- pakai scope itu (bukan memfilter koleksi dengan method ini
@@ -234,7 +238,11 @@ class Product extends Model
      */
     public function isVpsProduct(): bool
     {
-        if ($this->relationLoaded('category') ? $this->category?->type === 'vps' : $this->category()->where('type', 'vps')->exists()) {
+        $inVpsCategory = $this->relationLoaded('category')
+            ? (bool) $this->category?->isVps()
+            : $this->category()->ofKind(ProductType::KIND_VPS)->exists();
+
+        if ($inVpsCategory) {
             return true;
         }
 
@@ -245,7 +253,7 @@ class Product extends Model
     {
         $cloudServerIds = Server::cloud()->pluck('id');
 
-        return $query->where(fn (Builder $q) => $q->whereHas('category', fn (Builder $c) => $c->where('type', 'vps'))
+        return $query->where(fn (Builder $q) => $q->whereHas('category', fn (Builder $c) => $c->ofKind(ProductType::KIND_VPS))
             ->orWhereIn('server_id', $cloudServerIds));
     }
 
@@ -253,7 +261,7 @@ class Product extends Model
     {
         $cloudServerIds = Server::cloud()->pluck('id');
 
-        return $query->whereDoesntHave('category', fn (Builder $c) => $c->where('type', 'vps'))
+        return $query->whereDoesntHave('category', fn (Builder $c) => $c->ofKind(ProductType::KIND_VPS))
             ->where(fn (Builder $q) => $q->whereNotIn('server_id', $cloudServerIds)->orWhereNull('server_id'));
     }
 

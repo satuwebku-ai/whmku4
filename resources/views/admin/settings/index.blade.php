@@ -4,9 +4,11 @@
 
   <div class="mb-4">
     <h1 class="h4 fw-bold text-dark mb-1">Pengaturan</h1>
-    <p class="small text-muted mb-0">Semua pengaturan sistem dikelompokkan di sini.</p>
+    <p class="small text-muted mb-0">Konfigurasi sistem dikelompokkan di sini. Beranda, halaman, menu, banner, dan konten situs dikelola dari satu menu CMS.</p>
   </div>
 
+  @foreach ($groups as $groupLabel => $cards)
+  <p class="text-uppercase text-muted fw-semibold mb-2 {{ $loop->first ? '' : 'mt-4' }}" style="font-size:11px;letter-spacing:.14em">{{ $groupLabel }}</p>
   <div class="row g-3">
     @foreach ($cards as $card)
       <div class="col-12 col-md-6 col-xl-4">
@@ -23,6 +25,7 @@
       </div>
     @endforeach
   </div>
+  @endforeach
 
   <style>
     .settings-card { transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }

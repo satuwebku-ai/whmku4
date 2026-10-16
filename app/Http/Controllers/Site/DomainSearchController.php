@@ -2,17 +2,27 @@
 
 namespace App\Http\Controllers\Site;
 
+use App\Http\Controllers\Concerns\HandlesStoreHandoff;
 use App\Http\Controllers\Controller;
+use App\Models\CustomPremiumDomain;
 use App\Models\DomainInterest;
+use App\Models\Registrar;
 use App\Models\Tld;
+use App\Models\TldPremium;
+use App\Services\Domain\DnamaService;
 use App\Services\Cart\CartService;
 use App\Services\Domain\AvailabilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Throwable;
 
 class DomainSearchController extends Controller
 {
+    use HandlesStoreHandoff;
+
     /**
      * Jumlah hasil yang ditampilkan dalam satu pencarian.
      *
@@ -110,6 +120,7 @@ class DomainSearchController extends Controller
 
                     // Domain demo ditaruh paling atas agar mudah ditemukan.
                     $results['results'] = $demoDomains + $results['results'];
+                    $this->attachPremiumDetails($results, $allTldPrices);
                 }
             }
         }
@@ -117,6 +128,197 @@ class DomainSearchController extends Controller
         $banners = \App\Models\PromoBanner::live()->forPage('domain_search')->orderBy('sort_order')->get();
 
         return compact('results', 'query', 'tldPrices', 'allTldPrices', 'selected', 'groups', 'banners');
+    }
+
+    /**
+     * Tandai hasil yang memang dijual sebagai premium agar tidak salah
+     * ditawarkan dengan harga TLD reguler.
+     *
+     * Sumber premium yang dipakai:
+     * - Domain premium custom yang sudah diberi harga jual oleh admin.
+     * - Semua baris harga bertingkat aktif dari halaman TLD Premium.
+     *   Klasifikasi dan harga keluarga .id ditentukan oleh tingkat
+     *   karakter PANDI dan sell_register_price yang diatur admin; flag
+     *   is_premium dari DNAMA tidak menimpa aturan tier tersebut.
+     * - Ekstensi generik yang terdaftar di halaman TLD Premium. DNAMA
+     *   memeriksa status per nama; harga dan pemesanannya manual.
+     */
+    private function attachPremiumDetails(array &$searchResults, $allTldPrices): void
+    {
+        $searchResults['premium'] = [];
+        $searchResults['premium_check_unknown'] = [];
+        $domains = array_keys($searchResults['results'] ?? []);
+
+        if (! $domains) {
+            return;
+        }
+
+        $normalizedDomains = array_map('strtolower', $domains);
+        $customPremiums = CustomPremiumDomain::query()
+            ->where('is_active', true)
+            ->where('sell_price', '>', 0)
+            ->whereIn(DB::raw('LOWER(domain_name)'), $normalizedDomains)
+            ->get()
+            ->keyBy(fn (CustomPremiumDomain $domain) => strtolower($domain->domain_name));
+
+        foreach ($customPremiums as $domainName => $premium) {
+            // Nama yang sudah terdaftar tetap tidak tersedia, meskipun
+            // sebelumnya pernah dimasukkan ke katalog premium custom.
+            if (($searchResults['results'][$domainName] ?? null) === false) {
+                continue;
+            }
+
+            $price = (float) $premium->sell_price;
+            $searchResults['premium'][$domainName] = [
+                'type' => 'custom',
+                'id' => $premium->id,
+                'price' => $price,
+                'price_formatted' => 'Rp ' . number_format($price, 0, ',', '.'),
+                'verified' => true,
+            ];
+        }
+
+        $registrar = Registrar::where('provider', 'dnama')->where('is_active', true)->first();
+
+        if (! $registrar) {
+            return;
+        }
+
+        $extensionsInSearch = $allTldPrices->keys()->all();
+        $premiumTiers = TldPremium::query()
+            ->where('registrar_id', $registrar->id)
+            ->whereIn('extension', $extensionsInSearch)
+            ->where('is_active', true)
+            ->where('is_premium', true)
+            ->where('is_generic', false)
+            ->whereNotNull('max_premium_character')
+            ->orderBy('max_premium_character')
+            ->get()
+            ->groupBy('extension');
+
+        $genericPremiumExtensions = TldPremium::query()
+            ->where('registrar_id', $registrar->id)
+            ->whereIn('extension', $extensionsInSearch)
+            ->where('is_active', true)
+            ->where('is_premium', true)
+            ->where('is_generic', true)
+            ->get()
+            ->keyBy('extension');
+
+        $extensions = collect($allTldPrices->keys()->all())
+            ->sortByDesc(fn ($extension) => strlen($extension))
+            ->values()
+            ->all();
+
+        foreach ($domains as $domainName) {
+            $domainKey = strtolower($domainName);
+
+            // RDAP sudah mengonfirmasi domain terdaftar. Jangan ubah status
+            // tersebut menjadi premium/cek ulang hanya karena pemeriksaan
+            // premium registrar tidak dijalankan untuk domain yang taken.
+            if (($searchResults['results'][$domainName] ?? null) === false) {
+                continue;
+            }
+
+            // Domain yang sudah masuk katalog premium custom memakai harga
+            // khususnya sendiri, bukan harga bertingkat keluarga .id.
+            if (isset($searchResults['premium'][$domainKey])) {
+                continue;
+            }
+
+            $extension = collect($extensions)->first(fn ($candidate) => str_ends_with($domainKey, $candidate));
+
+            if (! $extension) {
+                continue;
+            }
+
+            $label = substr($domainKey, 0, -strlen($extension));
+            $tier = $premiumTiers->get($extension, collect())
+                ->first(fn (TldPremium $row) => strlen($label) <= (int) $row->max_premium_character);
+
+            $tld = $allTldPrices->get($extension);
+            $isDnamaTld = $tld && (int) $tld->registrar_id === (int) $registrar->id;
+            $supportsPerNameCheck = $genericPremiumExtensions->has($extension)
+                || $premiumTiers->has($extension)
+                || $isDnamaTld;
+            $verified = null;
+            $isVerified = false;
+
+            // Periksa status langsung ke DNAMA untuk ekstensi generik,
+            // ekstensi yang dikelola DNAMA, serta tier .id yang tidak cocok
+            // dengan panjang nama. Ini menangkap premium per-nama di luar
+            // daftar tier tetap tanpa menebak dari harga reguler.
+            if ($supportsPerNameCheck && ($searchResults['results'][$domainName] ?? null) !== false) {
+                try {
+                    $verified = Cache::remember(
+                        "dnama-premium-check:{$domainKey}",
+                        now()->addMinutes(10),
+                        fn () => (new DnamaService($registrar))->checkPremiumStatus($domainKey)
+                    );
+                } catch (Throwable) {
+                    $verified = null;
+                }
+            }
+
+            $isVerified = is_array($verified) && ($verified['success'] ?? false);
+
+            if ($isVerified) {
+                if (($verified['available'] ?? null) === false) {
+                    $searchResults['results'][$domainName] = false;
+                    continue;
+                } elseif (($verified['available'] ?? null) === true) {
+                    $searchResults['results'][$domainName] = true;
+                }
+            }
+
+            // Kalau ada tier karakter yang cocok, aturan PANDI dan harga jual
+            // admin menang. Flag is_premium DNAMA tidak menurunkannya ke harga
+            // reguler.
+            if ($tier) {
+                // Jika DNAMA tidak bisa dihubungi, tier lokal tetap berlaku;
+                // catatan di halaman hanya menyebut status ketersediaan.
+                $price = (float) ($tier->sell_register_price ?? 0);
+                $searchResults['premium'][$domainKey] = [
+                    'type' => 'tier',
+                    'id' => $tier->id,
+                    'price' => $price,
+                    'price_formatted' => 'Rp ' . number_format($price, 0, ',', '.'),
+                    'verified' => $isVerified,
+                ];
+
+                continue;
+            }
+
+            if (! $supportsPerNameCheck) {
+                continue;
+            }
+
+            // Tanpa harga bertingkat yang cocok, status premium ditentukan
+            // per nama oleh DNAMA. Jika pemeriksaan gagal, tahan pesanan
+            // reguler supaya domain premium tidak salah terjual murah.
+            if (! $isVerified) {
+                $searchResults['results'][$domainName] = null;
+                $searchResults['premium_check_unknown'][$domainKey] = true;
+
+                continue;
+            }
+
+            if ($verified['is_premium'] ?? false) {
+                $searchResults['premium'][$domainKey] = [
+                    'type' => 'generic',
+                    'id' => $genericPremiumExtensions->get($extension)?->id,
+                    'price' => 0,
+                    'price_formatted' => null,
+                    'verified' => true,
+                ];
+            }
+        }
+
+        // Sinkronkan daftar "belum pasti" dengan pemeriksaan RDAP/DNAMA terbaru.
+        $searchResults['unknown'] = array_keys(array_filter(
+            $searchResults['results'],
+            fn ($available) => $available === null
+        ));
     }
 
     /**
@@ -206,30 +408,35 @@ class DomainSearchController extends Controller
     /**
      * Tambahkan domain yang tersedia ke keranjang.
      */
-    public function addToCart(Request $request, CartService $cart): RedirectResponse|\Illuminate\Http\JsonResponse
+    public function addToCart(Request $request, CartService $cart): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateHandoff($request, [
             'domain_name' => ['required', 'string', 'max:255'],
             'tld_id'      => ['required', 'exists:tlds,id'],
             'years'       => ['nullable', 'integer', 'min:1', 'max:10'],
-        ]);
+        ], [], fn () => $this->searchBackUrl($request));
 
         $tld = Tld::findOrFail($data['tld_id']);
 
         $result = $cart->addDomain($data['domain_name'], $tld, (int) ($data['years'] ?? 1));
 
-        // Dipanggil lewat fetch() dari halaman Cek Domain supaya klien bisa
-        // terus menambah beberapa domain tanpa halaman reload tiap kali —
-        // form biasa (tanpa JS) tetap jalan normal lewat redirect di bawah.
-        if ($request->wantsJson()) {
-            return response()->json([
-                'success' => $result['success'],
-                'message' => $result['message'],
-                'cart_count' => $cart->count(),
-            ]);
+        // Dari situs publik berhasil -> lanjut ke keranjang (alur "pilih -> keranjang");
+        // gagal -> kembali ke hasil pencarian beserta pesannya.
+        if ($this->fromPublicSite($request)) {
+            if (! $result['success']) {
+                return $this->handoffFailure($request, $result['message'], fn () => $this->searchBackUrl($request));
+            }
+
+            return redirect()->route('cart.index')->with('success', $result['message']);
         }
 
         return back()->with($result['success'] ? 'success' : 'error', $result['message']);
+    }
+
+    /** Halaman cek domain publik (dengan kata kunci yang sama) tempat form dikirim. */
+    private function searchBackUrl(Request $request): string
+    {
+        return route('domain.search', array_filter(['domain' => trim((string) $request->input('domain_name'))]));
     }
 
     public function transferFormBootstrap(): View
@@ -245,12 +452,12 @@ class DomainSearchController extends Controller
 
     public function submitTransfer(Request $request, CartService $cart): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateHandoff($request, [
             'domain_name' => ['required', 'string', 'max:255'],
             'auth_code'   => ['required', 'string', 'max:255'],
         ], [
             'auth_code.required' => 'Kode EPP/Auth Code wajib diisi — minta ke registrar lama Anda.',
-        ]);
+        ], fn () => route('domains.transfer'));
 
         $domainName = strtolower(trim($data['domain_name']));
 
@@ -263,13 +470,13 @@ class DomainSearchController extends Controller
             ->first(fn ($t) => str_ends_with($domainName, '.' . ltrim($t->extension, '.')));
 
         if (! $tld) {
-            return back()->with('error', 'Ekstensi domain tersebut belum kami dukung untuk transfer.')->withInput();
+            return $this->handoffFailure($request, 'Ekstensi domain tersebut belum kami dukung untuk transfer.', fn () => route('domains.transfer'));
         }
 
         $result = $cart->addDomain($domainName, $tld, 1, true, $data['auth_code']);
 
         return $result['success']
             ? redirect()->route('cart.index')->with('success', $result['message'])
-            : back()->with('error', $result['message'])->withInput();
+            : $this->handoffFailure($request, $result['message'], fn () => route('domains.transfer'));
     }
 }

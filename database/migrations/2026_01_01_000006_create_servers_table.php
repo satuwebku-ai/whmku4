@@ -26,6 +26,8 @@ return new class extends Migration
             $table->text('api_token'); // API token / password — sebaiknya dienkripsi (lihat cast di Model)
             $table->boolean('verify_ssl')->default(true);
             $table->unsignedInteger('max_accounts')->nullable(); // kapasitas server, opsional
+            // Angka kecil = prioritas lebih tinggi (dipakai mode "priority" dan sebagai pemutus seri).
+            $table->unsignedSmallInteger('priority')->default(10);
 
             // Kartu harga per komponen -- ditempel di SERVER (bukan
             // global), supaya tiap provider cloud punya tarifnya
@@ -49,6 +51,8 @@ return new class extends Migration
             $table->timestamp('cost_cached_at')->nullable();
 
             $table->boolean('is_active')->default(true);
+            // Maintenance: tidak menerima order BARU, tapi akun yang sudah ada tetap bisa dikelola.
+            $table->boolean('is_maintenance')->default(false);
             $table->timestamp('last_checked_at')->nullable();
             $table->string('last_check_status')->nullable(); // "ok" atau pesan error terakhir
             $table->timestamps();

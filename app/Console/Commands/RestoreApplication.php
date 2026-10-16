@@ -100,6 +100,17 @@ class RestoreApplication extends Command
 
             $this->info("   {$executed} pernyataan SQL dijalankan.");
 
+            // Tabel `migrations` ikut tertimpa dari cadangan. Cadangan yang dibuat
+            // sebelum penataan ulang migrasi membawa nama file lama, jadi riwayatnya
+            // diselaraskan dulu supaya `php artisan migrate` tidak mencoba membuat
+            // ulang tabel yang sudah ada. Aman dijalankan berulang.
+            try {
+                $this->call('lumora:sync-migrations');
+            } catch (\Throwable $e) {
+                $this->warn('Penyelarasan riwayat migrasi gagal: ' . $e->getMessage());
+                $this->warn('Jalankan manual: php artisan lumora:sync-migrations (sebelum php artisan migrate).');
+            }
+
             if (! $this->option('skip-files')) {
                 $storageAppBackup = "{$tempDir}/storage-app";
 

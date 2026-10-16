@@ -10,21 +10,11 @@
   $siteIcon = Setting::get('site_icon');
   $isImpersonating = (bool) session('impersonator_admin_id');
 
-  $menu = [
-    ['label' => 'Dashboard',          'route' => 'client.dashboard',        'match' => 'client.dashboard*', 'icon' => 'bi-speedometer2'],
-    ['label' => 'Pesan Layanan Baru', 'route' => 'catalog.index',           'match' => 'catalog.*',         'icon' => 'bi-cart-plus'],
-    ['label' => 'Keranjang',          'route' => 'cart.index',              'match' => 'cart.*',            'icon' => 'bi-cart3', 'badge' => $cartCount],
-    ['label' => 'Layanan Saya',       'route' => 'client.services',         'match' => 'client.services*',  'icon' => 'bi-server'],
-    ['label' => 'VPS Saya',           'route' => 'client.vps',              'match' => 'client.vps*',       'icon' => 'bi-hdd-rack'],
-    ['label' => 'Domain Saya',        'route' => 'client.domains',          'match' => 'client.domains*',   'icon' => 'bi-globe2'],
-    ['label' => 'Billing',            'route' => 'client.billing',          'match' => 'client.billing',    'icon' => 'bi-receipt'],
-    ['label' => 'Invoice',            'route' => 'client.invoices',         'match' => 'client.invoices*',  'icon' => 'bi-file-earmark-text'],
-    ['label' => 'Lisensi Saya',       'route' => 'client.licenses',          'match' => 'client.licenses*',   'icon' => 'bi-key'],
-    ['label' => 'Saldo Saya',         'route' => 'client.balance',          'match' => 'client.balance*',   'icon' => 'bi-wallet2'],
-    ['label' => 'Tiket Support',      'route' => 'client.tickets',          'match' => 'client.tickets*',   'icon' => 'bi-life-preserver'],
-    ['label' => 'Affiliate',          'route' => 'client.affiliate.index',   'match' => 'client.affiliate*', 'icon' => 'bi-share'],
-    ['label' => 'Profil Saya',        'route' => 'client.profile',          'match' => 'client.profile*',   'icon' => 'bi-person-gear'],
-  ];
+  $menu = \App\Support\ClientMenu::items('bi', $cartCount);
+
+  // Mode store: halaman belanja (keranjang, checkout) memakai header store, bukan
+  // sidebar dashboard. Diaktifkan dengan @section('store-mode').
+  $isStore = $__env->hasSection('store-mode');
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -61,8 +51,13 @@
     </div>
   @endif
 
+  @if ($isStore)
+    @include('partials.store-topbar')
+  @endif
+
   <div class="d-lg-flex">
 
+    @unless ($isStore)
     {{-- Sidebar --}}
     <aside class="sidebar p-3 flex-shrink-0" data-bs-theme="dark" style="{{ $isImpersonating ? '--imp:41px' : '' }}">
       <div class="d-flex justify-content-between align-items-center mb-3 mb-lg-4">
@@ -96,15 +91,39 @@
 
         <ul class="nav nav-pills flex-column gap-1">
           @foreach ($menu as $item)
-            @php $on = request()->routeIs($item['match']); @endphp
-            <li>
-              <a class="nav-link d-flex align-items-center {{ $on ? 'active' : '' }}" href="{{ route($item['route']) }}" @if ($on) aria-current="page" @endif>
-                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
-                @if (($item['badge'] ?? 0) > 0)
-                  <span class="badge text-bg-warning ms-auto">{{ $item['badge'] }}</span>
-                @endif
-              </a>
-            </li>
+            @if (isset($item['children']))
+              {{-- Grup submenu (Store): terbuka otomatis bila salah satu anaknya aktif. --}}
+              @php $groupOn = request()->routeIs($item['match']); @endphp
+              <li>
+                <details class="nav-group" @if ($groupOn) open @endif>
+                  <summary class="nav-link d-flex align-items-center {{ $groupOn ? 'has-active' : '' }}">
+                    <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                    <i class="bi bi-chevron-down nav-caret ms-auto"></i>
+                  </summary>
+                  <ul class="nav flex-column gap-1 nav-sub">
+                    @foreach ($item['children'] as $child)
+                      @php $on = request()->routeIs($child['match']); @endphp
+                      <li>
+                        <a class="nav-link d-flex align-items-center {{ $on ? 'active' : '' }}" href="{{ route($child['route']) }}" @if ($on) aria-current="page" @endif>
+                          <i class="bi {{ $child['icon'] }} me-2"></i>{{ $child['label'] }}
+                          {{-- Lencana keranjang selalu dirender (id=cartBadge) supaya JS halaman toko bisa memperbaruinya. --}}
+                          @if (($child['badge'] ?? 0) > 0 || $child['route'] === 'cart.index')
+                            <span @if ($child['route'] === 'cart.index') id="cartBadge" @endif class="badge text-bg-warning ms-auto {{ ($child['badge'] ?? 0) > 0 ? '' : 'd-none' }}">{{ $child['badge'] ?? 0 }}</span>
+                          @endif
+                        </a>
+                      </li>
+                    @endforeach
+                  </ul>
+                </details>
+              </li>
+            @else
+              @php $on = request()->routeIs($item['match']); @endphp
+              <li>
+                <a class="nav-link d-flex align-items-center {{ $on ? 'active' : '' }}" href="{{ route($item['route']) }}" @if ($on) aria-current="page" @endif>
+                  <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                </a>
+              </li>
+            @endif
           @endforeach
           <li>
             <form method="POST" action="{{ route('client.logout') }}">
@@ -117,6 +136,7 @@
         </ul>
       </nav>
     </aside>
+    @endunless
 
     {{-- Konten --}}
     <main class="flex-grow-1 p-3 p-lg-4 min-w-0">

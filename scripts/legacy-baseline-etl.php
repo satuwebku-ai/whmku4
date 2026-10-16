@@ -108,6 +108,24 @@ $aliases = [
     'coupon_product_group' => ['coupon_product_group', 'coupon_product_category'],
 ];
 
+$cmsSources = [];
+if ($tableExists($source, 'cms_contents')) {
+    $cmsSources['unified'] = 'cms_contents';
+} else {
+    foreach ([
+        'page' => ['cms_pages', 'pages'],
+        'post' => ['cms_posts'],
+        'category' => ['cms_categories'],
+    ] as $type => $candidates) {
+        foreach ($candidates as $candidate) {
+            if ($tableExists($source, $candidate)) {
+                $cmsSources[$type] = $candidate;
+                break;
+            }
+        }
+    }
+}
+
 $sourceTableFor = static function (string $targetTable) use ($source, $tableExists, $aliases): ?string {
     foreach ([$targetTable, ...($aliases[$targetTable] ?? [])] as $candidate) {
         if ($tableExists($source, $candidate)) {
@@ -177,6 +195,63 @@ if ($nonEmptyTargetTables !== []) {
 }
 
 foreach ($targetTablesList as $targetTable) {
+    if ($targetTable === 'cms_contents') {
+        $requiredByType = [
+            'unified' => ['id', 'type', 'slug'],
+            'page' => ['id', 'title', 'slug'],
+            'post' => ['id', 'title', 'slug', 'content'],
+            'category' => ['id', 'name', 'slug'],
+        ];
+        $sourceNames = [];
+        $sourceRows = 0;
+        $missingRequiredColumns = [];
+
+        foreach ($cmsSources as $type => $sourceTable) {
+            $sourceNames[] = $sourceTable;
+            $sourceRows += $countRows($source, $sourceTable);
+            $missing = array_values(array_diff(
+                $requiredByType[$type],
+                $tableColumns($source, $sourceTable)
+            ));
+            if ($missing !== []) {
+                $missingRequiredColumns[$sourceTable] = $missing;
+            }
+        }
+
+        if (isset($cmsSources['post'])) {
+            $postColumns = $tableColumns($source, $cmsSources['post']);
+            if (in_array('cms_category_id', $postColumns, true)) {
+                if (! isset($cmsSources['category'])) {
+                    $hasCategoryLinks = (int) $source->query(
+                        'select count(*) from ' . $quote($cmsSources['post']) . ' where cms_category_id is not null'
+                    )->fetchColumn() > 0;
+                    if ($hasCategoryLinks) {
+                        $report['warnings'][] = 'CMS blog posts reference categories, but no source cms_categories table was found.';
+                    }
+                } else {
+                    $orphanedCategories = (int) $source->query(
+                        'select count(*) from ' . $quote($cmsSources['post']) . ' posts
+                         left join ' . $quote($cmsSources['category']) . ' categories
+                           on categories.id = posts.cms_category_id
+                         where posts.cms_category_id is not null and categories.id is null'
+                    )->fetchColumn();
+                    if ($orphanedCategories > 0) {
+                        $report['warnings'][] = "CMS blog posts contain {$orphanedCategories} category links that cannot be migrated.";
+                    }
+                }
+            }
+        }
+
+        $report['tables'][$targetTable] = [
+            'source_table' => $sourceNames === [] ? null : implode(', ', $sourceNames),
+            'source_rows' => $sourceRows,
+            'common_columns' => [],
+            'missing_required_columns' => $missingRequiredColumns,
+            'action' => $missingRequiredColumns !== [] ? 'blocked_missing_required_columns' : 'copy',
+        ];
+        continue;
+    }
+
     $sourceTable = $sourceTableFor($targetTable);
     if ($sourceTable === null) {
         $report['tables'][$targetTable] = [
@@ -273,6 +348,101 @@ if ($hasBlockingIssue) {
     exit(1);
 }
 
+$copyCmsContents = static function () use ($cmsSources, $source, $target, $tableColumns, $quote): int {
+    $targetColumns = $tableColumns($target, 'cms_contents');
+    $copied = 0;
+
+    if (isset($cmsSources['unified'])) {
+        $sourceTable = $cmsSources['unified'];
+        $columns = array_values(array_intersect($targetColumns, $tableColumns($source, $sourceTable)));
+        $quotedColumns = implode(', ', array_map($quote, $columns));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $insert = $target->prepare(
+            "insert into {$quote('cms_contents')} ({$quotedColumns}) values ({$placeholders})"
+        );
+        foreach ($source->query("select {$quotedColumns} from {$quote($sourceTable)} order by id") as $row) {
+            $insert->execute(array_map(
+                static fn (string $column): mixed => $row[$column],
+                $columns
+            ));
+            $copied++;
+        }
+
+        return $copied;
+    }
+
+    $nextId = 0;
+    $categoryIds = [];
+
+    $copyTypedSource = static function (string $sourceTable, string $type, callable $transform) use (
+        $source,
+        $target,
+        $targetColumns,
+        $tableColumns,
+        $quote,
+        &$copied
+    ): void {
+        $sourceColumns = $tableColumns($source, $sourceTable);
+        $columns = array_values(array_intersect($targetColumns, $sourceColumns));
+        if (! in_array('type', $columns, true)) {
+            $columns[] = 'type';
+        }
+        $quotedColumns = implode(', ', array_map($quote, $columns));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $insert = $target->prepare(
+            "insert into {$quote('cms_contents')} ({$quotedColumns}) values ({$placeholders})"
+        );
+
+        foreach ($source->query('select * from ' . $quote($sourceTable) . ' order by id') as $row) {
+            $record = [];
+            foreach ($columns as $column) {
+                $record[$column] = $column === 'type' ? $type : ($row[$column] ?? null);
+            }
+            $record = $transform($record, $row);
+            $insert->execute(array_map(
+                static fn (string $column): mixed => $record[$column],
+                $columns
+            ));
+            $copied++;
+        }
+    };
+
+    if (isset($cmsSources['page'])) {
+        $copyTypedSource($cmsSources['page'], 'page', static fn (array $record): array => $record);
+        $nextId = (int) $target->query('select coalesce(max(id), 0) from cms_contents')->fetchColumn();
+    }
+
+    if (isset($cmsSources['category'])) {
+        $copyTypedSource(
+            $cmsSources['category'],
+            'category',
+            static function (array $record, array $row) use (&$nextId, &$categoryIds): array {
+                $categoryIds[(int) $row['id']] = ++$nextId;
+                $record['id'] = $nextId;
+
+                return $record;
+            }
+        );
+    }
+
+    if (isset($cmsSources['post'])) {
+        $copyTypedSource(
+            $cmsSources['post'],
+            'post',
+            static function (array $record, array $row) use (&$nextId, $categoryIds): array {
+                $record['id'] = ++$nextId;
+                if (array_key_exists('cms_category_id', $record) && $record['cms_category_id'] !== null) {
+                    $record['cms_category_id'] = $categoryIds[(int) $record['cms_category_id']] ?? null;
+                }
+
+                return $record;
+            }
+        );
+    }
+
+    return $copied;
+};
+
 try {
     // SQLite cannot toggle foreign_keys while a transaction is active.
     $target->exec('pragma foreign_keys = off');
@@ -280,6 +450,11 @@ try {
 
     foreach ($report['tables'] as $targetTable => $details) {
         if ($details['action'] !== 'copy' || $details['source_rows'] === 0) {
+            continue;
+        }
+
+        if ($targetTable === 'cms_contents') {
+            $report['tables'][$targetTable]['copied_rows'] = $copyCmsContents();
             continue;
         }
 

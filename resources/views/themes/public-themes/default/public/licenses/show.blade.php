@@ -1,12 +1,12 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php $seoTitle = $license->name; @endphp
 
-@section('content')
+@section('store-content')
 
   <div class="row g-4 py-4 py-lg-5">
     <div class="col-12 col-lg-7">
-      <a href="{{ route('license.index') }}" class="small text-decoration-none text-theme"><i class="fa-solid fa-arrow-left"></i> Semua Lisensi & SSL</a>
+      <a href="{{ \App\Support\StoreUrl::route('license.index') }}" class="small text-decoration-none text-theme"><i class="fa-solid fa-arrow-left"></i> Semua Lisensi & SSL</a>
 
       <div class="d-flex flex-wrap align-items-center gap-2 mt-4 mb-2">
         <span class="badge badge-soft-success">{{ $license->category_label }}</span>
@@ -122,7 +122,7 @@
         @foreach ($related as $item)
           @php($cheap = $item->cheapestCycle())
           <div class="col-12 col-md-4">
-            <a href="{{ route('license.show', $item->slug) }}" class="card-public d-block p-3 h-100 text-decoration-none">
+            <a href="{{ \App\Support\StoreUrl::route('license.show', $item->slug) }}" class="card-public d-block p-3 h-100 text-decoration-none">
               <div class="small text-muted">{{ $item->brand }}</div>
               <div class="fw-bold text-dark">{{ $item->name }}</div>
               <div class="text-theme fw-semibold mt-1">Rp {{ number_format($cheap['price'], 0, ',', '.') }} <span class="text-muted fw-normal small">{{ $suffix[$cheap['cycle']] ?? '' }}</span></div>

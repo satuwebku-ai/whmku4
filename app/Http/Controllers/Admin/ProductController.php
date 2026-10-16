@@ -24,33 +24,37 @@ class ProductController extends Controller
 
     private function indexData(Request $request): array
     {
-        // Produk VPS dibedakan dari produk hosting biasa lewat
-        // Product::scopeVpsType()/scopeHostingType() -- kategori
-        // (product_groups.type='vps') sebagai sumber utama, server cloud
-        // sebagai jaring pengaman. Query yang sama dipakai di beranda
-        // publik (CatalogController) supaya sebuah produk tidak bisa
-        // dianggap "hosting" di satu tempat dan "VPS" di tempat lain.
+        // Badge VPS di tiap baris produk: server cloud dikenali lewat
+        // Server::cloud() (lihat juga Product::scopeVpsType()).
         $cloudServerIds = Server::cloud()->pluck('id');
 
-        $products = Product::with('category')
-            ->when($request->search, fn ($q) => $q->where('name', 'like', "%{$request->search}%"))
-            ->when($request->category_id, fn ($q) => $q->where('product_category_id', $request->category_id))
-            ->when($request->type === 'vps', fn ($q) => $q->vpsType())
-            ->when($request->type === 'hosting', fn ($q) => $q->hostingType())
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+        $search = trim((string) $request->search);
+
+        // Satu grup (product_groups) = satu tabel collapsible. Grup dan
+        // jenisnya (product_types) murni dari data yang diisi admin.
+        $groups = ProductGroup::with(['productType', 'products' => function ($q) use ($search) {
+            $q->when($search !== '', fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                ->orderBy('sort_order')
+                ->orderBy('name');
+        }])
+            ->when($request->category_id, fn ($q) => $q->whereKey($request->category_id))
+            ->get()
+            ->sortBy([
+                fn ($a, $b) => ($a->productType?->sort_order ?? PHP_INT_MAX) <=> ($b->productType?->sort_order ?? PHP_INT_MAX),
+                fn ($a, $b) => $a->sort_order <=> $b->sort_order,
+                fn ($a, $b) => strcasecmp($a->name, $b->name),
+            ])
+            ->values();
+
+        // Saat mencari, grup tanpa hasil tidak perlu ditampilkan.
+        if ($search !== '') {
+            $groups = $groups->filter(fn ($g) => $g->products->isNotEmpty())->values();
+        }
 
         $categories = ProductGroup::orderBy('name')->get();
+        $totalProducts = $groups->sum(fn ($g) => $g->products->count());
 
-        $counts = [
-            'all'     => Product::count(),
-            'vps'     => Product::vpsType()->count(),
-            'hosting' => Product::hostingType()->count(),
-        ];
-
-        return compact('products', 'categories', 'counts', 'cloudServerIds');
+        return compact('groups', 'categories', 'cloudServerIds', 'totalProducts', 'search');
     }
 
     public function create(): View
@@ -91,6 +95,7 @@ class ProductController extends Controller
     private function preparedData(Request $request, ?int $ignoreId = null): array
     {
         $data = $this->validated($request, $ignoreId);
+        $data = $this->normalizedServerGroup($data);
         $this->assertCategoryMatchesServer($data);
         $data['billing_mode'] = $this->normalizedBillingMode($data);
         $data = $this->withVmSpec($request, $data);
@@ -101,7 +106,7 @@ class ProductController extends Controller
     }
 
     /**
-     * Kategori VPS (product_groups.type='vps') WAJIB dipasangkan dengan
+     * Kategori VPS (jenis produk berperilaku VPS) WAJIB dipasangkan dengan
      * server cloud. Tanpa ini, produk yang tampak VPS di menu/URL publik
      * (kategorinya) tapi tidak punya server cloud akan nyasar tampil di
      * bagian "Paket Hosting Pilihan" halaman depan (lihat
@@ -111,7 +116,7 @@ class ProductController extends Controller
      */
     private function assertCategoryMatchesServer(array $data): void
     {
-        $isVpsCategory = ProductGroup::where('id', $data['product_category_id'])->where('type', 'vps')->exists();
+        $isVpsCategory = (bool) ProductGroup::find($data['product_category_id'])?->isVps();
         $isCloudServer = ! empty($data['server_id']) && Server::cloud()->whereKey($data['server_id'])->exists();
 
         if ($isVpsCategory && ! $isCloudServer) {
@@ -121,6 +126,26 @@ class ProductController extends Controller
         if (! $isVpsCategory && $isCloudServer) {
             throw ValidationException::withMessages(['product_category_id' => 'Server ini bertipe VM/VPS — pilih kategori produk bertipe VPS, bukan Hosting.']);
         }
+    }
+
+    /**
+     * Grup Server hanya berlaku untuk produk hosting. Produk VPS (server
+     * cloud) selalu memakai server tunggalnya, jadi grup dibuang kalau
+     * kategori/server-nya VPS -- supaya tidak ada dua sumber server.
+     */
+    private function normalizedServerGroup(array $data): array
+    {
+        $isCloudServer = ! empty($data['server_id']) && Server::cloud()->whereKey($data['server_id'])->exists();
+
+        if ($isCloudServer) {
+            $data['server_group_id'] = null;
+        } elseif (! empty($data['server_group_id'])) {
+            // A product must have exactly one server source. The selected
+            // group owns placement, so discard any stale direct server id.
+            $data['server_id'] = null;
+        }
+
+        return $data;
     }
 
     private function savedRedirect(string $message, array $warnings): RedirectResponse
@@ -138,6 +163,7 @@ class ProductController extends Controller
             'product' => $product,
             'categories' => ProductGroup::orderBy('name')->get(),
             'servers' => $servers,
+            'serverGroups' => \App\Models\ServerGroup::where('is_active', true)->orderBy('name')->get(),
             'vpsServerMeta' => $this->vpsServerMeta($servers),
         ]);
     }
@@ -249,6 +275,7 @@ class ProductController extends Controller
             'setup_fee'           => ['nullable', 'numeric', 'min:0'],
             'domain_option'       => ['required', 'in:required,optional,none'],
             'server_id'           => ['nullable', 'exists:servers,id'],
+            'server_group_id'     => ['nullable', 'exists:server_groups,id'],
             'panel_package'       => ['nullable', 'string', 'max:500'],
             'billing_mode'        => ['nullable', 'in:invoice,deposit'],
             'pricing_mode'        => ['nullable', 'in:manual,markup'],

@@ -1,11 +1,11 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php
   $seoTitle = 'Paket VPS';
   $seoDescription = 'VPS NVMe dengan akses root penuh dan aktivasi otomatis dalam hitungan menit.';
 @endphp
 
-@section('content')
+@section('store-content')
 
   @include('public._promo-banner-carousel')
 
@@ -13,8 +13,8 @@
     <h1 class="fw-bold text-dark mb-3" style="font-size:1.9rem">Paket VPS NVMe</h1>
     <p class="text-muted mb-0">Kendali penuh lewat akses root, aktif otomatis dalam hitungan menit. Naik kelas kapan saja saat kebutuhan bertambah.</p>
     <div class="mt-4 d-flex justify-content-center gap-2 flex-wrap">
-      <a href="{{ route('catalog.index') }}" class="btn btn-outline-secondary">Lihat Paket Hosting</a>
-      <a href="{{ route('domain.search') }}" class="btn btn-outline-secondary">
+      <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="btn btn-outline-secondary">Lihat Paket Hosting</a>
+      <a href="{{ \App\Support\StoreUrl::route('domain.search') }}" class="btn btn-outline-secondary">
         <i class="fa-solid fa-magnifying-glass" style="font-size:12px"></i> Cek Ketersediaan Domain
       </a>
     </div>

@@ -2,12 +2,13 @@
       <div style="position:relative;max-width:72rem;margin:2.5rem auto 0 auto;padding:0 1.5rem;z-index:10">
       <div style="display:flex;flex-wrap:wrap;gap:1.5rem">
         @php
-          $benefits = [
+          // Teks bisa diedit di CMS > Halaman Depan; ikon mengikuti urutan.
+          $benefits = \App\Support\HomeContent::benefits([
             ['icon' => 'fa-bolt',          'title' => 'Aktif Otomatis',    'desc' => 'Akun hosting dibuat otomatis begitu pembayaran masuk.'],
             ['icon' => 'fa-shield-halved', 'title' => 'Aman & Terjaga',    'desc' => 'Sertifikat SSL tersedia, backup rutin, dan proteksi berlapis.'],
             ['icon' => 'fa-headset',       'title' => 'Dukungan Responsif','desc' => 'Tim support siap membantu lewat tiket dan chat.'],
             ['icon' => 'fa-wallet',        'title' => 'Bayar Mudah',       'desc' => 'Transfer bank, e-wallet, kartu kredit, dan QRIS.'],
-          ];
+          ]);
         @endphp
 
         @foreach ($benefits as $item)

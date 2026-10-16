@@ -1,8 +1,11 @@
 <?php
 
+use App\Support\PublicNotFoundRedirect;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,7 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Tamu diarahkan ke halaman login yang sesuai areanya, supaya
         // klien tidak terlempar ke form login admin dan sebaliknya.
         $middleware->redirectGuestsTo(function ($request) {
-            return $request->is('admin', 'admin/*')
+            return $request->getHost() === config('portal_domains.admin')
+                || $request->is('admin', 'admin/*')
                 ? route('admin.login')
                 : route('client.login');
         });
@@ -35,6 +39,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Keasliannya diverifikasi lewat signature (Midtrans) atau callback
         // token (Xendit) di dalam service masing-masing.
         $middleware->validateCsrfTokens(except: [
+            // Serah-terima publik -> client (keranjang): dijaga RequirePortalOrigin.
+            ...\App\Http\Middleware\RequirePortalOrigin::HANDOFF_PATHS,
             'payment/webhook/*',
             // Sebagian gateway (mis. DANA via Duitku) mengembalikan browser klien dengan POST.
             'payment/finish',
@@ -62,5 +68,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Situs publik: URL yang tidak ada (404) dikembalikan ke beranda.
+        // Halaman yang ada (menu, blog, CMS, dll.) tidak terpengaruh.
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if (PublicNotFoundRedirect::shouldRedirect($request)) {
+                return PublicNotFoundRedirect::response();
+            }
+        });
     })->create();

@@ -88,7 +88,11 @@
             </div>
             <div class="text-end flex-shrink-0">
               <div class="fw-bold text-dark" style="font-size:14px">Rp {{ number_format($invoice->total, 0, ',', '.') }}</div>
-              <a href="{{ route('client.invoices.show', $invoice) }}" class="btn btn-theme btn-sm mt-1">Bayar</a>
+              @if ($docBlocker = $invoice->documentBlocker())
+                <a href="{{ route('client.domains.documents', $docBlocker) }}" class="btn btn-outline-warning btn-sm mt-1">Lengkapi Berkas</a>
+              @else
+                <a href="{{ route('client.invoices.show', $invoice) }}" class="btn btn-theme btn-sm mt-1">Bayar</a>
+              @endif
             </div>
           </div>
         @endforeach

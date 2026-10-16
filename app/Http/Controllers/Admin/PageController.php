@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CmsPage;
-use Illuminate\Support\Str;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PageController extends Controller
@@ -115,7 +116,9 @@ class PageController extends Controller
             'title'            => ['required', 'string', 'max:255'],
             'slug'             => [
                 'nullable', 'string', 'max:255',
-                'unique:cms_pages,slug' . ($ignoreId ? ",{$ignoreId}" : ''),
+                Rule::unique('cms_contents', 'slug')
+                    ->where('type', CmsPage::CONTENT_TYPE)
+                    ->ignore($ignoreId),
                 function ($attribute, $value, $fail) {
                     if ($value && \App\Models\CmsPage::isReservedSlug($value)) {
                         $fail('Alamat "' . \Illuminate\Support\Str::slug($value) . '" sudah dipakai oleh fitur sistem. Pilih alamat lain, mis. "' . \Illuminate\Support\Str::slug($value) . '-1".');

@@ -68,6 +68,8 @@ class NavMenu extends Model
         'license.index' => 'Lisensi',
         'promo.index' => 'Promo & Diskon',
         'announcements.index' => 'Pengumuman',
+        'blog.index' => 'Blog',
+        'knowledge-base.index' => 'Pusat Bantuan',
     ];
 
     /**
@@ -86,6 +88,8 @@ class NavMenu extends Model
         'license.index' => ['bi-key', 'Lisensi software resmi', 'fa-key'],
         'promo.index' => ['bi-tag', 'Kode promo dan diskon terbaru', 'fa-tags'],
         'announcements.index' => ['bi-megaphone', 'Kabar dan info terbaru', 'fa-bullhorn'],
+        'blog.index' => ['bi-journal-text', 'Artikel dan tips terbaru', 'fa-newspaper'],
+        'knowledge-base.index' => ['bi-life-preserver', 'Panduan dan jawaban umum', 'fa-circle-question'],
     ];
 
     /**
@@ -229,8 +233,8 @@ class NavMenu extends Model
                 // Hosting & VPS berbagi nama route (catalog.category/product),
                 // jadi dibedakan lewat parameter {section} di URL. Tanpa ini
                 // pola 'catalog.*' menyalakan menu Hosting juga di /vps.
-                'catalog.index' => self::catalogSection() === 'vps' ? 'catalog.index' : 'catalog.*',
-                'catalog.vps' => self::catalogSection() === 'vps' ? 'catalog.*' : 'catalog.vps',
+                'catalog.index' => self::catalogKind() === ProductType::KIND_VPS ? 'catalog.index' : 'catalog.*',
+                'catalog.vps' => self::catalogKind() === ProductType::KIND_VPS ? 'catalog.*' : 'catalog.vps',
                 'domains.transfer' => 'domains.*',
                 'domain.search' => 'domain.*',
                 'domain-premium.index' => 'domain-premium.*',
@@ -245,20 +249,27 @@ class NavMenu extends Model
     }
 
     /**
-     * Section katalog yang sedang dibuka ('hosting' | 'vps'). /vps adalah
-     * route sendiri (catalog.vps); halaman kategori/produk memakai route
-     * bersama sehingga dibedakan lewat parameter {section}. Null di
-     * halaman non-katalog.
+     * Perilaku (kind) katalog yang sedang dibuka: 'hosting' | 'vps' | null di
+     * halaman non-katalog. /hosting dan /vps adalah route sendiri; halaman
+     * kategori/produk memakai route bersama sehingga perilakunya dibaca dari
+     * jenis produk (product_types.kind) milik slug {section} di URL -- data
+     * admin, bukan tebakan dari teks URL. Dihitung sekali per request.
      */
-    private static function catalogSection(): ?string
+    private static function catalogKind(): ?string
     {
-        $route = request()->route();
+        $request = request();
 
-        return match ($route?->getName()) {
-            'catalog.vps' => 'vps',
-            'catalog.index' => 'hosting',
-            'catalog.category', 'catalog.product' => $route->parameter('section'),
-            default => null,
-        };
+        if (! $request->attributes->has('catalog_kind')) {
+            $route = $request->route();
+
+            $request->attributes->set('catalog_kind', match ($route?->getName()) {
+                'catalog.vps' => ProductType::KIND_VPS,
+                'catalog.index' => ProductType::KIND_HOSTING,
+                'catalog.category', 'catalog.product' => ProductType::kindOfSlug((string) $route->parameter('section')),
+                default => null,
+            });
+        }
+
+        return $request->attributes->get('catalog_kind');
     }
 }

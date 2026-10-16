@@ -1,11 +1,14 @@
 @extends('client.layout')
 @section('title', 'Checkout')
+@section('store-mode', '1') {{-- header belanja, bukan sidebar dashboard --}}
 
 @section('content')
 
-  <a href="{{ route('cart.index') }}" class="text-decoration-none text-muted" style="font-size:12px">&larr; Kembali ke Keranjang</a>
-
-  <h1 class="h4 fw-bold text-dark mt-2 mb-4">Konfirmasi Pesanan</h1>
+  @include('partials.store-hero', [
+    'title'    => 'Konfirmasi Pesanan',
+    'subtitle' => 'Periksa kembali pesanan Anda, lalu lanjutkan ke pembayaran.',
+    'step'     => 2,
+  ])
 
   @if ($issues)
     <div class="card-public p-4 mb-4" style="border-color:#fecaca!important;background:#fef2f2">

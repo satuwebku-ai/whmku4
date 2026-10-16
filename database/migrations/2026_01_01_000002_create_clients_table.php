@@ -53,6 +53,19 @@ return new class extends Migration
             $table->string('otp_code_hash')->nullable();
             $table->timestamp('otp_expires_at')->nullable();
             $table->unsignedTinyInteger('otp_attempts')->default(0);
+
+            // Ganti email: alamat baru ditampung dulu sampai kodenya dikonfirmasi.
+            $table->string('pending_email')->nullable();
+            $table->string('pending_email_code_hash')->nullable();
+            $table->timestamp('pending_email_expires_at')->nullable();
+            $table->unsignedTinyInteger('pending_email_attempts')->default(0);
+
+            // Klien memilih ganti password lewat kode OTP (email/WhatsApp).
+            $table->boolean('password_otp_enabled')->default(false);
+
+            // false = password akun ini acak (login Google) dan belum pernah
+            // diatur klien sendiri, jadi tidak mungkin diminta "password saat ini".
+            $table->boolean('password_set_by_user')->default(true);
             $table->timestamp('last_login_at')->nullable();
             $table->string('last_login_ip')->nullable();
             $table->rememberToken();

@@ -5,7 +5,7 @@
 @section('content')
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div><h1 class="h4 fw-bold mb-1">Lisensi Saya</h1><p class="text-muted small mb-0">Riwayat lisensi yang dipesan melalui katalog publik.</p></div>
-    <a href="{{ route('license.index') }}" class="btn btn-primary btn-sm">Beli Lisensi</a>
+    <a href="{{ \App\Support\StoreUrl::route('license.index') }}" class="btn btn-primary btn-sm">Beli Lisensi</a>
   </div>
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
     <div class="table-responsive">

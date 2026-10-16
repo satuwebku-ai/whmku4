@@ -22,7 +22,10 @@ return new class extends Migration
             // arah+nominal terpisah, dan tetap mudah dibaca di riwayat.
             $table->decimal('amount', 14, 2);
 
-            $table->enum('type', ['topup', 'payment', 'refund', 'admin_adjustment', 'usage_charge']);
+            // Sengaja string (bukan enum) supaya jenis mutasi baru (mis.
+            // topup_reversal) tidak butuh migrasi; daftarnya dijaga di
+            // App\Models\Credit::TYPES.
+            $table->string('type', 32);
             $table->string('description');
             $table->foreignId('invoice_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('admin_id')->nullable()->constrained()->nullOnDelete();

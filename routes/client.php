@@ -19,7 +19,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Client Area Routes
 |--------------------------------------------------------------------------
-| Diberi prefix "client" dan name prefix "client." lewat web.php.
+| Diberi name prefix "client." lewat web.php dan dilayani dari
+| subdomain member tanpa prefix URL "/client".
 | Memakai guard "client" yang terpisah dari guard admin, sehingga satu
 | browser bisa login sebagai admin dan klien sekaligus tanpa bentrok.
 */
@@ -150,6 +151,12 @@ Route::middleware('client')->group(function () {
         Route::get('/', 'index')->name('balance');
         Route::post('isi-ulang', 'topup')->name('balance.topup');
         Route::post('bayar/{invoice}', 'payWithBalance')->name('balance.pay');
+    });
+
+    // ── Tutorial: panduan dari Pusat Bantuan (KnowledgeBase) dibaca di dalam portal ──
+    Route::controller(\App\Http\Controllers\Client\TutorialController::class)->prefix('tutorial')->group(function () {
+        Route::get('/', 'index')->name('tutorials');
+        Route::get('{slug}', 'show')->name('tutorials.show');
     });
 
     // ── Support Ticket ──

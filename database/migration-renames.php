@@ -29,7 +29,7 @@ return [
     '2026_06_01_000001_create_payments_table' => '2026_01_01_000013_create_payments_table',
     '2026_07_01_000000_create_tickets_table' => '2026_01_01_000014_create_tickets_table',
     '2026_07_01_000001_create_ticket_replies_table' => '2026_01_01_000015_create_ticket_replies_table',
-    '2026_08_01_000000_create_pages_table' => '2026_01_01_000016_create_pages_table',
+    '2026_08_01_000000_create_pages_table' => '2026_01_01_000016_create_cms_contents_table',
     '2026_08_01_000001_create_announcements_table' => '2026_01_01_000017_create_announcements_table',
     '2026_08_01_000002_create_settings_table' => '2026_01_01_000018_create_settings_table',
     '2026_09_03_000000_create_ticket_attachments_table' => '2026_01_01_000019_create_ticket_attachments_table',
@@ -87,8 +87,8 @@ return [
     '2029_05_01_000015_create_ticket_departments_table' => null,
     '2029_05_01_000016_create_knowledge_base_categories_table' => '2026_01_01_000067_create_knowledge_base_categories_table',
     '2029_05_01_000017_create_knowledge_bases_table' => '2026_01_01_000068_create_knowledge_bases_table',
-    '2029_05_01_000018_create_cms_categories_table' => '2026_01_01_000069_create_cms_categories_table',
-    '2029_05_01_000019_create_cms_posts_table' => '2026_01_01_000070_create_cms_posts_table',
+    '2029_05_01_000018_create_cms_categories_table' => null,
+    '2029_05_01_000019_create_cms_posts_table' => null,
     '2029_05_01_000020_create_notifications_table' => '2026_01_01_000071_create_notifications_table',
     '2029_05_01_000021_remove_trial_cron_job' => null,
     '2029_06_01_000000_add_catalog_details_to_addons_table' => null,
@@ -101,4 +101,29 @@ return [
     '2029_09_04_000000_create_custom_premium_domains_table' => '2026_01_01_000073_create_custom_premium_domains_table',
     // Kolom promo kupon dilebur ke create_coupons_table.
     '2026_01_01_000074_add_promo_fields_to_coupons_table' => null,
+    // Inbox Email (inbound_emails, mail_threads, mail_messages, mail_templates)
+    // dilebur jadi satu migrasi; kolom tambahan dilebur ke migrasi tabel induknya.
+    '2026_10_01_000074_create_inbound_emails_table' => null,
+    '2026_10_01_000075_create_mail_threads_tables' => '2026_01_01_000074_create_mail_threads_tables',
+    '2026_10_01_000076_link_mail_threads_to_chat' => null,
+    '2026_10_01_000077_create_mail_templates_and_auto_flag' => null,
+    '2026_10_01_000078_extend_reply_templates_for_ai' => null,
+    '2026_10_02_000079_add_panel_suspend_error_to_hosting_accounts' => null,
+    '2026_10_03_000080_add_idle_prompt_to_chats_and_tickets' => null,
+    '2026_10_03_000081_add_idle_prompt_to_mail_threads' => null,
+    '2026_10_03_000082_add_credentials_email_status_to_hosting_accounts' => null,
+    '2026_10_03_000083_add_profile_security_to_clients' => null,
+    '2026_10_03_000084_make_credits_type_a_string' => null,
+    '2026_10_07_000085_add_server_group_selection' => null,
+    '2026_10_07_000086_create_server_group_server_table' => null,
+    '2026_10_07_000087_add_pending_upgrade_price_to_hosting_accounts' => null,
+    '2026_10_07_000087_create_product_types_table' => null,
+
+    // ── CMS digabung ke satu tabel `cms_contents` (dibuat langsung di 000016) ──
+    // Database yang sudah menjalankan versi sebelumnya sudah memiliki tabel
+    // cms_contents; cukup selaraskan catatannya.
+    '2026_01_01_000016_create_pages_table' => '2026_01_01_000016_create_cms_contents_table',
+    '2026_01_01_000069_create_cms_categories_table' => null,
+    '2026_01_01_000070_create_cms_posts_table' => null,
+    '2026_01_01_000076_merge_cms_tables_into_cms_contents' => null,
 ];

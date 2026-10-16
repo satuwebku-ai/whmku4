@@ -30,36 +30,51 @@
         @error('client_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
       <div class="col-sm-6">
-        <label class="form-label small fw-medium text-dark">Order Terkait (opsional)</label>
         @php
-          // Invoice dari checkout menautkan order lewat item invoice
-          // (invoice_items.order_id), sedangkan kolom invoices.order_id
-          // sering kosong. Pakai keduanya supaya dropdown terisi otomatis.
-          $linkedOrders = $invoice->exists
+          $isEdit = $invoice->exists;
+          $linkedOrders = $isEdit
             ? $invoice->items->pluck('order')->filter()->unique('id')->values()
             : collect();
-          $defaultOrderId = $invoice->order_id
-            ?? ($linkedOrders->count() === 1 ? $linkedOrders->first()->id : null);
+          if ($isEdit && $invoice->order) {
+            $linkedOrders = $linkedOrders->push($invoice->order)->unique('id')->values();
+          }
+          $linkedServices = $isEdit ? $invoice->relatedServices() : collect();
+          $locked = $isEdit; // order/layanan hanya bisa dipilih saat membuat invoice manual
         @endphp
-        <select name="order_id" class="form-select" style="{{ $selectStyle }}">
-          <option value="">— Tidak terkait —</option>
-          @foreach ($orders as $order)
-            <option value="{{ $order->id }}" @selected((string) old('order_id', $defaultOrderId) === (string) $order->id)>#{{ $order->order_number }} — {{ $order->product_name }}</option>
-          @endforeach
-        </select>
-        @if ($linkedOrders->isNotEmpty())
-          <p class="text-muted mt-1 mb-0" style="font-size:11px">
-            Order pada item invoice: {{ $linkedOrders->map(fn ($o) => '#' . $o->order_number)->implode(', ') }}
-          </p>
+
+        @if ($locked)
+          <label class="form-label small fw-medium text-dark">Order / Layanan Terkait</label>
+          <div class="form-control form-control-sm bg-light" style="min-height:31px;height:auto">
+            @forelse ($linkedOrders as $o)
+              <a href="{{ route('admin.orders.details', $o) }}" class="text-decoration-none">#{{ $o->order_number }} — {{ $o->product_name }}</a><br>
+            @empty
+            @endforelse
+            @foreach ($linkedServices as $svc)
+              <a href="{{ $svc['route'] }}" class="text-decoration-none">{{ $svc['label'] }}: {{ $svc['name'] }}</a><br>
+            @endforeach
+            @if ($linkedOrders->isEmpty() && $linkedServices->isEmpty())
+              <span class="text-muted">— Tidak terkait —</span>
+            @endif
+          </div>
+          <p class="text-muted mt-1 mb-0" style="font-size:11px">Diturunkan otomatis dari item invoice dan tidak bisa diubah di sini.</p>
+        @else
+          <label class="form-label small fw-medium text-dark">Order Terkait (opsional)</label>
+          <select name="order_id" class="form-select" style="{{ $selectStyle }}">
+            <option value="">— Tidak terkait —</option>
+            @foreach ($orders as $order)
+              <option value="{{ $order->id }}" @selected((string) old('order_id') === (string) $order->id)>#{{ $order->order_number }} — {{ $order->product_name }}</option>
+            @endforeach
+          </select>
+          <p class="text-muted mt-1 mb-0" style="font-size:11px">Hanya untuk invoice manual. Membayar invoice ini akan memproses order yang dipilih.</p>
+          @error('order_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
         @endif
-        @error('order_id') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
     </div>
 
     <div class="row g-3 mb-3">
       <div class="col-sm-6">
         <label class="form-label small fw-medium text-dark">Jumlah / Subtotal (Rp)</label>
-        <input type="number" step="0.01" name="amount" value="{{ old('amount', $invoice->amount) }}" class="form-control form-control-sm" required>
+        <input type="number" step="0.01" name="amount" value="{{ old('amount', $invoice->amount) }}" class="form-control form-control-sm" required @readonly($invoice->exists && ($invoice->isSystemGenerated() || in_array($invoice->status, ['paid','refunded'], true)))>
         @error('amount') <p class="text-danger mt-1 mb-0" style="font-size:12px">{{ $message }}</p> @enderror
       </div>
       <div class="col-sm-6">

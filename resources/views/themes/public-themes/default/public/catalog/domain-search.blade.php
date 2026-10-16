@@ -1,4 +1,4 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php
   use App\Models\Setting;
@@ -10,6 +10,12 @@
   $availableCount = ($results && $results['success'])
     ? collect($results['results'])->filter(fn ($v) => $v === true)->count()
     : 0;
+
+  $premiumAvailableCount = ($results && $results['success'])
+    ? collect($results['premium'] ?? [])->filter(fn ($premium, $domain) => ($results['results'][$domain] ?? null) === true)->count()
+    : 0;
+
+  $regularAvailableCount = max(0, $availableCount - $premiumAvailableCount);
 
   $unknownCount = ($results && $results['success'])
     ? count($results['unknown'] ?? [])
@@ -28,7 +34,7 @@
         Domain <span style="color:#fcd34d">keren</span> bikin websitemu gampang diingat
       </h1>
 
-      <form method="GET" action="{{ route('domain.search') }}" id="searchForm"
+      <form method="GET" action="{{ \App\Support\StoreUrl::route('domain.search') }}" id="searchForm"
             class="bg-white rounded-4 p-2 d-flex flex-column flex-sm-row gap-2 shadow">
         <div class="d-flex align-items-center gap-2 flex-grow-1 px-3">
           <i class="fa-solid fa-globe text-muted"></i>
@@ -47,7 +53,7 @@
 
       <p class="text-white mt-3 mb-0" style="opacity:.4;font-size:12px">
         Sudah punya domain di tempat lain?
-        <a href="{{ route('domains.transfer') }}" class="text-white text-decoration-underline" style="opacity:.7">Transfer ke sini</a>
+        <a href="{{ \App\Support\StoreUrl::route('domains.transfer') }}" class="text-white text-decoration-underline" style="opacity:.7">Transfer ke sini</a>
       </p>
     </div>
   </section>
@@ -149,7 +155,12 @@
               <h2 class="fw-semibold text-dark mb-0" style="font-size:16px">Hasil pencarian untuk "{{ $query }}"</h2>
               <div class="d-flex align-items-center gap-3" style="font-size:12px">
                 @if ($results && $results['success'] && $availableCount > 0)
-                  <span class="text-success fw-medium">{{ $availableCount }} tersedia</span>
+                  @if ($regularAvailableCount > 0)
+                    <span class="text-success fw-medium">{{ $regularAvailableCount }} tersedia reguler</span>
+                  @endif
+                  @if ($premiumAvailableCount > 0)
+                    <span class="fw-medium" style="color:#a16207">{{ $premiumAvailableCount }} tersedia premium</span>
+                  @endif
                 @endif
                 @if ($unknownCount > 0)
                   <span style="color:#b45309">{{ $unknownCount }} belum pasti</span>
@@ -170,6 +181,8 @@
                   @php
                     $ext = '.' . \Illuminate\Support\Str::after($domainName, '.');
                     $tld = $allTldPrices->get($ext);
+                    $premiumInfo = $results['premium'][$domainName] ?? null;
+                    $premiumCheckUnknown = $results['premium_check_unknown'][$domainName] ?? false;
                     $rowStyle = $available === true ? 'border-color:#a7f3d0!important;background:rgba(16,185,129,.04)'
                               : ($available === null ? 'border-color:#fde68a!important;background:rgba(245,158,11,.04)'
                               : 'background:#f8fafc');
@@ -179,11 +192,35 @@
                     <div class="min-w-0">
                       <p class="fw-semibold mb-0" style="{{ $available === true ? 'color:#1e293b' : ($available === null ? 'color:#334155' : 'color:#94a3b8;text-decoration:line-through') }}">
                         {{ $domainName }}
+                        @if ($premiumInfo)
+                          <span class="badge ms-1" style="font-size:10px;background:#fef3c7;color:#92400e;vertical-align:middle">
+                            {{ $premiumInfo['type'] === 'custom' ? 'PREMIUM KHUSUS' : ($premiumInfo['type'] === 'generic' ? 'PREMIUM PER NAMA' : 'PREMIUM') }}
+                          </span>
+                        @elseif ($premiumCheckUnknown)
+                          <span class="badge ms-1" style="font-size:10px;background:#fef3c7;color:#92400e;vertical-align:middle">CEK PREMIUM ULANG</span>
+                        @endif
                         @if ($tld?->is_demo)
                           <span class="badge ms-1" style="font-size:10px;background:#fef3c7;color:#b45309;vertical-align:middle">DEMO</span>
                         @endif
                       </p>
-                      @if ($available === true && $tld)
+                      @if ($premiumInfo)
+                        <p class="text-muted mb-0" style="font-size:12px">
+                          @if ($premiumInfo['type'] === 'generic')
+                            Harga dan pemesanan premium ditentukan per nama — hubungi admin.
+                          @elseif ($premiumInfo['price'] > 0)
+                            {{ $premiumInfo['price_formatted'] }} <span class="text-muted">/registrasi 1 tahun</span>
+                          @else
+                            Harga premium belum diatur — hubungi admin.
+                          @endif
+                          @if ($premiumInfo['type'] === 'tier' && ! $premiumInfo['verified'])
+                            <span class="d-block" style="color:#b45309">Ketersediaan belum terkonfirmasi ke registry.</span>
+                          @endif
+                        </p>
+                      @elseif ($premiumCheckUnknown)
+                        <p class="mb-0" style="font-size:12px;color:#b45309">
+                          Status premium belum terverifikasi oleh registrar. Coba lagi; domain tidak ditambahkan dengan harga reguler.
+                        </p>
+                      @elseif ($available === true && $tld)
                         <p class="text-muted mb-0" style="font-size:12px">
                           Rp {{ number_format($tld->register_price, 0, ',', '.') }} <span class="text-muted">/tahun</span>
                         </p>
@@ -193,19 +230,40 @@
                     </div>
 
                     @if ($available === true)
-                      <form method="POST" action="{{ route('domain.add-to-cart') }}" data-add-domain class="d-flex align-items-center gap-2 flex-shrink-0">
-                        @csrf
-                        <input type="hidden" name="domain_name" value="{{ $domainName }}">
-                        <input type="hidden" name="tld_id" value="{{ $tld->id ?? '' }}">
-                        <select name="years" class="form-select form-select-sm" style="width:auto">
-                          @for ($y = 1; $y <= min($tld->max_years ?? 5, 5); $y++)
-                            <option value="{{ $y }}">{{ $y }} thn</option>
-                          @endfor
-                        </select>
-                        <button type="submit" class="btn btn-theme py-1 px-3" style="font-size:12px" {{ $tld ? '' : 'disabled' }}>
-                          <i class="fa-solid fa-cart-plus" style="font-size:11px"></i> Tambah
-                        </button>
-                      </form>
+                      @if ($premiumInfo && $premiumInfo['type'] === 'generic')
+                        <span class="flex-shrink-0" style="font-size:12px;color:#92400e">Pemesanan manual — hubungi admin</span>
+                      @elseif ($premiumInfo && $premiumInfo['type'] === 'custom')
+                        <form method="POST" action="{{ route('cart.add-custom-premium') }}" class="flex-shrink-0">
+                          @csrf
+                          <input type="hidden" name="custom_premium_id" value="{{ $premiumInfo['id'] }}">
+                          <button type="submit" class="btn btn-theme py-1 px-3" style="font-size:12px" {{ $premiumInfo['price'] > 0 ? '' : 'disabled' }}>
+                            <i class="fa-solid fa-cart-plus" style="font-size:11px"></i> Tambah Premium
+                          </button>
+                        </form>
+                      @elseif ($premiumInfo && $premiumInfo['type'] === 'tier')
+                        <form method="POST" action="{{ route('cart.add-premium-domain') }}" class="flex-shrink-0">
+                          @csrf
+                          <input type="hidden" name="tld_premium_id" value="{{ $premiumInfo['id'] }}">
+                          <input type="hidden" name="domain_label" value="{{ \Illuminate\Support\Str::beforeLast($domainName, $ext) }}">
+                          <button type="submit" class="btn btn-theme py-1 px-3" style="font-size:12px" {{ $premiumInfo['price'] > 0 ? '' : 'disabled' }}>
+                            <i class="fa-solid fa-cart-plus" style="font-size:11px"></i> Tambah Premium
+                          </button>
+                        </form>
+                      @else
+                        <form method="POST" action="{{ route('domain.add-to-cart') }}" class="d-flex align-items-center gap-2 flex-shrink-0">
+                          @csrf
+                          <input type="hidden" name="domain_name" value="{{ $domainName }}">
+                          <input type="hidden" name="tld_id" value="{{ $tld->id ?? '' }}">
+                          <select name="years" class="form-select form-select-sm" style="width:auto">
+                            @for ($y = 1; $y <= min($tld->max_years ?? 5, 5); $y++)
+                              <option value="{{ $y }}">{{ $y }} thn</option>
+                            @endfor
+                          </select>
+                          <button type="submit" class="btn btn-theme py-1 px-3" style="font-size:12px" {{ $tld ? '' : 'disabled' }}>
+                            <i class="fa-solid fa-cart-plus" style="font-size:11px"></i> Tambah
+                          </button>
+                        </form>
+                      @endif
                     @elseif ($available === null)
                       <span class="flex-shrink-0" style="font-size:12px;color:#b45309">Perlu Dicek Manual</span>
                     @else
@@ -235,34 +293,12 @@
               @endforeach
             </div>
 
-            <a href="{{ route('catalog.index', ['dari_domain' => 1]) }}" class="btn btn-theme">
+            <a href="{{ \App\Support\StoreUrl::route('catalog.index', ['dari_domain' => 1]) }}" class="btn btn-theme">
               Lanjut <i class="fa-solid fa-arrow-right" style="font-size:12px"></i>
             </a>
           </div>
         @endif
       </div>
-    </div>
-  </div>
-
-  {{-- Badge keranjang mengambang — sengaja fixed (bukan ikut scroll di
-       dalam daftar hasil), supaya tetap terlihat berapa domain yang sudah
-       ditambahkan meski sedang scroll jauh ke bawah daftar hasil.
-       Ditaruh kiri bawah supaya tidak tumpang tindih dengan widget
-       live chat yang sudah ada di kanan bawah. --}}
-  <div id="floatingCartBadge" class="position-fixed d-none" style="left:20px;bottom:20px;z-index:1050">
-    <a href="{{ route('cart.index') }}" class="d-flex align-items-center gap-2 text-decoration-none rounded-pill shadow" style="background:#1e293b;color:#fff;padding:.75rem 1.25rem .75rem 1rem">
-      <span class="position-relative">
-        <i class="fa-solid fa-cart-shopping"></i>
-        <span id="floatingCartCount" class="position-absolute rounded-circle d-flex align-items-center justify-content-center fw-bold text-white" style="top:-8px;right:-8px;width:16px;height:16px;font-size:9px;background:var(--lumora-theme)">0</span>
-      </span>
-      <span class="fw-medium" style="font-size:14px">Lihat Keranjang</span>
-    </a>
-  </div>
-
-  <div id="toastBox" class="position-fixed d-none" style="left:20px;bottom:96px;z-index:1055;max-width:20rem">
-    <div id="toastInner" class="d-flex align-items-center gap-2 rounded-3 px-3 py-2 shadow text-white" style="background:#059669;font-size:14px">
-      <i class="fa-solid fa-circle-check flex-shrink-0"></i>
-      <span id="toastMsg"></span>
     </div>
   </div>
 
@@ -314,81 +350,6 @@
       sync();
     })();
 
-    (function () {
-      const badge      = document.getElementById('floatingCartBadge');
-      const badgeCount = document.getElementById('floatingCartCount');
-      const topbarBadge = document.getElementById('cartBadge');
-      const toast      = document.getElementById('toastBox');
-      const toastInner = document.getElementById('toastInner');
-      const toastMsg   = document.getElementById('toastMsg');
-      let toastTimer = null;
-
-      function updateCartCount(n) {
-        badgeCount.textContent = n;
-        badge.classList.toggle('d-none', n <= 0);
-
-        if (topbarBadge) {
-          topbarBadge.textContent = n;
-          topbarBadge.classList.toggle('d-none', n <= 0);
-        }
-      }
-
-      function showToast(message, isError) {
-        toastMsg.textContent = message;
-        toastInner.style.background = isError ? '#e11d48' : '#059669';
-        toast.classList.remove('d-none');
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.add('d-none'), 3500);
-      }
-
-      // Mulai dari jumlah yang sudah dirender server di topbar, supaya
-      // badge mengambang langsung akurat kalau keranjang sudah berisi
-      // sesuatu dari kunjungan sebelumnya.
-      updateCartCount(parseInt(topbarBadge?.textContent || '0', 10));
-
-      document.querySelectorAll('form[data-add-domain]').forEach(function (form) {
-        form.addEventListener('submit', async function (e) {
-          e.preventDefault();
-
-          const btn = form.querySelector('button[type="submit"]');
-          const originalHtml = btn.innerHTML;
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size:11px"></i>';
-
-          try {
-            const res = await fetch(form.action, {
-              method: 'POST',
-              headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
-                'Accept': 'application/json',
-              },
-              body: new FormData(form),
-            });
-            const data = await res.json();
-
-            showToast(data.message, !data.success);
-
-            if (data.success) {
-              updateCartCount(data.cart_count);
-              btn.innerHTML = '<i class="fa-solid fa-check" style="font-size:11px"></i> Ditambahkan';
-              // Tombol dikembalikan normal setelah sebentar — klien tetap
-              // bisa menambah domain lain kapan saja, tidak terkunci.
-              setTimeout(function () {
-                btn.innerHTML = originalHtml;
-                btn.disabled = false;
-              }, 1500);
-            } else {
-              btn.innerHTML = originalHtml;
-              btn.disabled = false;
-            }
-          } catch (err) {
-            showToast('Gagal menambah domain. Periksa koneksi Anda dan coba lagi.', true);
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-          }
-        });
-      });
-    })();
   </script>
 
 @endsection

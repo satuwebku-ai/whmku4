@@ -139,13 +139,13 @@ class CronController extends Controller
             'cpanel_php_path' => ['nullable', 'string', 'max:255'],
             'cpanel_verify_ssl' => ['nullable', 'boolean'],
 
-            'auto_suspend' => ['nullable', 'boolean'],
-            'suspend_grace_days' => ['nullable', 'integer', 'min:1', 'max:90'],
+            'auto_suspend_enabled' => ['nullable', 'boolean'],
+            'suspend_grace_days' => ['nullable', 'integer', 'min:0', 'max:30'],
             'checkout_cancel_grace_days' => ['nullable', 'integer', 'min:0', 'max:90'],
         ]);
 
         $data['cpanel_verify_ssl'] = $request->boolean('cpanel_verify_ssl') ? '1' : '0';
-        $data['auto_suspend'] = $request->boolean('auto_suspend') ? '1' : '0';
+        $data['auto_suspend_enabled'] = $request->boolean('auto_suspend_enabled') ? '1' : '0';
         // Form cPanel dan form suspend memakai endpoint yang sama. Jangan
         // mengubah toleransi checkout ketika field ini tidak ikut dikirim.
         if ($request->has('checkout_cancel_grace_days')) {

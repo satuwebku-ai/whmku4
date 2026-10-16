@@ -19,26 +19,58 @@ class ProductGroup extends Model
      */
     protected $table = 'product_groups';
 
-    protected $fillable = ['name', 'slug', 'type', 'description', 'icon', 'is_active', 'sort_order'];
+    protected $fillable = ['name', 'slug', 'product_type_id', 'description', 'icon', 'is_active', 'sort_order'];
 
     /**
-     * Segmen URL publik untuk kategori ini -- "vps" atau "hosting".
-     * Dipakai supaya semua tautan otomatis benar tanpa tiap pemanggil
-     * perlu tahu jenis kategorinya.
+     * Jenis produk selalu ikut dimuat: segmen URL publik kategori ini
+     * diambil dari product_types.slug (data yang diisi admin), bukan
+     * ditentukan di kode.
      */
-    public function urlSection(): string
+    protected $with = ['productType'];
+
+    /** Apakah kategori ini berperilaku VPS/cloud? Dibaca dari jenis produknya (data admin). */
+    public function isVps(): bool
     {
-        return ($this->type ?? 'hosting') === 'vps' ? 'vps' : 'hosting';
+        return (bool) $this->productType?->isVps();
+    }
+
+    /**
+     * Kategori dengan perilaku tertentu. Kategori tanpa jenis (data lama yang
+     * belum dipetakan) dianggap hosting.
+     */
+    public function scopeOfKind(Builder $query, string $kind): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->whereHas('productType', fn (Builder $t) => $t->where('kind', $kind))
+            ->when($kind === ProductType::KIND_HOSTING, fn (Builder $w) => $w->orWhereDoesntHave('productType')));
+    }
+
+    /** Kebalikan scopeOfKind() untuk satu perilaku (mis. "bukan VPS"). */
+    public function scopeNotOfKind(Builder $query, string $kind): Builder
+    {
+        return $query->whereDoesntHave('productType', fn (Builder $t) => $t->where('kind', $kind));
     }
 
     public function publicUrl(): string
     {
-        return route('catalog.category', [$this->urlSection(), $this->slug]);
+        return $this->productType
+            ? \App\Support\StoreUrl::route('catalog.category', [$this->productType->slug, $this->slug])
+            : \App\Support\StoreUrl::route('catalog.index');
     }
 
-    public function productUrl(Product $product): string
+    /**
+     * @param  bool  $public  paksa alamat etalase PUBLIK (mis. untuk mengembalikan galat
+     *                        ke halaman publik asal), walau yang membuka klien login
+     */
+    public function productUrl(Product $product, bool $public = false): string
     {
-        return route('catalog.product', [$this->urlSection(), $this->slug, $product->slug]);
+        if (! $this->productType) {
+            return $public ? route('catalog.index') : \App\Support\StoreUrl::route('catalog.index');
+        }
+
+        $params = [$this->productType->slug, $this->slug, $product->slug];
+
+        return $public ? route('catalog.product', $params) : \App\Support\StoreUrl::route('catalog.product', $params);
     }
 
     protected function casts(): array
@@ -49,6 +81,13 @@ class ProductGroup extends Model
     protected static function booted(): void
     {
         static::saving(function (ProductGroup $category) {
+            // Kategori yang dibuat tanpa memilih jenis (seeder, impor, dsb)
+            // otomatis memakai jenis hosting pertama.
+            if (blank($category->product_type_id)) {
+                $category->product_type_id = ProductType::where('kind', ProductType::KIND_HOSTING)
+                    ->orderBy('sort_order')->value('id');
+            }
+
             if (blank($category->slug)) {
                 $category->slug = static::uniqueSlug($category->name, $category->id);
             } else {
@@ -75,6 +114,12 @@ class ProductGroup extends Model
         // Nama FK lama dipertahankan agar kompatibel dengan data dan relasi
         // produk yang sudah berjalan.
         return $this->hasMany(Product::class, 'product_category_id');
+    }
+
+    /** Jenis produk (data di database) yang dipilih admin untuk kategori ini. */
+    public function productType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(ProductType::class, 'product_type_id');
     }
 
     public function scopeActive(Builder $query): Builder

@@ -23,8 +23,11 @@ return new class extends Migration
             // constrained() ke 'chat_conversations' tidak bisa dipasang di
             // sini -- tabelnya baru dibuat belakangan (2027_07_01). FK-nya
             // dipasang di 2027_07_01_000000_create_chat_tables.php.
-            $table->foreignId('chat_conversation_id');
+            // Boleh kosong: draf AI untuk email biasa tidak punya percakapan chat.
+            $table->foreignId('chat_conversation_id')->nullable();
             $table->string('model', 100);
+            // Membedakan balasan bot (bot) dan draf untuk admin (draft).
+            $table->string('kind', 20)->default('bot');
             $table->unsignedInteger('input_tokens');
             $table->unsignedInteger('output_tokens');
             $table->timestamps();

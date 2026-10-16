@@ -269,6 +269,7 @@ kbd{ background:#212529; color:#fff; border-radius:.25rem; padding:.1875em .375e
 .alert-dismissible .btn-close{ position:absolute; top:0; right:0; z-index:2; padding:1.25rem 1rem; }
 .fade{ transition:opacity .15s linear; }
 .fade:not(.show){ opacity:0; }
+.collapse:not(.show){ display:none; }
 .alert.fade:not(.show), .alert.hiding{ opacity:0; }
 
 /* ═══════════════ 9. CARDS ═══════════════ */

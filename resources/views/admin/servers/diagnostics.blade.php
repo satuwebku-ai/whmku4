@@ -71,6 +71,9 @@
         <div class="d-flex align-items-center justify-content-between px-4 py-3 border-bottom">
           <p class="small text-dark mb-0">{{ $p['name'] }}</p>
           <div class="d-flex align-items-center gap-2">
+            @if (! empty($p['server_group']))
+              <span class="badge badge-soft-secondary">Grup: {{ $p['server_group'] }}</span>
+            @endif
             <code class="px-2 py-1 rounded" style="font-size:11px;background:#f1f5f9">{{ $p['panel_package'] ?: '(kosong — mode manual)' }}</code>
             @if (is_null($p['matches']))
               <span class="badge badge-soft-secondary">Manual</span>

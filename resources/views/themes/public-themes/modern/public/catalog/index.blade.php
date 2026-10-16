@@ -1,11 +1,11 @@
-@extends('public.layout')
+@extends('public.store-layout')
 
 @php
   $seoTitle = 'Paket Hosting & Domain';
   $seoDescription = 'Pilih paket hosting sesuai kebutuhan Anda — mulai dari shared hosting hingga VPS, lengkap dengan domain.';
 @endphp
 
-@section('content')
+@section('store-content')
 
   @include('public._promo-banner-carousel')
 
@@ -33,7 +33,7 @@
     <h1 class="fw-bold text-dark mb-3" style="font-size:1.9rem">Paket Hosting untuk Setiap Kebutuhan</h1>
     <p class="text-muted mb-0">Dari website pribadi sampai toko online — pilih paket yang pas, aktif dalam hitungan menit.</p>
     <div class="mt-4">
-      <a href="{{ route('domain.search') }}" class="btn btn-outline-secondary">
+      <a href="{{ \App\Support\StoreUrl::route('domain.search') }}" class="btn btn-outline-secondary">
         <i class="fa-solid fa-magnifying-glass" style="font-size:12px"></i> Cek Ketersediaan Domain
       </a>
     </div>

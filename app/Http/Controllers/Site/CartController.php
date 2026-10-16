@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Site;
 
+use App\Http\Controllers\Concerns\HandlesStoreHandoff;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Addon;
@@ -14,6 +15,7 @@ use Illuminate\View\View;
 
 class CartController extends Controller
 {
+    use HandlesStoreHandoff;
 
     public function indexBootstrap(CartService $cart): View
     {
@@ -46,14 +48,14 @@ class CartController extends Controller
 
     public function addProduct(Request $request, CartService $cart): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateHandoff($request, [
             'product_id'   => ['required', 'exists:products,id'],
             'billing_cycle' => ['required', 'in:monthly,quarterly,semi_annually,annually,custom'],
             'domain_mode'  => ['nullable', 'in:register,transfer,existing'],
             'domain_name'  => ['nullable', 'string', 'max:255'],
             'transfer_auth_code' => ['nullable', 'string', 'max:255'],
             'options'      => ['nullable', 'array'],
-        ]);
+        ], [], fn () => $this->productBackUrl($request));
 
         $product = Product::findOrFail($data['product_id']);
 
@@ -67,33 +69,53 @@ class CartController extends Controller
         );
 
         if (! $result['success']) {
-            return back()->withInput()->with('error', $result['message']);
+            return $this->handoffFailure($request, $result['message'], fn () => $this->productBackUrl($request));
         }
 
         return redirect()->route('cart.index')->with('success', $result['message']);
     }
 
+    /** Halaman produk publik tempat form dikirim (null bila produknya tidak ditemukan). */
+    private function productBackUrl(Request $request): ?string
+    {
+        $product = Product::with('category')->find((int) $request->input('product_id'));
+
+        return $product?->category?->productUrl($product, public: true);
+    }
+
+    /** Halaman lisensi publik tempat form dikirim. */
+    private function licenseBackUrl(Request $request): string
+    {
+        $addon = Addon::find((int) $request->input('addon_id'));
+
+        return $addon ? route('license.show', $addon->slug) : route('license.index');
+    }
+
     public function addAddon(Request $request, CartService $cart): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateHandoff($request, [
             'addon_id' => ['required', 'exists:addons,id'],
             'billing_cycle' => ['required', 'in:monthly,quarterly,semi_annually,annually'],
             'license_ip' => ['nullable', 'string', 'max:45'],
-        ]);
+        ], [], fn () => $this->licenseBackUrl($request));
 
         $addon = Addon::findOrFail($data['addon_id']);
         $ip = isset($data['license_ip']) ? trim($data['license_ip']) : null;
 
         if ($addon->requiresIp() && ! Addon::isValidPublicIp($ip)) {
-            return back()->withInput()->withErrors([
-                'license_ip' => $ip ? 'IP tidak valid. Gunakan IPv4 publik server Anda (bukan 192.168.x, 10.x, atau 127.x).' : 'IP server wajib diisi.',
-            ]);
+            $message = $ip ? 'IP tidak valid. Gunakan IPv4 publik server Anda (bukan 192.168.x, 10.x, atau 127.x).' : 'IP server wajib diisi.';
+
+            if ($this->fromPublicSite($request)) {
+                return $this->handoffFailure($request, $message, fn () => $this->licenseBackUrl($request));
+            }
+
+            return back()->withInput()->withErrors(['license_ip' => $message]);
         }
 
         $result = $cart->addAddon($addon, $data['billing_cycle'], $addon->requiresIp() ? $ip : null);
 
         if (! $result['success']) {
-            return back()->withInput()->with('error', $result['message']);
+            return $this->handoffFailure($request, $result['message'], fn () => $this->licenseBackUrl($request));
         }
 
         return redirect()->route('cart.index')->with('success', $result['message']);
@@ -117,17 +139,17 @@ class CartController extends Controller
      */
     public function addPremiumDomain(Request $request, CartService $cart): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateHandoff($request, [
             'tld_premium_id' => ['required', 'exists:tld_premiums,id'],
             'domain_label'   => ['required', 'string', 'max:63'],
-        ]);
+        ], [], fn () => route('domain-premium.index'));
 
         $premium = TldPremium::findOrFail($data['tld_premium_id']);
 
         $result = $cart->addPremiumDomain($data['domain_label'], $premium);
 
         if (! $result['success']) {
-            return back()->withInput()->with('error', $result['message']);
+            return $this->handoffFailure($request, $result['message'], fn () => route('domain-premium.index'));
         }
 
         return redirect()->route('cart.index')->with('success', $result['message']);
@@ -135,14 +157,14 @@ class CartController extends Controller
 
     public function addCustomPremium(Request $request, CartService $cart): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateHandoff($request, [
             'custom_premium_id' => ['required', 'exists:custom_premium_domains,id'],
-        ]);
+        ], [], fn () => route('domain-premium.index'));
 
         $result = $cart->addCustomPremium(\App\Models\CustomPremiumDomain::findOrFail($data['custom_premium_id']));
 
         if (! $result['success']) {
-            return back()->withInput()->with('error', $result['message']);
+            return $this->handoffFailure($request, $result['message'], fn () => route('domain-premium.index'));
         }
 
         return redirect()->route('cart.index')->with('success', $result['message']);

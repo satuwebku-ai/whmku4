@@ -21,7 +21,7 @@
     </div>
     <div class="d-flex flex-wrap gap-2">
       <a href="{{ route('client.tickets.create') }}" class="btn btn-outline-light">Buka tiket</a>
-      <a href="{{ route('catalog.index') }}" class="btn btn-accent">Tambah layanan</a>
+      <a href="{{ \App\Support\StoreUrl::route('catalog.index') }}" class="btn btn-accent">Tambah layanan</a>
     </div>
   </div>
 
